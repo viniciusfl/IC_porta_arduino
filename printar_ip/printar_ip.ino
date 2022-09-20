@@ -11,7 +11,6 @@ byte gw[] = {192, 168, 45, 1};
 
 
 void printStatus() {
-
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     Serial.println("Ethernet shield was not found.");
     return;
@@ -51,7 +50,7 @@ void setup() {
   Serial.println("Initializing network...");
   //Ethernet.setMACAddress(mac);
   //Ethernet.begin(mac, ip, dns, gw, mask);
-  Ethernet.begin(mac);
+  Serial.println(Ethernet.begin(mac));
   printStatus();
 }
 
@@ -66,4 +65,5 @@ void loop () {
     Ethernet.maintain();
     i = 0;
   }
+  
 }
