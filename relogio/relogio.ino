@@ -28,7 +28,7 @@ RTC_DS1307 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 
-// o seguinte código serve pra puxar a data da internet a cada 15 segundos só
+// a seguinte variável serve para guardar quantos segundos se passaram desde a última vez que atualizamos o horário
 unsigned long previousMillis = 0;
 
 unsigned long interval = 10000;
@@ -59,7 +59,7 @@ void setup () {
   Udp.begin(localPort);
   
   
-  if (! rtc.begin()) {
+  if (! rtc.begin()) { // inicializa relógio
     Serial.println("Couldn't find RTC");
     Serial.flush();
     while (1) delay(10);
@@ -83,12 +83,41 @@ void setup () {
 
 // ------------------------------ loop ------------------------------------
 void loop () {
-    DateTime now = rtc.now();
-    printaData(now);
+    DateTime now = rtc.now(); // pega a hora atual
+    printaData(now); // exibe
     unsigned long currentMillis = millis(); // milisegundos desde que o arduino ligou (obs: ele pode guardar "acho" que uns 40 dias!!)
     if (currentMillis - previousMillis > interval) { // ou seja, se passaram 10 segundos eu tento atualizar 
       previousMillis = currentMillis;
-      sendNTPpacket(timeServer); // send an NTP packet to a time server
+      atualizaRTC();
+    }
+    delay(5000); // espera 5 segundos 
+}
+
+void printaData(DateTime now){
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(" (");
+  Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+  Serial.print(") ");
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.print(now.second(), DEC);
+  Serial.println();
+  Serial.print(" since midnight 1/1/1970 = ");
+  Serial.print(now.unixtime());
+  Serial.print("s = ");
+  Serial.print(now.unixtime() / 86400L);
+  Serial.println("d");
+}
+
+
+void atualizaRTC(){
+  sendNTPpacket(timeServer); // send an NTP packet to a time server
       delay(1000);
        if (Udp.parsePacket()) {
         // We've received a packet, read the data from it
@@ -115,49 +144,13 @@ void loop () {
         Serial.print("ntp:");
         Serial.println(epoch);
         Serial.println(abs((long) epoch - (long) now.unixtime()));
-        if(abs((long) epoch - (long) now.unixtime()) >= 5){
+        if(abs((long) epoch - (long) now.unixtime()) >= 5){ // o horário do relógio e o do ntp tem uns 5 segundos de diferença quando eu calculo aqui
          Serial.println("Estou atualizando o horário...");
          delay(2000);
          rtc.adjust(DateTime(epoch));
         }
       }
       Ethernet.maintain();
-    }
-    
-    // wait ten seconds before asking for the time again
-    delay(5000);
-}
-
-void printaData(DateTime now){
-  Serial.print(now.year(), DEC);
-  Serial.print('/');
-  Serial.print(now.month(), DEC);
-  Serial.print('/');
-  Serial.print(now.day(), DEC);
-  Serial.print(" (");
-  Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-  Serial.print(") ");
-  Serial.print(now.hour(), DEC);
-  Serial.print(':');
-  Serial.print(now.minute(), DEC);
-  Serial.print(':');
-  Serial.print(now.second(), DEC);
-  Serial.println();
-
-  Serial.print(" since midnight 1/1/1970 = ");
-  Serial.print(now.unixtime());
-  Serial.print("s = ");
-  Serial.print(now.unixtime() / 86400L);
-  Serial.println("d");
-}
-
-
-void atualizaRTC(){
-  
-
-
-
- 
 }
 
 
