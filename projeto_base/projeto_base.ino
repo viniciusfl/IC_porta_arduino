@@ -52,7 +52,6 @@ EthernetClient client;
 File arquivo;
 
 void setup() {
-  bool passou = 1;
   delay(150);
   Serial.begin(9600);
    while (!Serial) {
@@ -75,23 +74,13 @@ void setup() {
 
   // inicia leitor de cartão SD
   Serial.println(SD.begin(4));
-
-  
-  
-  if(!SD.exists("A.txt")){
-    Serial.println("Estou criando A.txt");
-    arquivo = SD.open("A.txt", FILE_WRITE);
-    arquivo.write("0\n");
-    arquivo.close();
-  }
-  Serial.println(passou);
 }
 
 void loop() {
   DateTime now = rtc.now();
       
   unsigned long milisAtual = millis(); // milisegundos desde que o arduino ligou (obs: ele pode guardar "acho" que uns 40 dias!!)
-  if (milisAtual - milisPrevia > 30000) { // se já se passaram 30 segundos eu tento atualizar o banco de dados
+  if (milisAtual - milisPrevia > 15000) { // se já se passaram 30 segundos eu tento atualizar o banco de dados
     Serial.println(F("entrei"));
     //printaData(now);
     leCliente(now);
@@ -119,21 +108,19 @@ if (client.connect(server, 80)) {
   client.println();
 
 
-  Serial.println("aaA");
+
   arquivo = SD.open("A.txt");
   long tempoA = arquivo.parseInt();
   arquivo.close();
 
-  /*Serial.println("bbbA");
   arquivo = SD.open("B.txt");
-  
+  long tempoB = arquivo.parseInt();
   arquivo.close();
-  */
-  long tempoB = 100000000000000000;
+
   Serial.print("A = ");
   Serial.println(tempoA);
-  //Serial.print("B = ");
-  //Serial.println(tempoB);
+  Serial.print("B = ");
+  Serial.println(tempoB);
   
   
   long unixTime = now.unixtime();
@@ -159,7 +146,6 @@ if (client.connect(server, 80)) {
 
   bool headerHTTP = false;
   String palavra = "";
-  //arq = SD.open(String("bancoA.txt."), FILE_WRITE);
   char c;
   
   // começa a ler o conteúdo do cliente
@@ -167,11 +153,11 @@ if (client.connect(server, 80)) {
     while (client.available()){
       c = client.read();
       //Serial.print(c);
-      palavra = palavra + String(c);
+      
       if (String(c) == "\n") {
         if(headerHTTP){
           arquivo.println(palavra);
-          Serial.print(palavra);
+          Serial.println(palavra);
         }
         
         if(!headerHTTP && palavra == "\r\n"){
@@ -180,6 +166,8 @@ if (client.connect(server, 80)) {
           Serial.println();
         }
         palavra = "";
+      }else{
+        palavra = palavra + String(c);
       }
     }
   }
