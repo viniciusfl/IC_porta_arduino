@@ -15,6 +15,7 @@
 #include <TimeLib.h>
 
 // ---------------------- UDP ---------------------
+/*
 unsigned int localPort = 8888;       // local port to listen for UDP packets
 
 const char timeServer[] = "a.ntp.br"; // time.nist.gov NTP server
@@ -24,15 +25,19 @@ const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of th
 byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
 
 EthernetUDP Udp; // A UDP instance to let us send and receive packets over UDP
+*/
 
 // --------------------- relógio ---------------------
 RTC_DS1307 rtc;
 
-char daysOfTheWeek[7][12] = {"Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"};
-
 unsigned long milisPrevia = 0;
 
-unsigned long intervalo = 30000;
+/*
+char daysOfTheWeek[7][12] = {"Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"};
+
+
+
+unsigned long intervalo = 30000; */
 
 // ---------------------- ethernet client ---------------------
 byte mac[] = {
@@ -40,85 +45,73 @@ byte mac[] = {
 
 IPAddress server(10, 0, 2, 113);   
 
-bool jaConectado = false; // whether or not the client was connected previously
-
 EthernetClient client;
 
 #define BUFFERSIZE 40
 
+File arquivo;
+
 void setup() {
-  delay(200);
+  bool passou = 1;
+  delay(150);
   Serial.begin(9600);
    while (!Serial) {
     ; 
   }
   
-  if (Ethernet.begin(mac) == 0) {  // inicia conexão ethernet
-    Serial.println("Failed to configure Ethernet using DHCP");
-    // Check for Ethernet hardware present
-    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-    } else if (Ethernet.linkStatus() == LinkOFF) {
-      Serial.println("Ethernet cable is not connected.");
-    }
-    // no point in carrying on, so do nothing forevermore:
-    while (true) {
-      delay(1);
-    }
-  }
+  Serial.println(Ethernet.begin(mac));
 
 
   // inicia o udp
-  Serial.println("udp tentando..");
-  Udp.begin(localPort);
-  Serial.println("udp feito");
+ // Udp.begin(localPort);
+
   
   // inicializa relógio
-  if (! rtc.begin()) { 
-    Serial.println(F("Couldn't find RTC"));
-    Serial.flush();
-    while (1) delay(10);
-  }else{
-    Serial.println(F("RTC conectado")); 
-  }
-  
+  Serial.println(rtc.begin());
 
   if (! rtc.isrunning()) { // se o relógio não estiver funcionando, atualiza o horário uma vez
-    Serial.println(F("RTC is NOT running, let's set the time!"));
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
   // inicia leitor de cartão SD
-  if (!SD.begin(4)) {
-    Serial.println(F("sd falhou"));
-    while (1);
-  }else{
-    Serial.println(F("sd conectado"));
-  }
+  Serial.println(SD.begin(4));
+
   
+  
+  if(!SD.exists("A.txt")){
+    Serial.println("Estou criando A.txt");
+    arquivo = SD.open("A.txt", FILE_WRITE);
+    arquivo.write("0\n");
+    arquivo.close();
+  }
+  Serial.println(passou);
 }
 
 void loop() {
   DateTime now = rtc.now();
       
   unsigned long milisAtual = millis(); // milisegundos desde que o arduino ligou (obs: ele pode guardar "acho" que uns 40 dias!!)
-  
-  if (milisAtual - milisPrevia > 10000) { // se já se passaram 30 segundos eu tento atualizar o banco de dados
-    pegaCliente();
+  if (milisAtual - milisPrevia > 30000) { // se já se passaram 30 segundos eu tento atualizar o banco de dados
+    Serial.println(F("entrei"));
+    //printaData(now);
+    leCliente(now);
     milisPrevia = milisAtual;
+    //atualizaRTC(now);
   }  
 }
 
 
-
-void pegaCliente(){
-  // remover strings dps, fazer com char!!
+void leCliente(DateTime now){
+  /* função que recebe a resposta do http request, ignora o response header e printa o conteúdo relevante
+   *  OBS: fazer com char depois pois é mais rápido e flexível.
+   */
+   
 if (client.connect(server, 80)) {
     Serial.println("conectado servidor.");
   }else{
     Serial.println("conexão servidor failed");  
   }
-  // Make a HTTP request:
+  // HTTP request:
   //client.println("GET /localhost/index/arduino.xml HTTP/1.0");
   client.println("GET /arduino.txt HTTP/1.1");
   client.println("Host: 10.0.2.113");
@@ -126,71 +119,71 @@ if (client.connect(server, 80)) {
   client.println();
 
 
-  //leEscreveCliente(now);
-  /*while(client.connected()){
-    while(client.available()){
-      char c = client.read();
-      //theFile.print(c);
-      Serial.print(c);
-    }
-  }*/
+  Serial.println("aaA");
+  arquivo = SD.open("A.txt");
+  long tempoA = arquivo.parseInt();
+  arquivo.close();
+
+  /*Serial.println("bbbA");
+  arquivo = SD.open("B.txt");
+  
+  arquivo.close();
+  */
+  long tempoB = 100000000000000000;
+  Serial.print("A = ");
+  Serial.println(tempoA);
+  //Serial.print("B = ");
+  //Serial.println(tempoB);
+  
+  
+  long unixTime = now.unixtime();
+  Serial.println(unixTime);
+  if(tempoA <= tempoB){
+    Serial.println("printando em A");
+    SD.remove("bancoA.txt");  
+    SD.remove("A.txt");  
+    arquivo = SD.open("A.txt", FILE_WRITE);
+    arquivo.println(unixTime);
+    arquivo.close();
+    arquivo = SD.open("bancoA.txt", FILE_WRITE);
+  }else{
+    Serial.println("printando em B");
+    SD.remove("bancoB.txt");  
+    SD.remove("B.txt");  
+    arquivo = SD.open("B.txt", FILE_WRITE);
+    arquivo.println(unixTime);
+    arquivo.close();
+    arquivo = SD.open("bancoB.txt", FILE_WRITE);
+  }
 
 
-  // verifica qual bd é o mais antigo
-  File arq;
-
-
-  // começa a ler o conteúdo do cliente
-  //char buffer[BUFFERSIZE+1]; 
-  bool lastreadeol = false;
   bool headerHTTP = false;
-  int counter = 0;
   String palavra = "";
   //arq = SD.open(String("bancoA.txt."), FILE_WRITE);
-  int i = 0;
   char c;
   
+  // começa a ler o conteúdo do cliente
   while(client.connected()){
     while (client.available()){
       c = client.read();
+      //Serial.print(c);
       palavra = palavra + String(c);
       if (String(c) == "\n") {
         if(headerHTTP){
+          arquivo.println(palavra);
           Serial.print(palavra);
         }
+        
         if(!headerHTTP && palavra == "\r\n"){
           headerHTTP = true;
+          arquivo.println("");
+          Serial.println();
         }
         palavra = "";
       }
     }
   }
-  //buffer[i] = '\0';
-  //String resultado = String(buffer);
-  //Serial.println(resultado);
-
-  //Serial.println();
-  
-  Serial.println("disconecting.");
+  arquivo.close();
+  Serial.println("desconectando.");
   client.stop();
-}
-
-  /*if (milisAtual - milisPrevia > 15000) { 
-    milisPrevia = milisAtual;
-    atualizaRTC(now);
-    }
-    */
-  
-
-void leEscreveCliente(DateTime now){
-  /* Funçaõ que lê o conteúdo que o cliente mandou e escreve no banco de dados mais velho e atualiza o respectivo timestamp*/
-
-  
-  /*if (arq) {
-    Serial.println(F("Estou escrevendo coisas no cartão..."));
-    arq.print(resultado);
-    arq.close();
-  }*/
-
-
 }
