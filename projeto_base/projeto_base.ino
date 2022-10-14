@@ -47,9 +47,13 @@ IPAddress server(10, 0, 2, 113);
 
 EthernetClient client;
 
-#define BUFFERSIZE 40
-
 File arquivo;
+
+bool lendoDoCliente = false;
+
+bool headerHTTP = false;
+
+bool banco = 0; // 0 se o banco A for o mais antigo, 1 se o banco B for o mais antigo.
 
 void setup() {
   delay(150);
@@ -58,12 +62,8 @@ void setup() {
     ; 
   }
   
+  // inicializa internet
   Serial.println(Ethernet.begin(mac));
-
-
-  // inicia o udp
- // Udp.begin(localPort);
-
   
   // inicializa relógio
   Serial.println(rtc.begin());
@@ -74,41 +74,8 @@ void setup() {
 
   // inicia leitor de cartão SD
   Serial.println(SD.begin(4));
-}
 
-void loop() {
-  DateTime now = rtc.now();
-      
-  unsigned long milisAtual = millis(); // milisegundos desde que o arduino ligou (obs: ele pode guardar "acho" que uns 40 dias!!)
-  if (milisAtual - milisPrevia > 15000) { // se já se passaram 30 segundos eu tento atualizar o banco de dados
-    Serial.println(F("entrei"));
-    //printaData(now);
-    leCliente(now);
-    milisPrevia = milisAtual;
-    //atualizaRTC(now);
-  }  
-}
-
-
-void leCliente(DateTime now){
-  /* função que recebe a resposta do http request, ignora o response header e printa o conteúdo relevante
-   *  OBS: fazer com char depois pois é mais rápido e flexível.
-   */
-   
-if (client.connect(server, 80)) {
-    Serial.println("conectado servidor.");
-  }else{
-    Serial.println("conexão servidor failed");  
-  }
-  // HTTP request:
-  //client.println("GET /localhost/index/arduino.xml HTTP/1.0");
-  client.println("GET /arduino.txt HTTP/1.1");
-  client.println("Host: 10.0.2.113");
-  //client.println("Connection: close");
-  client.println();
-
-
-
+  // verifico quem é o bd mais novo
   arquivo = SD.open("A.txt");
   long tempoA = arquivo.parseInt();
   arquivo.close();
@@ -117,61 +84,119 @@ if (client.connect(server, 80)) {
   long tempoB = arquivo.parseInt();
   arquivo.close();
 
-  Serial.print("A = ");
-  Serial.println(tempoA);
-  Serial.print("B = ");
-  Serial.println(tempoB);
+  if(tempoA < tempoB){
+    banco = 1;
+  }else{
+    banco = 0;
+  }
+}
+
+void loop() {
+  DateTime now = rtc.now();
+  unsigned long milisAtual = millis(); // milisegundos desde que o arduino ligou (obs: ele pode guardar "acho" que uns 40 dias!!)
+
+  /*
+  if(Serial.available() > 0){ // se alguém mandou algo pelo serial
+    int num = toInt(Serial.readString());
+    verificaIdNoBanco(num);
+  }*/
   
-  
+  if(lendoDoCliente){ // se ainda não terminei de ler o conteúdo que o cliente mandou
+    Serial.println(F("estou  lendo mais uma linha do cliente..."));
+    lendoDoCliente = leCliente();
+    if(!lendoDoCliente){ // serve para debuggar
+      headerHTTP = false; // reseta a variável que diz se passamos do header ou não
+      if(banco){ 
+        banco = 0;
+      }else{
+        banco = 1;
+      }
+      Serial.println(F("parei de me comunicar com o cliente. devo ter lido tudo já"));
+    }
+  }else if (milisAtual - milisPrevia > 15000) { // se já se passaram 15 segundos eu tento atualizar o banco de dados
+    chamaCliente(now);
+    Serial.println(F("vou começar a ler do cliente..."));
+    lendoDoCliente = true;
+    milisPrevia = milisAtual;
+  }  
+}
+
+
+void chamaCliente(DateTime now){
+  if (client.connect(server, 80)) {
+      Serial.println("conectado servidor.");
+    }else{
+      Serial.println("conexão servidor failed");  
+    }
+    
+  // HTTP request:
+  //client.println("GET /localhost/index/arduino.xml HTTP/1.0");
+  client.println("GET /arduino.txt HTTP/1.1");
+  client.println("Host: 10.0.2.113");
+  //client.println("Connection: close");
+  client.println();
+
+  /*
+   * Já que no setup eu vejo quem é o banco mais novo, então eu não preciso procurar de novo. Basta atualizar o tempo do mais antigo
+   */
   long unixTime = now.unixtime();
-  Serial.println(unixTime);
-  if(tempoA <= tempoB){
-    Serial.println("printando em A");
+  if(banco){ // se o banco B é o mais novo eu vou excluir o banco A e o datetime de A, e atualizar o datetime de A
+    Serial.println("banco A é o mais antigo... apagando");
+    SD.remove("A.txt");
     SD.remove("bancoA.txt");  
-    SD.remove("A.txt");  
     arquivo = SD.open("A.txt", FILE_WRITE);
     arquivo.println(unixTime);
     arquivo.close();
-    arquivo = SD.open("bancoA.txt", FILE_WRITE);
-  }else{
-    Serial.println("printando em B");
+  }else{ // se o banco A é o mais novo, ...
+    Serial.println("banco B é o mais antigo... apagando");
+    SD.remove("B.txt");
     SD.remove("bancoB.txt");  
-    SD.remove("B.txt");  
     arquivo = SD.open("B.txt", FILE_WRITE);
     arquivo.println(unixTime);
     arquivo.close();
-    arquivo = SD.open("bancoB.txt", FILE_WRITE);
   }
+}
 
-
-  bool headerHTTP = false;
+bool leCliente(){
+  /* função que recebe a resposta do http request, ignora o response header, lê uma linha que o cliente mandou e escreve ela no arquivo
+   *  OBS: fazer com char depois pois é mais rápido e flexível.
+   */
+   /*
+  if(banco){
+    arquivo = SD.open("bancoA.txt", FILE_WRITE);
+  }else{
+    arquivo = SD.open("bancoB.txt", FILE_WRITE);
+  }*/
+  
+  bool liPalavra = false;
   String palavra = "";
   char c;
-  
   // começa a ler o conteúdo do cliente
-  while(client.connected()){
-    while (client.available()){
-      c = client.read();
-      //Serial.print(c);
-      
-      if (String(c) == "\n") {
-        if(headerHTTP){
-          arquivo.println(palavra);
-          Serial.println(palavra);
-        }
-        
-        if(!headerHTTP && palavra == "\r\n"){
-          headerHTTP = true;
-          arquivo.println("");
-          Serial.println();
-        }
-        palavra = "";
-      }else{
-        palavra = palavra + String(c);
+  while(!liPalavra && client.connected() && client.available()){
+    c = client.read();
+    palavra = palavra + String(c);
+    if (String(c) == "\n") {
+      if(headerHTTP){
+        arquivo.println(palavra);
+        Serial.println(palavra);
       }
+      if(!headerHTTP && palavra == "\r\n"){
+        headerHTTP = true;
+        arquivo.println("");
+        Serial.println("header...");
+      }
+      palavra = "";
+      liPalavra = true;
     }
+    
   }
+  Serial.println();
   arquivo.close();
-  Serial.println("desconectando.");
-  client.stop();
+  if(client.connected() && client.available()){ // se o cliente está conectado e mandando coisas ainda mesmo depois de lermos uma linha
+    return true; 
+  }else{ // lemos tudo, podemos desconectar do cliente. 
+    Serial.println("lemos tudo do cliente...");
+    client.stop();
+    return false;
+  }
 }
