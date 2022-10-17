@@ -7,7 +7,7 @@
     bancoA.timestamp
     bancoB.timestamp
 */
-#define DEBUG 1
+#define DEBUG 0
 
 #define RETRY_TIME 60000
 #define DOWNLOAD_INTERVAL 15000
@@ -54,27 +54,34 @@ void setup() {
   }
   
   // Initialize ethernet
+  Serial.println("e");
   Serial.println(Ethernet.begin(mac));
   
   // Initialize rtc 
+  Serial.println("r");
   Serial.println(rtc.begin());
 
   if (! rtc.isrunning()) { // if the clock wasn't running, adjust the time once 
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
+  Serial.println("s");
   // Initialize SD card module
   Serial.println(SD.begin(4));
-
+  
+  //
+  //Serial.println("--");
   // Firstly, we must know the newest DB
   chooseCurrentDB();
 }
 
 void loop() {
-
+  // 
+  dbSearch();
   // Update the oldest DB
   dbMaintenance();
 }
+
 
 
 String dbfiles[] = {"bancoA.txt", "bancoB.txt"};
@@ -85,8 +92,9 @@ bool downloading = false; // Is there an ongoing download?
 bool headerDone = false; // Did we read the header already?
 String line = "";
 char newDB; 
-inline void dbMaintenance() {
-  DateTime now = rtc.now();
+
+inline void dbMaintenance() { 
+    DateTime now = rtc.now();
     // We start a download only if we are not already downloading
     if (!downloading) {
         // millis() wraps every ~49 days, but I *think*
@@ -159,7 +167,6 @@ inline void processDownload() {
         if (c == '\r') return;
         if (c == '\n') {
             file.println(line);
-            Serial.println(line);
             line = "";
             return;
         }else{
@@ -205,6 +212,62 @@ inline void finishDownload() {
 #   endif
 }
 
+
+
+long input;
+bool readInput = false;
+File file2;
+inline void dbSearch(){
+    if(readInput && file2.available()){
+        long current = file2.parseInt();
+        Serial.print(F("comparing with "));
+        Serial.println(current);
+        if(current == input){
+            Serial.println(F("eeeeeeeeeeeeeeeeeeeeeeeeeeeeexists in db"));
+            readInput = false;
+        }
+
+        if(!file2.available()){readInput = false;};
+    }
+  
+    if(Serial.available() == 0){return;};
+    
+    input = readline();
+}
+
+const unsigned int MAX_MESSAGE_LENGTH = 20;
+
+
+inline long int readline() {
+    static char message[MAX_MESSAGE_LENGTH];
+    static unsigned int message_pos = 0;
+    char inByte = Serial.read();
+      //Message coming in (check not terminating character) and guard for over message size
+    if ( inByte != '\n' && (message_pos < MAX_MESSAGE_LENGTH - 1) )
+    {
+     //Add the incoming byte to our message
+        message[message_pos] = inByte;
+        message_pos++;
+        
+    }else{ //Full message received...
+        
+        //Add null character to string
+        message[message_pos] = '\0';
+
+        //Print the message (or do other things)
+        Serial.print("We received: ");
+        Serial.println(message);
+        message_pos = 0;
+        readInput = true;
+        file2 = SD.open(dbfiles[currentDB], FILE_READ); 
+        return atoi(message);
+        //Reset for the next message
+        
+   }
+   
+}
+
+
 char chooseCurrentDB() {
     currentDB = -1; // invalid
     long previousBestTime = -1;
@@ -224,7 +287,7 @@ char chooseCurrentDB() {
         f.close();
     }
 #   ifdef DEBUG
-      Serial.println("Choosing DB " + dbfiles[currentDB] + " as actual DB.");
+      //Serial.println("Choosing DB " + dbfiles[currentDB] + " as actual DB.");
       if (currentDB < 0) {
           Serial.println(F("No DB available!"));
       }
