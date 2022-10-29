@@ -12,6 +12,12 @@ void setup() {
     while (!Serial) { ; }
     Serial.println(F("Start program"));
 
+    initNetwork();
+    
+    initDisk();
+    
+    initCardReader();
+    
     currentMillis = millis();
 
     // The SS pins for the SD and ethernet cards
@@ -19,7 +25,7 @@ void setup() {
     //pinMode(10, OUTPUT);
 
     //digitalWrite(4, HIGH); // Disable SD reader during ethernet initialization
-    initNetwork();
+    
 
     initRTC();
 
@@ -27,14 +33,16 @@ void setup() {
                             // This is probably unnecessary, as the ethernet
                             // library is already loaded and, therefore,
                             // handling this
-    initDisk();
+   
+
+    delay(5000);
 }
 
 void loop() {
+    cardMaintenance();
     currentMillis = millis();
-
-    checkNetConnection();
-    checkRTCsync();
+    //checkNetConnection();
+    //checkRTCsync();
     dbMaintenance();
-    dbSearch();
+    
 }

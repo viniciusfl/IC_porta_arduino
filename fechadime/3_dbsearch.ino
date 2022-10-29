@@ -1,30 +1,53 @@
-long input; // FIXME: I think this should be unsigned,
+String input; // FIXME: I think this should be unsigned,
             // but what about atol() ?
 
 bool readInput = false;
 File file2;
-inline void dbSearch(){
-    if(readInput && file2.available()){
-        while(file2.available()) {
-            long current = file2.parseInt();
-            if (current == 0) continue; // We reached EOF, so parseInt returned 0
-            //Serial.print(F("comparing with "));
-            //Serial.println(current);
-            if(current == input){
-                Serial.println(F("eeeeeeeeeeeeeeeeeeeeeeeeeeeeexists in db"));
-                break;
-            }
-        }
 
-        readInput = false;
-        file2.close();
+inline void dbStartSearch(uint8_t* data, uint8_t bits, const char* message){
+    String b;
+    String a;
+    readInput = true;
+    Serial.print("We received -> ");
+    Serial.print(bits);
+    Serial.print("bits / ");
+    uint8_t bytes = (bits+7)/8;
+    for (int i=0; i<bytes; i++){
+      //Serial.print(data[i] >> 4, 16);
+      //Serial.print(data[i] & 0xF, 16);
+      b = String(data[i] >> 4, HEX);
+      b += String(data[i] & 0xF, HEX);
+      a += b;
     }
-
-    if(Serial.available() == 0){return;};
-
-    input = readline();
+    Serial.println(a);
+    input = a;
+    dbSearch();
 }
 
+inline void dbSearch(){
+      File arquivo;
+      String current;
+      arquivo = SD.open(dbfiles[currentDB], FILE_READ);
+      if(!arquivo){
+        Serial.println("Failed to open file for reading");
+        return;
+      }
+      Serial.println("db search");
+      while(arquivo.available()) {
+          current = arquivo.readStringUntil('\n');
+          current.trim();
+          if(current == input){
+              Serial.println(F(" ------> exists in db!!!!!"));
+              readInput = false;
+              arquivo.close();
+              return;
+          }
+      }
+      
+}
+
+
+/*
 const unsigned int MAX_MESSAGE_LENGTH = 20;
 
 inline long int readline() {
@@ -55,3 +78,4 @@ inline long int readline() {
         message[0] = 0;
    }
 }
+*/

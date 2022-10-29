@@ -80,7 +80,7 @@ inline void checkNetConnection() {
     }
 
     if (currentMillis - lastNetCheck > CHECK_NET_INTERVAL) {
-        printNetStatus();
+        //printNetStatus();
         lastNetCheck = currentMillis;
     }
 }

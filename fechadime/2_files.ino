@@ -57,7 +57,7 @@ inline void dbMaintenance() {
     }
 
     // If we did not return above, we are downloading
-    if (!client.connected()) {
+    if (!client.connected() || !client.available()) {
         finishDownload();
         return;
     }
@@ -69,13 +69,11 @@ inline void dbMaintenance() {
 inline void startDownload() {
     client.connect(SERVER, 80);
 
-#   ifdef DEBUG
-      if (client.connected()) {
-          Serial.println(F("Connected to server."));
-      } else {
-          Serial.println(F("Connection to server failed."));
-      };
-#   endif
+    if (client.connected()) {
+        Serial.println(F("Connected to server."));
+    } else {
+        Serial.println(F("Connection to server failed."));
+    };
 
     // If connection failed, pretend nothing
     // ever happened and try again later
@@ -111,7 +109,7 @@ inline void startDownload() {
 }
 
 inline void finishDownload() {
-    Serial.println(F("Disconnecting"));
+    Serial.println("Disconnecting!!!!!!!!");
     arquivo.close();
     client.stop();
     downloading = false;
@@ -137,9 +135,9 @@ inline void processDownload() {
     if (headerDone) {
         if (c == '\r') return;
         if (c == '\n') {
-#           ifdef DEBUG
-            //Serial.println("Writing " + String(netLineBuffer) + " to DB file");
-#           endif
+
+            Serial.println("Writing " + String(netLineBuffer) + " to DB file");
+
             arquivo.println(netLineBuffer);
             position = 0;
             netLineBuffer[position] = 0;
