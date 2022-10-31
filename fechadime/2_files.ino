@@ -16,10 +16,12 @@ inline void initDisk() {
         Serial.println("Card Mount Failed");
         return;
     }else{
-      Serial.print("SD connected.");
+      Serial.println("SD connected.");
     }
+    delay(300);
     
-    chooseCurrentDB();
+    // reset both timestamps and then update one BD so we don't have trouble when we turn off and on esp32
+    resetTimestampFiles();
     startDownload();
 }
 
@@ -57,7 +59,7 @@ inline void dbMaintenance() {
     }
 
     // If we did not return above, we are downloading
-    if (!client.connected() || !client.available()) {
+    if (!client.connected() && !client.available()) {
         finishDownload();
         return;
     }
@@ -109,7 +111,7 @@ inline void startDownload() {
 }
 
 inline void finishDownload() {
-    Serial.println("Disconnecting!!!!!!!!");
+    Serial.println("Disconnecting from server.");
     arquivo.close();
     client.stop();
     downloading = false;
@@ -119,7 +121,9 @@ inline void finishDownload() {
     arquivo = SD.open(timestampfiles[newDB], FILE_WRITE);
     // FIXME: this wraps, we should use something more robust
     lastDownloadTime = currentMillis;
-    arquivo.println(lastDownloadTime);
+    
+    arquivo.println(lastDownloadTime); 
+    
     arquivo.close();
 
     //if (currentDB >= 0) SD.remove(timestampfiles[currentDB]);
@@ -136,7 +140,7 @@ inline void processDownload() {
         if (c == '\r') return;
         if (c == '\n') {
 
-            Serial.println("Writing " + String(netLineBuffer) + " to DB file");
+            //Serial.println("Writing " + String(netLineBuffer) + " to DB file");
 
             arquivo.println(netLineBuffer);
             position = 0;
@@ -200,4 +204,16 @@ char chooseCurrentDB() {
       if (currentDB < 0) {
           Serial.println(F("No DB available!"));
       }
+}
+
+
+
+inline void resetTimestampFiles(){
+  File f;
+  for(int i = 0; i < 2; i++){
+    SD.remove(timestampfiles[i]);
+    f = SD.open(timestampfiles[i], FILE_WRITE);
+    f.println("0");
+    f.close();
+  }
 }

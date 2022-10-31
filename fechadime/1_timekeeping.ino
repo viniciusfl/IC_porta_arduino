@@ -133,7 +133,7 @@ inline void processNTPreply(){
 
     unsigned long rtctime = rtc.now().unixtime();
 
-/*
+
 #   ifdef DEBUG
     Serial.print("NTP date: ");
     Serial.println(nettime);
@@ -151,7 +151,7 @@ inline void processNTPreply(){
 #       endif
         rtc.adjust(DateTime(nettime));
     }
-    */
+    
 }
 
 // send an NTP request to the time server

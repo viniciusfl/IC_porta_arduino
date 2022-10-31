@@ -13,11 +13,13 @@
 Wiegand wiegand;
 
 // Initialize Wiegand reader
+// This should be called from setup()
 void initCardReader(){
+  
   //Install listeners and initialize Wiegand reader
-  wiegand.onReceive(dbStartSearch, "Card read error: ");
+  wiegand.onReceive(dbStartSearch, "");
   //wiegand.onReceiveError(receivedDataError, "Card read error: ");
-  wiegand.onStateChange(stateChanged, "State changed: ");
+  wiegand.onStateChange(stateChanged, "Card reader state changed: ");
   wiegand.begin(Wiegand::LENGTH_ANY, true);
 
   //initialize pins as INPUT and attaches interruptions

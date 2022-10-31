@@ -1,8 +1,7 @@
 #define USE_WIFI
-#define DEBUG
 //#define TESTING
 #include <RTClib.h> // Work around bug in the arduino IDE
-
+#define DEBUG
 unsigned long currentMillis = 0;
 
 void setup() {
@@ -33,16 +32,14 @@ void setup() {
                             // This is probably unnecessary, as the ethernet
                             // library is already loaded and, therefore,
                             // handling this
-   
-
-    delay(5000);
 }
 
 void loop() {
     cardMaintenance();
     currentMillis = millis();
-    //checkNetConnection();
-    //checkRTCsync();
+    checkNetConnection();
+    checkRTCsync();
     dbMaintenance();
+    dbSearch();
     
 }

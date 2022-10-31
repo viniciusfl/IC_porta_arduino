@@ -1,49 +1,59 @@
-String input; // FIXME: I think this should be unsigned,
-            // but what about atol() ?
+String input; // FIXME: i couldn't use long because some cards did surpass max value
 
-bool readInput = false;
+bool isSearching = false;
 File file2;
 
+// Function that is called when card is read 
 inline void dbStartSearch(uint8_t* data, uint8_t bits, const char* message){
-    String b;
-    String a;
-    readInput = true;
-    Serial.print("We received -> ");
+    
+    String card = "";
+    isSearching = true;
+    Serial.print("\nWe received -> ");
     Serial.print(bits);
     Serial.print("bits / ");
     uint8_t bytes = (bits+7)/8;
+    
     for (int i=0; i<bytes; i++){
-      //Serial.print(data[i] >> 4, 16);
-      //Serial.print(data[i] & 0xF, 16);
-      b = String(data[i] >> 4, HEX);
-      b += String(data[i] & 0xF, HEX);
-      a += b;
+      card += String(data[i] >> 4, HEX);
+      card += String(data[i] & 0xF, HEX);
     }
-    Serial.println(a);
-    input = a;
-    dbSearch();
+    Serial.println(card);
+    input = card;
+    file2 = SD.open(dbfiles[currentDB], FILE_READ);
 }
 
+
 inline void dbSearch(){
-      File arquivo;
-      String current;
-      arquivo = SD.open(dbfiles[currentDB], FILE_READ);
-      if(!arquivo){
-        Serial.println("Failed to open file for reading");
+    
+    // if we are not searching an id on db, there is no need to go further
+    if(!isSearching){
+      return;
+    }
+
+    // if we can't open
+    if(!file2){
+        Serial.println("Failed to open file for reading... stopping search");
+        isSearching = false;
         return;
-      }
-      Serial.println("db search");
-      while(arquivo.available()) {
-          current = arquivo.readStringUntil('\n');
-          current.trim();
-          if(current == input){
-              Serial.println(F(" ------> exists in db!!!!!"));
-              readInput = false;
-              arquivo.close();
-              return;
-          }
-      }
-      
+    }
+
+    // if file2 isn't available, then we read all file and didn't find what we were searching for
+    if(!file2.available()) {
+        Serial.println("Doesn't exist in db.");
+        file2.close();
+        isSearching = false;
+        return;
+    }
+
+    // read next string 
+    String current = file2.readStringUntil('\n'); // FIXME
+    current.trim();
+
+    if(current == input){
+        Serial.print("Exists in db... ---> " +  current + " = " + input);
+        isSearching = false;
+        file2.close();
+    }
 }
 
 
