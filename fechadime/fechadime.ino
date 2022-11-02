@@ -21,7 +21,7 @@ void setup() {
 
     // The SS pins for the SD and ethernet cards
     //pinMode(4, OUTPUT);
-    //pinMode(10, OUTPUT);
+    //pinMode(10, OUTPUdeT);
 
     //digitalWrite(4, HIGH); // Disable SD reader during ethernet initialization
     
@@ -37,8 +37,8 @@ void setup() {
 void loop() {
     cardMaintenance();
     currentMillis = millis();
-    checkNetConnection();
-    checkRTCsync();
+    //checkNetConnection();
+    //checkRTCsync();
     dbMaintenance();
     dbSearch();
     

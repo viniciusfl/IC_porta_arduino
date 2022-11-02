@@ -26,16 +26,18 @@ void initCardReader(){
   pinMode(PIN_D0, INPUT);
   pinMode(PIN_D1, INPUT);
 
+  attachInterrupt(digitalPinToInterrupt(PIN_D0), pinStateChanged, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PIN_D1), pinStateChanged, CHANGE);
+  
   //Sends the initial pin state to the Wiegand library
   pinStateChanged();
 }
 
 
 void cardMaintenance(){
+  noInterrupts();
   wiegand.flush();
-  // Check for changes on the the wiegand input pins
-  wiegand.setPin0State(digitalRead(PIN_D0));
-  wiegand.setPin1State(digitalRead(PIN_D1));
+  interrupts();
 }
 
 

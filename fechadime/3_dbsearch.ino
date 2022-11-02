@@ -48,7 +48,9 @@ inline void dbSearch(){
     // read next string 
     String current = file2.readStringUntil('\n'); // FIXME
     current.trim();
-
+    #       ifdef DEBUG
+    Serial.println("Comparing... " + input + " = " + current);
+    #       endif
     if(current == input){
         Serial.print("Exists in db... ---> " +  current + " = " + input);
         isSearching = false;

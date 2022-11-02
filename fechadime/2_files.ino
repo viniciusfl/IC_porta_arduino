@@ -55,11 +55,14 @@ inline void dbMaintenance() {
             startDownload();
         }
 
-        return;
+        return; 
     }
 
+    /
+    if(!client.connected())return;
+    
     // If we did not return above, we are downloading
-    if (!client.connected() && !client.available()) {
+    if (!client.available()) {
         finishDownload();
         return;
     }
@@ -133,14 +136,19 @@ inline void finishDownload() {
 
 
 inline void processDownload() {
-    if (!client.available()) return;
+    if (!client.available()){ 
+      return;   
+    }
 
     char c = client.read();
+    Serial.println(client.available());
+    Serial.println(client.connected());
+    Serial.println("--");
     if (headerDone) {
         if (c == '\r') return;
         if (c == '\n') {
 
-            //Serial.println("Writing " + String(netLineBuffer) + " to DB file");
+            Serial.println("Writing " + String(netLineBuffer) + " to DB file");
 
             arquivo.println(netLineBuffer);
             position = 0;
@@ -213,7 +221,8 @@ inline void resetTimestampFiles(){
   for(int i = 0; i < 2; i++){
     SD.remove(timestampfiles[i]);
     f = SD.open(timestampfiles[i], FILE_WRITE);
-    f.println("0");
+    int a = 0;
+    f.println(a);
     f.close();
   }
 }
