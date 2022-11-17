@@ -1,93 +1,54 @@
-String input; // FIXME: i couldn't use long because some cards did surpass max value
+unsigned long int input;
 
 bool isSearching = false;
-File file2;
+
+
 
 // Function that is called when card is read 
 inline void dbStartSearch(uint8_t* data, uint8_t bits, const char* message){
-    
     String card = "";
     isSearching = true;
     Serial.print("\nWe received -> ");
     Serial.print(bits);
     Serial.print("bits / ");
     uint8_t bytes = (bits+7)/8;
-    
+
+    // concatenate each byte from hex
     for (int i=0; i<bytes; i++){
       card += String(data[i] >> 4, HEX);
       card += String(data[i] & 0xF, HEX);
     }
-    Serial.println(card);
-    input = card;
-    file2 = SD.open(dbfiles[currentDB], FILE_READ);
-}
 
-
-inline void dbSearch(){
+    // convert hex into dec
+    input = strtoul(card.c_str(), NULL, 16);
     
-    // if we are not searching an id on db, there is no need to go further
-    if(!isSearching){
-      return;
-    }
+    // Open database if its not opened
+    if(!downloading)
+      if (openDb("/sd/banco.db")) return;
+    
+    // Make query and execute it
+    char searchDB[100];
+    sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[currentDB], input); //FIXME
+    db_exec(searchDB);
 
-    // if we can't open
-    if(!file2){
-        Serial.println("Failed to open file for reading... stopping search");
-        isSearching = false;
-        return;
-    }
-
-    // if file2 isn't available, then we read all file and didn't find what we were searching for
-    if(!file2.available()) {
-        Serial.println("Doesn't exist in db.");
-        file2.close();
-        isSearching = false;
-        return;
-    }
-
-    // read next string 
-    String current = file2.readStringUntil('\n'); // FIXME
-    current.trim();
-    #       ifdef DEBUG
-    Serial.println("Comparing... " + input + " = " + current);
-    #       endif
-    if(current == input){
-        Serial.print("Exists in db... ---> " +  current + " = " + input);
-        isSearching = false;
-        file2.close();
-    }
+    // Close db
+    isSearching = false;
+    if(!downloading) sqlite3_close(db);
 }
 
-
-/*
-const unsigned int MAX_MESSAGE_LENGTH = 20;
-
-inline long int readline() {
-    static char message[MAX_MESSAGE_LENGTH];
-    static unsigned int message_pos = 0;
-    char inByte = Serial.read();
-      //Message coming in (check not terminating character) and guard for over message size
-    if ( inByte != '\n' && (message_pos < MAX_MESSAGE_LENGTH - 1) )
-    {
-     //Add the incoming byte to our message
-        message[message_pos] = inByte;
-        message_pos++;
-        return 0;
-
-    }else{ //Full message received...
-
-        //Add null character to string
-        message[message_pos] = '\0';
-
-        //Print the message (or do other things)
-        Serial.print("We received: ");
-        Serial.println(atol(message));
-        message_pos = 0;
-        readInput = true;
-        file2 = SD.open(dbfiles[currentDB], FILE_READ);
-        return atol(message);
-        //Reset for the next message
-        message[0] = 0;
+const char* data = "Callback function called";
+static int callback(void *data, int argc, char **argv, char **azColName){ 
+   /*
+    * This function is called when we make a query and receives db output. 
+    * We only care about output when we are searching an card.
+    */
+   if(!isSearching){
+      return 0;
    }
+   if(atoi(argv[0]) == 1){
+      Serial.println("Exists in db.");
+   }else{
+      Serial.println("Doesn't exist in db.");
+   }
+   return 0;
 }
-*/

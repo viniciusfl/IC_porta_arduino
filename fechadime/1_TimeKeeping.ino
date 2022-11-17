@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <RTClib.h>
+#include <stdlib.h>
 #include <TimeLib.h> // TODO do we really need this lib?
                      // RTClib also offers something similar
 
