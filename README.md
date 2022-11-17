@@ -9,4 +9,5 @@ This project has as objective the construction of a **Key Card Door Lock** using
 3. Micro SD Card Module
 4. Breadboard
 5. Jumpers
- 
+6. Intelbras LE 130 MF
+7. Logic Level Converter 
