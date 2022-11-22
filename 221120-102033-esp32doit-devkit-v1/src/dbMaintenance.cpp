@@ -1,25 +1,24 @@
-#define RETRY_DOWNLOAD_TIME 60000
-#define DOWNLOAD_INTERVAL 15000
+#include <../include/dbMaintenance.h>
 
-#include "FS.h"
-#include "SD.h"
-#include "SPI.h"
-#include <sqlite3.h>
+#define RETRY_DOWNLOAD_TIME 60000
+
+#define DOWNLOAD_INTERVAL 15000
 
 WiFiClient client;
 
 char SERVER[] = {"10.0.2.106"};
 
 // This should be called from setup()
-inline void initDisk() {
-
+dataBase::dataBase() {
     if(!SD.begin()){
         Serial.println("Card Mount Failed");
         return;
     }else{
       Serial.println("SD connected.");
     }
+
     delay(300);
+
     sqlite3_initialize();
     
     // reset both timestamps and then update one BD so we don't have trouble when we reset program
@@ -27,33 +26,22 @@ inline void initDisk() {
     //startDownload();
 }
 
-// Globals related to the dbMaintenance() function. We probably
-// should use an object and the state pattern instead.
-sqlite3 *db;
-File arquivo;
-String dbNames[] = {"bancoA", "bancoB"};
-String timestampfiles[] = {"/TSA.TXT", "/TSB.TXT"};
-char currentDB = -1; // invalid
-char newDB = -1;
-unsigned long lastDownloadTime = 0;
-bool downloading = false; // Is there an ongoing download?
-bool headerDone = false;
-bool beginningOfLine = true;
-char netLineBuffer[11];
-char position = 0;
-char previous;
-
 // This should be called from loop()
 // At each call, we determine the current state we are in, perform
 // a small chunk of work, and return. This means we do not hog the
 // processor and can pursue other tasks while updating the DB.
-inline void dbMaintenance() {
+inline void dataBase::dbMaintenance(){
     // We start a download only if we are not already downloading
     if (!downloading) {
         // millis() wraps every ~49 days, but
         // wrapping does not cause problems here
         // TODO: we might prefer to use dates,
         //       such as "at midnight"
+        //
+        // ANWSER: we can use an alarm with RTC 1307
+        // https://robojax.com/learn/arduino/?vid=robojax_DS1307-clock-alarm
+        // 
+        // while debugging this "if" is better
         if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
             startDownload();
         }
@@ -71,7 +59,7 @@ inline void dbMaintenance() {
     processDownload();
 }
 
-inline void startDownload() {
+inline void dataBase::startDownload() {
     client.connect(SERVER, 80);
     if (client.connected()) {
         Serial.println(F("Connected to server."));
@@ -110,7 +98,7 @@ inline void startDownload() {
     
     char removeDB[20];
     sprintf(removeDB, "DELETE FROM %s", dbNames[newDB]);
-    db_exec(removeDB);
+    exec(removeDB);
     SD.remove(timestampfiles[newDB]);
 #   ifdef DEBUG
       Serial.print("Writing to ");
@@ -120,7 +108,7 @@ inline void startDownload() {
 
 }
 
-inline void finishDownload() {
+inline void dataBase::finishDownload() {
     Serial.println("Disconnecting from server.");
     client.flush();
     client.stop();
@@ -128,21 +116,26 @@ inline void finishDownload() {
 
     // FIXME: we should only save the timestamp etc.
     //        if the download was successful
-    arquivo = SD.open(timestampfiles[newDB], FILE_WRITE);
+    // QUESTION:how can i know that?
+
     // FIXME: this wraps, we should use something more robust
-    lastDownloadTime = currentMillis;
-    
-    arquivo.println(lastDownloadTime); 
-    
+    // ANWSER: maybe utc time?
+
+    arquivo = SD.open(timestampfiles[newDB], FILE_WRITE);
+    arquivo.println(1); 
+    arquivo.close();
+
+    arquivo = SD.open(timestampfiles[currentDB], FILE_WRITE);
+    arquivo.println(0); 
     arquivo.close();
     
-    chooseCurrentDB();
-    
+    lastDownloadTime = currentMillis;
+
     sqlite3_close(db);
 }
 
 
-inline void processDownload() {
+inline void dataBase::processDownload() {
     char c = client.read();
 
     if (headerDone) {
@@ -151,7 +144,7 @@ inline void processDownload() {
 #           ifdef DEBUG
               Serial.println("Writing " + String(netLineBuffer) + " to DB file");
 #           endif
-            dbInsert(netLineBuffer);
+            insert(netLineBuffer);
             position = 0;
             netLineBuffer[position] = 0;
             return;
@@ -177,17 +170,18 @@ inline void processDownload() {
     }
 }
 
-char chooseCurrentDB() {
+char dataBase::chooseCurrentDB() {
     currentDB = -1; // invalid
-    unsigned long previousBestTime = 0;
     for (char i = 0; i < 2; ++i) { // 2 is the number of DBs
         File f = SD.open(timestampfiles[i]);
         if (!f) {
-              Serial.println("DB " + dbNames[i] + " not available");
+              Serial.print(dbNames[i]);
+              Serial.println(" not available");
         } else {
-            long t = f.parseInt(); // If reading fails, this returns 0
+            int t = f.parseInt(); // If reading fails, this returns 0
 
-            Serial.print("DB " + dbNames[i] + " timestamp: ");
+            Serial.print(dbNames[i]);
+            Serial.print(" timestamp: ");
             Serial.println(t);
 
             // FIXME
@@ -200,8 +194,7 @@ char chooseCurrentDB() {
             // and removing the old DB file, just use "0" and "1" as
             // the "timestamps". Since long long is expensive on the
             // arduino, option two seems the way to go.
-            if (t > previousBestTime) {
-                previousBestTime = t;
+            if (t == 1) {
                 currentDB = i;
             }
         }
@@ -217,7 +210,7 @@ char chooseCurrentDB() {
 
 
 
-inline void resetTimestampFiles(){
+inline void dataBase::resetTimestampFiles(){
   File f;
   for(int i = 0; i < 2; i++){
     SD.remove(timestampfiles[i]);
@@ -228,7 +221,7 @@ inline void resetTimestampFiles(){
   }
 }
 
-int openDb(const char *filename) {
+int dataBase::openDb(const char *filename) {
    int rc = sqlite3_open(filename, &db);
    if (rc) {
        Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
@@ -239,8 +232,23 @@ int openDb(const char *filename) {
    return rc;
 }
 
-char *zErrMsg = 0;
-int db_exec(const char *sql) {
+static int callback(void *data, int argc, char **argv, char **azColName){ 
+   /*
+    * This function is called when we make a query and receives db output. 
+    * We only care about output when we are searching an card id.
+    */
+   if(!isSearching){
+      return 0;
+   }
+   if(atoi(argv[0]) == 1){
+      Serial.println("Exists in db.");
+   }else{
+      Serial.println("Doesn't exist in db.");
+   }
+   return 0;
+}
+
+int dataBase::exec(const char *sql) {
    Serial.println(sql);
    long start = micros();
    int rc = sqlite3_exec(db, sql, callback, (void*)data, &zErrMsg);
@@ -257,15 +265,20 @@ int db_exec(const char *sql) {
 }
 
 
-void dbInsert(char *element){
+void dataBase::insert(char *element){
   char *zErrMsg = 0;
   int rc;
   char insertMsg[100]; 
   sprintf(insertMsg, "INSERT INTO %s (cartao) VALUES ('%s')", dbNames[0], element);
-  rc = db_exec(insertMsg);
+  rc = exec(insertMsg);
   if (rc != SQLITE_OK) {
        sqlite3_close(db);
        return;
   }
 
 }
+
+void dataBase::close(){
+  sqlite3_close(db);
+}
+

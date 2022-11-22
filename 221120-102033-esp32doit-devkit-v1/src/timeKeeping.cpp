@@ -1,41 +1,13 @@
-#include <SPI.h>
-#include <RTClib.h>
-#include <stdlib.h>
-#include <TimeLib.h> // TODO do we really need this lib?
-                     // RTClib also offers something similar
-
-// A UDP instance to let us send and receive packets over UDP
-#ifdef USE_WIFI
-#include <WiFiUdp.h>
-WiFiUDP udp;
-#else
-#include <EthernetUdp.h>
-EthernetUDP udp;
-#endif
-
-#define LOCALPORT 8888       // local port to listen for UDP packets
-
-#define READJUST_CLOCK_INTERVAL 10000 // 10s, just for testing; a good
-                                      // value is 10800 (3 hours)
-
-#define NTP_WAIT_TIMEOUT 10000 // 10s, waaay more than enough
-
-#define TIME_SERVER "a.ntp.br"
-
-#define NTP_PACKET_SIZE 48 // NTP time stamp is in the first 48 bytes of the message
-
-byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
-
-// a seguinte variável serve para calcular quantos segundos se passaram desde a última vez que atualizamos o horário
-unsigned long lastClockAdjustment = 0;
-
-RTC_DS1307 rtc;
-
-char* daysOfTheWeek[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+#include <../include/timeKeeping.h>
 
 // This should be called from setup()
-inline void initRTC() {
-    if (!rtc.begin()) { // inicializa relógio
+RTC::RTC(){
+    bool waitingForNTPreply = false;
+    unsigned long lastClockAdjustment = 0; // variable that holds the last time we adjusted the clock
+}
+
+void RTC::initRTC(){
+    if (!rtc.begin()) {
         Serial.println("Couldn't find RTC");
         Serial.flush();
         while (true) delay(10);
@@ -60,14 +32,12 @@ inline void initRTC() {
     Serial.println("RTC is ready!");
 }
 
-bool waitingForNTPreply = false;
 
 // This should be called from loop()
-inline void checkRTCsync() {
+void RTC::checkRTCsync() {
     if (waitingForNTPreply) {
         processNTPreply();
-    } else if (currentMillis - lastClockAdjustment > READJUST_CLOCK_INTERVAL) {
-
+    } else if (currentMillis - lastClockAdjustment > 5000) {
         // Actually, this is the time of the last *attempt* to adjust
         // the clock, but that's ok: If it fails, we do nothing special,
         // just wait for READJUST_CLOCK_INTERVAL again.
@@ -76,8 +46,8 @@ inline void checkRTCsync() {
     }
 }
 
-#ifdef DEBUG
-inline void printDate(DateTime moment){
+void RTC::printDate(DateTime moment){
+    char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sabado"};
     Serial.print(moment.year(), DEC);
     Serial.print('/');
     Serial.print(moment.month(), DEC);
@@ -99,12 +69,13 @@ inline void printDate(DateTime moment){
     Serial.print("d");
     Serial.println(" UTC"); // Let's always use UTC
 }
-#endif
+
 
 // FIXME there is a remote chance someone will spoof a packet and alter
 //       the clock. Is this relevant? Does the NTP library handle this?
-inline void processNTPreply(){
+void RTC::processNTPreply(){
     // Timeout
+    
     if (currentMillis - lastClockAdjustment > NTP_WAIT_TIMEOUT) {
         udp.stop();
         waitingForNTPreply = false;
@@ -134,8 +105,6 @@ inline void processNTPreply(){
 
     unsigned long rtctime = rtc.now().unixtime();
 
-
-#   ifdef DEBUG
     Serial.print("NTP date: ");
     Serial.println(nettime);
     printDate(DateTime(nettime));
@@ -144,19 +113,16 @@ inline void processNTPreply(){
     printDate(DateTime(rtctime));
     Serial.print("Difference: ");
     Serial.println(nettime - rtctime);
-#   endif
 
-    if(nettime - rtctime >= 5){
-#       ifdef DEBUG
+    if(nettime - rtctime >= 2){
         Serial.println("Using NTP to update RTC time");
-#       endif
         rtc.adjust(DateTime(nettime));
     }
     
 }
 
 // send an NTP request to the time server
-inline void sendNTPquery() {
+void RTC::sendNTPquery(){
     // set all bytes in the buffer to 0
     memset(packetBuffer, 0, NTP_PACKET_SIZE);
 

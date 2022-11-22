@@ -1,49 +1,36 @@
-#define CHECK_NET_INTERVAL 30000 // 30s
-unsigned long lastNetCheck;
-
-#ifdef USE_WIFI
-#define RECONNECT_INTERVAL 30000 // 30s
-unsigned long lastReconnectAttempt = 0;
-#endif
-
-#ifdef USE_WIFI
-
-#include <WiFi.h>
+#include <../include/networkConnection.h>
 
 char ssid[] = "Familia Ferraz 2.4G";
+
 char password[] = "dogtor1966";
 
+unsigned long lastNetCheck;
+
+unsigned long lastReconnectAttempt = 0;
 // This should be called from setup()
-inline void initNetwork() {
+void WiFiInit(){
     Serial.println(F("Initializing network..."));
 
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    WiFi.disconnect(true);
+
+    delay(1000);
+    
+    WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
+    WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
     WiFi.begin(ssid, password);
 
-    // Wait up to 10s for the connection.
-    // FIXME it would be better to use events, check
-    // https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/
-    while (WiFi.status() != WL_CONNECTED && millis() - currentMillis < 10000) {
-        delay(500);
-    }
+    Serial.println("\n\nWait for WiFi... ");
+
 
     lastNetCheck = currentMillis;
     lastReconnectAttempt = currentMillis;
 
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println(F("Failed to connect to wifi network"));
-    } else {
-        Serial.println(F("Connected to wifi network"));
-    }
-
-#   ifdef DEBUG
     printNetStatus();
-#   endif
 }
 
-#ifdef DEBUG
 void printNetStatus() {
     byte macBuffer[6];  // create a buffer to hold the MAC address
     WiFi.macAddress(macBuffer); // fill the buffer
@@ -67,10 +54,10 @@ void printNetStatus() {
     Serial.print(F("The wifi network is: "));
     Serial.println(WiFi.SSID());
 }
-#endif
+
 
 // This should be called from loop()
-inline void checkNetConnection() {
+void checkWiFiConnection() {
     if ((WiFi.status() != WL_CONNECTED)
         && (currentMillis - lastReconnectAttempt > RECONNECT_INTERVAL)) {
 
@@ -80,23 +67,36 @@ inline void checkNetConnection() {
     }
 
     if (currentMillis - lastNetCheck > CHECK_NET_INTERVAL) {
-        //printNetStatus();
+        printNetStatus();
         lastNetCheck = currentMillis;
     }
 }
 
-#else
 
-#include <SPI.h>
+// events
+
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  Serial.println("Connected to AP successfully!");
+}
+
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  Serial.println("Disconnected from WiFi access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.wifi_sta_disconnected.reason);
+  Serial.println("Trying to Reconnect");
+  WiFi.begin(ssid, password);
+}
+
+/*
 #include <Ethernet.h>
 
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-
-// Nao estamos usando, vai com DHCP
-//byte ip[] = {192, 168, 48, 129};
-//byte mask[] = {255, 255, 192, 0};
-//byte dns[] = {192, 168, 45, 11};
-//byte gw[] = {192, 168, 45, 1};
 
 // This should be called from setup()
 inline void initNetwork() {
@@ -137,6 +137,7 @@ inline void initNetwork() {
 #   endif
 }
 
+
 #ifdef DEBUG
 void printNetStatus() {
     byte macBuffer[6];  // create a buffer to hold the MAC address
@@ -174,3 +175,4 @@ inline void checkNetConnection() {
 }
 
 #endif
+*/

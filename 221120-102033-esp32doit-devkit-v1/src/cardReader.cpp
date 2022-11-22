@@ -1,20 +1,16 @@
-/*
- * Example on how to use the Wiegand reader library with interruptions.
- */
+#include <../include/cardReader.h>
 
-#include <Wiegand.h>
-
-// These are the pins connected to the Wiegand D0 and D1 signals.
-// Ensure your board supports external Interruptions on these pins
 #define PIN_D0 26
 #define PIN_D1 27 
+
+dataBase db;
 
 // The object that handles the wiegand protocol
 Wiegand wiegand;
 
 // Initialize Wiegand reader
 // This should be called from setup()
-void initCardReader(){
+void cardReader(){
   
   //Install listeners and initialize Wiegand reader
   wiegand.onReceive(dbStartSearch, "");
@@ -52,4 +48,38 @@ void pinStateChanged() {
 void stateChanged(bool plugged, const char* message) {
     Serial.print(message);
     Serial.println(plugged ? "CONNECTED" : "DISCONNECTED");
+}
+
+
+
+// Function that is called when card is read 
+inline void dbStartSearch(uint8_t* data, uint8_t bits, const char* message){
+    String card = "";
+    isSearching = true;
+    Serial.print("\nWe received -> ");
+    Serial.print(bits);
+    Serial.print("bits / ");
+    uint8_t bytes = (bits+7)/8;
+
+    // concatenate each byte from hex
+    for (int i=0; i<bytes; i++){
+      card += String(data[i] >> 4, HEX);
+      card += String(data[i] & 0xF, HEX);
+    }
+
+    // convert hex into dec
+    input = strtoul(card.c_str(), NULL, 16);
+    
+    // Open database if its not opened
+    if(!downloading)
+      if (db.openDb("/sd/banco.db")) return;
+    
+    // Make query and execute it
+    char searchDB[100];
+    sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", db.dbNames[db.currentDB], input); //FIXME
+    db.exec(searchDB);
+
+    // Close db
+    isSearching = false;
+    if(!downloading) db.close();
 }
