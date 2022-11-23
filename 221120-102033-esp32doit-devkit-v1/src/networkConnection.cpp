@@ -9,7 +9,6 @@ unsigned long lastNetCheck;
 unsigned long lastReconnectAttempt = 0;
 // This should be called from setup()
 void WiFiInit(){
-    Serial.println(F("Initializing network..."));
 
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(true);
@@ -28,7 +27,6 @@ void WiFiInit(){
     lastNetCheck = currentMillis;
     lastReconnectAttempt = currentMillis;
 
-    printNetStatus();
 }
 
 void printNetStatus() {
@@ -44,7 +42,7 @@ void printNetStatus() {
     Serial.println("");
 
     if ((WiFi.status() != WL_CONNECTED)) {
-        Serial.println(F("Not connected to wifi."));
+        Serial.println(F("Not connected to WiFi."));
         return;
     }
 
@@ -76,11 +74,10 @@ void checkWiFiConnection() {
 // events
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
-  Serial.println("Connected to AP successfully!");
+  Serial.println("Connected to WiFi successfully!");
 }
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
-  Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 }

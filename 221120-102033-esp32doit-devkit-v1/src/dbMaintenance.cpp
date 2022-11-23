@@ -2,14 +2,18 @@
 
 #define RETRY_DOWNLOAD_TIME 60000
 
-#define DOWNLOAD_INTERVAL 15000
+#define DOWNLOAD_INTERVAL 20000
 
 WiFiClient client;
 
 char SERVER[] = {"10.0.2.106"};
 
 // This should be called from setup()
-dataBase::dataBase() {
+dataBase::dataBase(){
+    Serial.println("nada");
+}
+
+void dataBase::initDataBase() {
     if(!SD.begin()){
         Serial.println("Card Mount Failed");
         return;
@@ -23,6 +27,7 @@ dataBase::dataBase() {
     
     // reset both timestamps and then update one BD so we don't have trouble when we reset program
     resetTimestampFiles();
+    chooseCurrentDB();
     //startDownload();
 }
 
@@ -30,7 +35,11 @@ dataBase::dataBase() {
 // At each call, we determine the current state we are in, perform
 // a small chunk of work, and return. This means we do not hog the
 // processor and can pursue other tasks while updating the DB.
-inline void dataBase::dbMaintenance(){
+void dataBase::dbMaintenance(){
+
+    if(isSearching){
+        search();
+    }
     // We start a download only if we are not already downloading
     if (!downloading) {
         // millis() wraps every ~49 days, but
@@ -41,8 +50,8 @@ inline void dataBase::dbMaintenance(){
         // ANWSER: we can use an alarm with RTC 1307
         // https://robojax.com/learn/arduino/?vid=robojax_DS1307-clock-alarm
         // 
-        // while debugging this "if" is better
         if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
+            
             startDownload();
         }
 
@@ -59,7 +68,7 @@ inline void dataBase::dbMaintenance(){
     processDownload();
 }
 
-inline void dataBase::startDownload() {
+void dataBase::startDownload() {
     client.connect(SERVER, 80);
     if (client.connected()) {
         Serial.println(F("Connected to server."));
@@ -108,8 +117,8 @@ inline void dataBase::startDownload() {
 
 }
 
-inline void dataBase::finishDownload() {
-    Serial.println("Disconnecting from server.");
+void dataBase::finishDownload() {
+    
     client.flush();
     client.stop();
     downloading = false;
@@ -121,21 +130,24 @@ inline void dataBase::finishDownload() {
     // FIXME: this wraps, we should use something more robust
     // ANWSER: maybe utc time?
 
-    arquivo = SD.open(timestampfiles[newDB], FILE_WRITE);
+
+
+    arquivo = SD.open("/TSA.TXT", FILE_WRITE);
     arquivo.println(1); 
     arquivo.close();
 
-    arquivo = SD.open(timestampfiles[currentDB], FILE_WRITE);
+    arquivo = SD.open("/TSA.TXT", FILE_WRITE);
     arquivo.println(0); 
     arquivo.close();
     
     lastDownloadTime = currentMillis;
+    Serial.println("Disconnecting from server and finishing db update.");
 
     sqlite3_close(db);
 }
 
 
-inline void dataBase::processDownload() {
+void dataBase::processDownload() {
     char c = client.read();
 
     if (headerDone) {
@@ -170,8 +182,9 @@ inline void dataBase::processDownload() {
     }
 }
 
-char dataBase::chooseCurrentDB() {
+void dataBase::chooseCurrentDB() {
     currentDB = -1; // invalid
+    int max = -1;
     for (char i = 0; i < 2; ++i) { // 2 is the number of DBs
         File f = SD.open(timestampfiles[i]);
         if (!f) {
@@ -194,23 +207,19 @@ char dataBase::chooseCurrentDB() {
             // and removing the old DB file, just use "0" and "1" as
             // the "timestamps". Since long long is expensive on the
             // arduino, option two seems the way to go.
-            if (t == 1) {
+            if (t > max) {
+                max = t;
                 currentDB = i;
             }
         }
         f.close();
     }
-      #       ifdef DEBUG
-            Serial.println("Choosing " + dbNames[currentDB] + " as actual DB.");
-      #       endif
-      if (currentDB < 0) {
-          Serial.println(F("No DB available!"));
-      }
+      //Serial.println("Choosing " + dbNames[currentDB] + " as actual DB.");
 }
 
 
 
-inline void dataBase::resetTimestampFiles(){
+void dataBase::resetTimestampFiles(){
   File f;
   for(int i = 0; i < 2; i++){
     SD.remove(timestampfiles[i]);
@@ -246,6 +255,25 @@ static int callback(void *data, int argc, char **argv, char **azColName){
       Serial.println("Doesn't exist in db.");
    }
    return 0;
+}
+
+bool dataBase::search(){
+    // Open database if its not opened
+    if(!downloading)
+        if (openDb("/sd/banco.db"))
+            return false;
+
+    // Make query and execute it
+    char searchDB[300];
+    sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], input); //FIXME
+    exec(searchDB);
+    
+    isSearching = false;
+
+    // Close db
+    if(!downloading)
+        close();
+    return true;
 }
 
 int dataBase::exec(const char *sql) {
