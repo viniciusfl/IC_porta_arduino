@@ -7,22 +7,22 @@ char password[] = "dogtor1966";
 unsigned long lastNetCheck;
 
 unsigned long lastReconnectAttempt = 0;
+
 // This should be called from setup()
 void WiFiInit(){
 
+    // select WiFi mode
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(true);
-
-    delay(1000);
     
+    // select WiFi events
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
     WiFi.begin(ssid, password);
 
-    Serial.println("\n\nWait for WiFi... ");
-
+    Serial.println("Waiting for WiFi... ");
 
     lastNetCheck = currentMillis;
     lastReconnectAttempt = currentMillis;
@@ -53,25 +53,7 @@ void printNetStatus() {
     Serial.println(WiFi.SSID());
 }
 
-
-// This should be called from loop()
-void checkWiFiConnection() {
-    if ((WiFi.status() != WL_CONNECTED)
-        && (currentMillis - lastReconnectAttempt > RECONNECT_INTERVAL)) {
-
-        WiFi.disconnect();
-        WiFi.reconnect();
-        lastReconnectAttempt = currentMillis;
-    }
-
-    if (currentMillis - lastNetCheck > CHECK_NET_INTERVAL) {
-        printNetStatus();
-        lastNetCheck = currentMillis;
-    }
-}
-
-
-// events
+// events handling
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.println("Connected to WiFi successfully!");
@@ -82,12 +64,14 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.println(WiFi.localIP());
 }
 
+// events handle if wifi disconnects
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.println("Disconnected from WiFi access point");
   Serial.print("WiFi lost connection. Reason: ");
   Serial.println(info.wifi_sta_disconnected.reason);
   Serial.println("Trying to Reconnect");
-  WiFi.begin(ssid, password);
+  while(!WiFi.begin(ssid, password))
+    Serial.println("Trying to Reconnect... ");
 }
 
 /*

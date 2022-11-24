@@ -23,7 +23,6 @@ class dataBase{
         bool search();
         sqlite3 *db;
         File arquivo;
-        unsigned long input; 
         const char *dbNames[100] = {"bancoA", "bancoB"};
         const char *timestampfiles[100] = {"/TSA.TXT", "/TSB.TXT"};
         int currentDB = -1; // invalid

@@ -13,8 +13,6 @@ void WiFiInit();
 
 void printNetStatus();
 
-void checkWiFiConnection();
-
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
