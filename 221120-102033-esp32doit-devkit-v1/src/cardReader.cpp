@@ -1,20 +1,30 @@
-#include <../include/cardReader.h>
 #include <Arduino.h>
+#include <Wiegand.h>
+#include <../include/cardReader.h>
+
+void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id);
+
+int processCardData(uint8_t* data, uint8_t bits);
+
+void pinStateChanged();
+
+void stateChanged(bool plugged, const char* message);
+
+void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message);
+
 // pins for card reader 1
-#define PIN_D0 33
-#define PIN_D1 25 
+#define PIN_D0 26
+#define PIN_D1 27 
 Wiegand wiegand1;
 
 // pins for card reader 2
-#define PIN2_D0 26
-#define PIN2_D1 27 
+#define PIN2_D0 33
+#define PIN2_D1 25 
 Wiegand wiegand2;
 
-// Initialize Wiegand reader
-// This should be called from setup()
-// Function that is called when card is read 
 
-void processCardData(uint8_t* data, uint8_t bits){
+// Function that is called when card is read 
+int processCardData(uint8_t* data, uint8_t bits){
     String card = "";
     
     uint8_t bytes = (bits+7)/8;
@@ -25,29 +35,22 @@ void processCardData(uint8_t* data, uint8_t bits){
       card += String(data[i] & 0xF, HEX);
     }
     
-    
-    // convert hex into dec
-    input = strtoul(card.c_str(), NULL, 16);
+    return strtoul(card.c_str(), NULL, 16);
+}
+
+void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id){
+    currentCardReader = atoi(reader_id);
+    input = processCardData(data, bits);
+
+    // start search
+    isSearching = true;
+    Serial.print("Card reader ");
+    Serial.print(currentCardReader);
+    Serial.println(" was used.");
     Serial.print("We received -> ");
     Serial.println(input);
 
-    // start search
-    isSearching = true; 
 }
-
-void dbStartSearch1(uint8_t* data, uint8_t bits, const char* message){
-    processCardData(data, bits);
-    Serial.println("Card reader 1 was used.");
-    currentCardReader = 1;
-}
-
-
-void dbStartSearch2(uint8_t* data, uint8_t bits, const char* message){
-    processCardData(data, bits);
-    Serial.println("Card reader 2 was used."); 
-    currentCardReader = 2;
-}
-
 
 // When any of the pins have changed, update the state of the wiegand library
 void pinStateChanged() {
@@ -81,10 +84,11 @@ void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBi
     Serial.println();
 }
 
+// Initialize Wiegand reader
 void initCardReader(){
-  
+
     //Install listeners and initialize Wiegand reader
-    wiegand1.onReceive(dbStartSearch1, "");
+    wiegand1.onReceive(dbTriggerSearch, "1");
     wiegand1.onReceiveError(receivedDataError, "Card reader 1 error: ");
     wiegand1.onStateChange(stateChanged, "Card reader 1 state changed: ");
     wiegand1.begin(Wiegand::LENGTH_ANY, true);
@@ -93,19 +97,20 @@ void initCardReader(){
     pinMode(PIN_D0, INPUT);
     pinMode(PIN_D1, INPUT);
 
+    attachInterrupt(digitalPinToInterrupt(PIN_D0), pinStateChanged, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(PIN_D1), pinStateChanged, CHANGE);
+
     //Install listeners and initialize Wiegand reader
-    wiegand2.onReceive(dbStartSearch2, "");
+    wiegand2.onReceive(dbTriggerSearch, "2");
     wiegand2.onReceiveError(receivedDataError, "Card reader 2 error: ");
     wiegand2.onStateChange(stateChanged, "Card reader 2 state changed: ");
     wiegand2.begin(Wiegand::LENGTH_ANY, true);
 
+
     //initialize pins as INPUT and attaches interruptions
     pinMode(PIN2_D0, INPUT);
     pinMode(PIN2_D1, INPUT);
-    
-    attachInterrupt(digitalPinToInterrupt(PIN_D0), pinStateChanged, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(PIN_D1), pinStateChanged, CHANGE);
-    
+
     attachInterrupt(digitalPinToInterrupt(PIN2_D0), pinStateChanged, CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN2_D1), pinStateChanged, CHANGE);
 
@@ -113,12 +118,15 @@ void initCardReader(){
     pinStateChanged();
 }
 
-
+// This should be called from setup()
 void cardMaintenance(){
-    noInterrupts();
-    wiegand1.flush();
+    // Only very recent versions of the arduino framework for ESP32
+    // support interrupts()/noInterrupts()
+    portDISABLE_INTERRUPTS();
     wiegand2.flush();
-    interrupts();
+    wiegand1.flush();
+    portENABLE_INTERRUPTS();
+    delay(150); //Sleep a little -- this doesn't have to run very often.
 }
 
 
