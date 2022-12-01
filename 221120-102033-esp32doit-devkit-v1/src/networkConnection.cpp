@@ -8,6 +8,16 @@ unsigned long lastNetCheck;
 
 unsigned long lastReconnectAttempt = 0;
 
+#define CHECK_NET_INTERVAL 30000 // 30s
+
+#define RECONNECT_INTERVAL 30000 // 30s
+
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
+
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
+
+void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
+
 // This should be called from setup()
 void WiFiInit(){
 
@@ -26,7 +36,6 @@ void WiFiInit(){
 
     lastNetCheck = currentMillis;
     lastReconnectAttempt = currentMillis;
-
 }
 
 void printNetStatus() {
@@ -53,7 +62,7 @@ void printNetStatus() {
     Serial.println(WiFi.SSID());
 }
 
-// events handling
+/* events handling */
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.println("Connected to WiFi successfully!");
