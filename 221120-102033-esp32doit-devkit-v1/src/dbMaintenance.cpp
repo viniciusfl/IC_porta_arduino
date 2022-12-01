@@ -9,9 +9,6 @@ WiFiClient client;
 char SERVER[] = {"10.0.2.106"};
 
 // This should be called from setup()
-dataBase::dataBase(){
-    Serial.println("nada");
-}
 
 void dataBase::initDataBase(){
     if (!SD.begin()){
@@ -36,12 +33,14 @@ void dataBase::initDataBase(){
 // At each call, we determine the current state we are in, perform
 // a small chunk of work, and return. This means we do not hog the
 // processor and can pursue other tasks while updating the DB.
-void dataBase::dbMaintenance(){
-
-    if (isSearching)
-        search();
-
+void dataBase::dbMaintenance(DateTime moment){
+    
+    if (isSearching){
+        search(moment);
+    }
+    
     // We start a download only if we are not already downloading
+    
     if (!downloading) {
         // millis() wraps every ~49 days, but
         // wrapping does not cause problems here
@@ -64,7 +63,6 @@ void dataBase::dbMaintenance(){
 
     // If we did not disconnect above, we are connected
     processDownload();
-    
 }
 
 void dataBase::startDownload(){
@@ -128,13 +126,13 @@ void dataBase::finishDownload(){
     //        if the download was successful
     // QUESTION:how can i know that?
 
-    arquivo = SD.open(dbNames[newDB], FILE_WRITE);
-    arquivo.println(1);
-    arquivo.close();
+    File f = SD.open(dbNames[newDB], FILE_WRITE);
+    f.println(1);
+    f.close();
 
-    arquivo = SD.open(dbNames[currentDB], FILE_WRITE);
-    arquivo.println(0);
-    arquivo.close();
+    f = SD.open(dbNames[currentDB], FILE_WRITE);
+    f.println(0);
+    f.close();
 
     lastDownloadTime = currentMillis;
     Serial.println("Disconnecting from server and finishing db update.");
@@ -144,8 +142,7 @@ void dataBase::finishDownload(){
     sqlite3_close(db);
 }
 
-void dataBase::processDownload()
-{
+void dataBase::processDownload(){
     char c = client.read();
 
     if (headerDone){
@@ -186,8 +183,7 @@ void dataBase::processDownload()
     }
 }
 
-void dataBase::chooseCurrentDB()
-{
+void dataBase::chooseCurrentDB(){
     currentDB = -1; // invalid
     int max = -1;
     for (char i = 0; i < 2; ++i){ // 2 is the number of DBs
@@ -211,8 +207,9 @@ void dataBase::chooseCurrentDB()
         }
         f.close();
     }
-    Serial.printf("Choosing %s as actual DB.", dbNames[currentDB] );
+    Serial.printf("Choosing %s as actual DB.\n", dbNames[currentDB] );
 }
+
 
 // reset both timestamp files to zero
 void dataBase::resetTimestampFiles()
@@ -227,7 +224,6 @@ void dataBase::resetTimestampFiles()
         f.close();
     }
 }
-
 
 // receive db name and opens it 
 int dataBase::openDb(const char *filename)
@@ -245,8 +241,7 @@ int dataBase::openDb(const char *filename)
     return rc;
 }
 
-static int callback(void *data, int argc, char **argv, char **azColName)
-{
+static int callback(void *data, int argc, char **argv, char **azColName){
     /*
      * This function is called when we make a query and receives db output.
      * We only care about output when we are searching an card id.
@@ -262,25 +257,65 @@ static int callback(void *data, int argc, char **argv, char **azColName)
     return 0;
 }
 
+
 // search element through current database
-bool dataBase::search(){
-    // Open database if its not opened
-    if (!downloading)
-        if (openDb("/sd/banco.db"))
-            return false;
+bool dataBase::search(DateTime moment){
+    isSearching = false;
+    Serial.print("Card reader ");
+    Serial.print(currentCardReader);
+    Serial.println(" was used.");
+    Serial.print("We received -> ");
+    Serial.println(input);
+
+    //openDb("/sd/banco.db");
 
     // Make query and execute it
+    /*
     char searchDB[300];
     sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], input);
     exec(searchDB);
 
     isSearching = false;
 
+    */
     // Close db if its not opened
-    if (!downloading)
-        close();
+    //close();
+    
 
+    //generateLog(moment, input);
+
+    
     return true; // FIXME: not used yet
+
+}
+
+void dataBase::generateLog(DateTime moment, unsigned long int input){ // FIXME: we should generate log with name/RA 
+    // FIXME: generate log for both people allowed and not allowed 
+    Serial.println("generating log");
+    SD.remove("/log.txt");
+    File log = SD.open("/log.txt", FILE_APPEND);
+    if (!log){
+            Serial.println(" couldnt open log file...");
+    }
+    char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sabado"};
+    log.print(input);
+    log.print(" entered ");
+    log.print(moment.year(), DEC);
+    log.print('/');
+    log.print(moment.month(), DEC);
+    log.print('/');
+    log.print(moment.day(), DEC);
+    log.print(" (");
+    log.print(daysOfTheWeek[moment.dayOfTheWeek()]);
+    log.print(") ");
+    log.print(moment.hour(), DEC);
+    log.print(':');
+    log.print(moment.minute(), DEC);
+    log.print(':');
+    log.print(moment.second(), DEC);
+    log.println();
+    log.close();
+    Serial.println("finished log....");
 }
 
 // receive sql query and execute it
@@ -320,3 +355,5 @@ void dataBase::insert(char* element){
 void dataBase::close(){
     sqlite3_close(db);
 }
+
+
