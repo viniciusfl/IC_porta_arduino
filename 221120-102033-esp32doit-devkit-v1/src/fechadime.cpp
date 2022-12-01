@@ -6,7 +6,7 @@
 #include <Arduino.h>
 
 
-RTC relogio = RTC();
+RTC clk = RTC();
 
 dataBase db = dataBase();
 
@@ -16,7 +16,7 @@ void setup() {
     while (!Serial) { ; }
     Serial.println(F("Start program"));
     WiFiInit();
-    relogio.initRTC(); 
+    clk.initRTC(); 
     db.initDataBase();
     initCardReader();
     currentMillis = millis();
@@ -24,7 +24,8 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    //relogio.checkRTCsync();
-    db.dbMaintenance();
+    db.dbMaintenance(DateTime(clk.unixTime()));
+    clk.checkRTCsync();
     cardMaintenance();
+    delay(150);
 }
