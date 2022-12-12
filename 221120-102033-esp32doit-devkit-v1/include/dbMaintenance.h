@@ -14,7 +14,6 @@ class dataBase{
     public:
         void initDataBase();
         void dbMaintenance(DateTime moment);
-        void dbStartSearch(uint8_t* data, uint8_t bits, const char* message);
 
     private:
         sqlite3 *db;
