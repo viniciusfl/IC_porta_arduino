@@ -9,7 +9,7 @@ extern unsigned long currentMillis;
 // happen piecewise, at each loop iteration. So, to pass information
 // from the card reader to the DB management code, we do not use
 // function calls; we set some globals instead:
-extern bool isSearching; // Is there a user trying to open a door?
+extern bool searching; // Is there a user trying to open a door?
 extern unsigned long int currentCardID; // If so, this is his ID number
 extern int currentCardReader; // And it came from this reader
 

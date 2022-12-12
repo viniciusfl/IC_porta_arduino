@@ -37,7 +37,7 @@ void dataBase::initDataBase(){
 // processor and can pursue other tasks while updating the DB.
 void dataBase::dbMaintenance(DateTime moment){
 
-    if (isSearching){
+    if (searching){
         search(moment);
     }
 
@@ -248,7 +248,7 @@ static int callback(void *data, int argc, char **argv, char **azColName){
      * This function is called when we make a query and receives db output.
      * We only care about output when we are searching an card id.
      */
-    if (!isSearching)
+    if (!searching)
         return 0;
 
     if (atoi(argv[0]) == 1)
@@ -262,7 +262,7 @@ static int callback(void *data, int argc, char **argv, char **azColName){
 
 // search element through current database
 bool dataBase::search(DateTime moment){
-    isSearching = false;
+    searching = false;
     Serial.print("Card reader ");
     Serial.print(currentCardReader);
     Serial.println(" was used.");
@@ -277,7 +277,7 @@ bool dataBase::search(DateTime moment){
     sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], currentCardID);
     exec(searchDB);
 
-    isSearching = false;
+    searching = false;
 
     */
     // Close db if its not opened

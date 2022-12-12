@@ -45,7 +45,7 @@ void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id) {
     currentCardID = bitsToNumber(data, bits);
 
     // start search
-    isSearching = true;
+    searching = true;
     Serial.print("Card reader ");
     Serial.print(currentCardReader);
     Serial.println(" was used.");

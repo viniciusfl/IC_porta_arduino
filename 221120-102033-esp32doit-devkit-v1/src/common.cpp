@@ -2,7 +2,7 @@
 
 unsigned long currentMillis;
 
-bool isSearching = false;
+bool searching = false;
 unsigned long int currentCardID;
 int currentCardReader;
 
