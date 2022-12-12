@@ -14,7 +14,7 @@ void setup() {
     while (!Serial) { ; }
     Serial.println(F("Start program"));
     WiFiInit();
-    hwclock.initRTC();
+    hwclock.init();
     db.initDataBase();
     initCardReader();
     currentMillis = millis();
@@ -23,6 +23,6 @@ void setup() {
 void loop() {
     currentMillis = millis();
     db.dbMaintenance(DateTime(hwclock.unixTime()));
-    hwclock.checkRTCsync();
+    hwclock.checkSync();
     cardMaintenance();
 }

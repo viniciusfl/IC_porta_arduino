@@ -10,13 +10,13 @@
 
 class RTC{
     public:
-        void initRTC();
-        void checkRTCsync();
+        void init();
+        void checkSync();
         unsigned long int unixTime();
     private:
         RTC_DS1307 rtc;
         unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
-        void updateRTC();
+        void update();
 };
 
 #endif

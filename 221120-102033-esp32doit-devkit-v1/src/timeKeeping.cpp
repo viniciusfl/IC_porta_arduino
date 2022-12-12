@@ -17,7 +17,7 @@ const int   daylightOffset_sec = 0;
 //
 // TODO: This needs to be called after the network is up; It would
 //       be better to use network event handlers or something.
-void RTC::initRTC(){
+void RTC::init(){
     lastClockAdjustment = 0; // when we last adjusted the HW clock
 
     if (!rtc.begin()) {
@@ -75,7 +75,7 @@ void RTC::initRTC(){
         }
 
         // System time is set from NTP, now set the HW clock for the first time
-        updateRTC();
+        update();
     }
 
     Serial.println("RTC is ready!");
@@ -83,13 +83,13 @@ void RTC::initRTC(){
 
 
 // This should be called from loop()
-void RTC::checkRTCsync() {
+void RTC::checkSync() {
     if (currentMillis - lastClockAdjustment > READJUST_CLOCK_INTERVAL) {
         // Actually, this is the time of the last *attempt* to adjust
         // the clock, but that's ok: If it fails, we do nothing special,
         // just wait for READJUST_CLOCK_INTERVAL again.
         lastClockAdjustment = currentMillis;
-        updateRTC();
+        update();
     }
 }
 
@@ -117,7 +117,7 @@ void printDate(DateTime moment){
     Serial.println(" UTC"); // Let's always use UTC
 }
 
-void RTC::updateRTC(){
+void RTC::update(){
     time_t now;
     time(&now);
 
