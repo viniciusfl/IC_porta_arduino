@@ -5,6 +5,4 @@
 #include <WiFi.h>
 
 void WiFiInit();
-
-void printNetStatus();
 #endif

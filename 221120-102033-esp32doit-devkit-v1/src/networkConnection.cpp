@@ -4,19 +4,13 @@ char ssid[] = "Familia Ferraz 2.4G";
 
 char password[] = "dogtor1966";
 
-unsigned long lastNetCheck;
-
-unsigned long lastReconnectAttempt = 0;
-
-#define CHECK_NET_INTERVAL 30000 // 30s
-
-#define RECONNECT_INTERVAL 30000 // 30s
-
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
 
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
+
+void printNetStatus();
 
 // This should be called from setup()
 void WiFiInit(){
@@ -33,9 +27,6 @@ void WiFiInit(){
     WiFi.begin(ssid, password);
 
     Serial.println("Waiting for WiFi... ");
-
-    lastNetCheck = currentMillis;
-    lastReconnectAttempt = currentMillis;
 }
 
 void printNetStatus() {
@@ -89,6 +80,12 @@ void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
 
 /*
 #include <Ethernet.h>
+
+#define CHECK_NET_INTERVAL 30000 // 30s
+
+#define RECONNECT_INTERVAL 30000 // 30s
+
+unsigned long lastNetCheck;
 
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
 
