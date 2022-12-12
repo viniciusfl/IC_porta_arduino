@@ -1,52 +1,81 @@
 #include <../include/timeKeeping.h>
 #define DEBUGRTC
 
-#define LOCALPORT 8888       // local port to listen for UDP packets
-
 #define READJUST_CLOCK_INTERVAL 60000 // 10s, just for testing; a good
                                       // value is 10800 (3 hours)
 
-#define NTP_WAIT_TIMEOUT 10000 // 10s, waaay more than enough
-
-#define TIME_SERVER "a.ntp.br"
-
-#define NTP_PACKET_SIZE 48 // NTP time stamp is in the first 48 bytes of the message
-
+// Instead of periodically checking for the time difference, as we do here,
+// we might use sntp_set_time_sync_notification_cb(). However, polling is
+// very simple and does not mess with the callback - who knows, maybe
+// someone else needs it...
 
 const char* ntpServer = "a.ntp.br";
-const long  gmtOffset_sec = 0;
-const int   daylightOffset_sec = -3600*3;
+const long  gmtOffset_sec = -3600*3;
+const int   daylightOffset_sec = 0;
 
 // This should be called from setup()
-RTC::RTC(){
-    bool waitingForNTPreply = false;
-    unsigned long lastClockAdjustment = 0; // variable that holds the last time we adjusted the clock
-}
-
+//
+// TODO: This needs to be called after the network is up; It would
+//       be better to use network event handlers or something.
 void RTC::initRTC(){
+    lastClockAdjustment = 0; // when we last adjusted the HW clock
+
     if (!rtc.begin()) {
-        Serial.println("Couldn't find RTC");
+        Serial.println("Couldn't find RTC hardware, aborting");
         Serial.flush();
         while (true) delay(10);
     }
 
-    // esp32 internal rtc
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-    // The RTC may be started and stopped by setting bit 7 of register 0
-    // to 0 or 1 respectively. Register 0 is the seconds register, which
-    // means we set it to zero (start) when we call adjust() with a valid
+    // If I understand things correctly, the hardware RTC starts life in
+    // state "stopped", because it has no idea what the time is. After
+    // you set the time for the first time, it enters state "started"
+    // and keeps time. This start/stop operation is controlled by bit 7
+    // of register 0 (if the bit is zero, the clock is started), which
+    // is what "isrunning()" checks. Since register 0 is the seconds
+    // register, we set it to zero when we call adjust() with a valid
     // time for the first time (if bit 7 were on, the number of seconds
     // would be >= 64).
     // https://forum.arduino.cc/t/ds1307-real-time-clock-halts-on-power-off/206537/2
-    if (! rtc.isrunning()) {
-        Serial.println("RTC NOT running, starting it with a bogus date");
-        // When time needs to be set on a new device, this line
-        // sets the RTC to the date & time this sketch was compiled
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-        // It is possible to use an explicit date & time. For example,
-        // to set January 21, 2014 at 3am you would call:
-        // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+
+    // If we ever set the hardware RTC time before, we may set the
+    // system time from it and adjust with NTP later. If not, we need
+    // to make sure the NTP date has been set before starting.
+    if (rtc.isrunning()) {
+        struct timeval tv;
+
+        tv.tv_sec = rtc.now().unixtime();
+        tv.tv_usec = 0;
+
+        settimeofday(&tv, NULL);
+
+        // initialize esp32 sntp client, which calls settimeofday periodically;
+        // this performs a DNS lookup and an NTP request, so it takes some time.
+        // If the network is not already up when this is called, I do not know
+        // what happens (maybe it aborts, maybe it retries later, maybe it sets
+        // everything up to perform a query on the next poll...)
+        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    } else {
+        Serial.println("Hardware RTC NOT running, waiting for NTP to set the date");
+
+        // Initialize esp32 sntp client
+        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+        // getLocalTime calls localtime_r() to convert the current system
+        // timestamp into "struct tm" (days, hours etc.). If the current
+        // system timestamp is bogus (i.e., we did not set the clock yet),
+        // this fails and it tries again, until a timeout is reached. The
+        // idea is that we might have just started to run and the SNTP client
+        // may have not yet received the first answer from the server, so we
+        // wait a little for that.
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo, 30000)) { // 30s timeout
+            Serial.println("Failed to obtain time from both HW clock and network, aborting");
+            Serial.flush();
+            while (true) delay(10);
+        }
+
+        // System time is set from NTP, now set the HW clock for the first time
+        updateRTC();
     }
 
     Serial.println("RTC is ready!");
@@ -60,11 +89,11 @@ void RTC::checkRTCsync() {
         // the clock, but that's ok: If it fails, we do nothing special,
         // just wait for READJUST_CLOCK_INTERVAL again.
         lastClockAdjustment = currentMillis;
-        updateRTC(); 
+        updateRTC();
     }
 }
 
-void RTC::printDate(DateTime moment){
+void printDate(DateTime moment){
     char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sabado"};
     Serial.print(moment.year(), DEC);
     Serial.print('/');
@@ -90,30 +119,25 @@ void RTC::printDate(DateTime moment){
 
 void RTC::updateRTC(){
     time_t now;
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-        Serial.println("Failed to obtain time");
-        return;
-    }
     time(&now);
 
-    unsigned long nettime = now + daylightOffset_sec;
+    unsigned long systemtime = now;
     unsigned long rtctime = rtc.now().unixtime();
 #   ifdef DEBUGRTC
-    Serial.print("NTP date: ");
-    Serial.println(nettime);
-    printDate(DateTime(nettime));
-    Serial.print("RTC date: ");
+    Serial.print("System date: ");
+    Serial.println(systemtime);
+    printDate(DateTime(systemtime));
+    Serial.print("HW RTC date: ");
     Serial.println(rtctime);
     printDate(DateTime(rtctime));
     Serial.print("Difference: ");
-    Serial.println(nettime - rtctime);
-
-    if(nettime - rtctime >= 2){
-        Serial.println("Using NTP to update RTC time");
-        rtc.adjust(DateTime(nettime));
-    }
+    Serial.println(systemtime - rtctime);
 #   endif
+
+    if(systemtime - rtctime >= 10){
+        Serial.println("Updating hardware RTC time");
+        rtc.adjust(DateTime(systemtime));
+    }
 }
 
 unsigned long int RTC::unixTime(){
