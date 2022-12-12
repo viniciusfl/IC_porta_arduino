@@ -4,7 +4,7 @@
 
 void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id);
 
-int processCardData(uint8_t* data, uint8_t bits);
+unsigned long bitsToNumber(uint8_t* data, uint8_t bits);
 
 void pinStateChanged();
 
@@ -23,24 +23,26 @@ Wiegand wiegand1;
 Wiegand wiegand2;
 
 
-// Function that is called when card is read 
-int processCardData(uint8_t* data, uint8_t bits){
-    String card = "";
+// This reads the bitstream provided by the wiegand reader and converts
+// to a single number.
+unsigned long bitsToNumber(uint8_t* data, uint8_t bits){
+    String number = "";
     
     uint8_t bytes = (bits+7)/8;
 
     // concatenate each byte from hex
-    for (int i=0; i<bytes; i++){
-      card += String(data[i] >> 4, HEX);
-      card += String(data[i] & 0xF, HEX);
+    for (int i = 0; i < bytes; ++i){
+      number += String(data[i] >> 4, HEX);
+      number += String(data[i] & 0xF, HEX);
     }
     
-    return strtoul(card.c_str(), NULL, 16);
+    return strtoul(number.c_str(), NULL, 16);
 }
 
-void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id){
+// Function that is called when card is read
+void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id) {
     currentCardReader = atoi(reader_id);
-    input = processCardData(data, bits);
+    input = bitsToNumber(data, bits);
 
     // start search
     isSearching = true;
@@ -49,7 +51,6 @@ void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id){
     Serial.println(" was used.");
     Serial.print("We received -> ");
     Serial.println(input);
-
 }
 
 // When any of the pins have changed, update the state of the wiegand library
@@ -66,7 +67,6 @@ void stateChanged(bool plugged, const char* message) {
     Serial.print(message);
     Serial.println(plugged ? "CONNECTED" : "DISCONNECTED");
 }
-
 
 void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message) {
     Serial.print(message);
