@@ -11,7 +11,7 @@ char SERVER[] = {"10.0.2.106"};
 static int callback(void *data, int argc, char **argv, char **azColName);
 
 // This should be called from setup()
-void dataBase::initDataBase(){
+void dataBase::init(){
     if (!SD.begin()){
         Serial.println("Card Mount Failed");
         return;

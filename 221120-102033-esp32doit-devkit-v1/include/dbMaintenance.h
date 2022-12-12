@@ -12,7 +12,7 @@
 
 class dataBase{
     public:
-        void initDataBase();
+        void init();
         void dbMaintenance(DateTime moment);
 
     private:

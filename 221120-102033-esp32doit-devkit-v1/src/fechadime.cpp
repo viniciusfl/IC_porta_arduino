@@ -15,7 +15,7 @@ void setup() {
     Serial.println(F("Start program"));
     WiFiInit();
     hwclock.init();
-    db.initDataBase();
+    db.init();
     initCardReader();
     currentMillis = millis();
 }
