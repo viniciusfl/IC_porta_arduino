@@ -84,7 +84,7 @@ void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBi
     Serial.println();
 }
 
-// Initialize Wiegand reader
+// This should be called from setup()
 void initCardReader(){
 
     //Install listeners and initialize Wiegand reader
@@ -118,7 +118,6 @@ void initCardReader(){
     pinStateChanged();
 }
 
-// This should be called from setup()
 void cardMaintenance(){
     // Only very recent versions of the arduino framework for ESP32
     // support interrupts()/noInterrupts()
