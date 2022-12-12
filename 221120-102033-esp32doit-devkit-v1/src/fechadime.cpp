@@ -1,12 +1,10 @@
-
 #include <../include/common.h>
 #include <../include/timeKeeping.h>
 #include <../include/dbMaintenance.h>
 #include <../include/cardReader.h>
 #include <Arduino.h>
 
-
-RTC clk = RTC();
+RTC hwclock = RTC();
 
 dataBase db = dataBase();
 
@@ -16,7 +14,7 @@ void setup() {
     while (!Serial) { ; }
     Serial.println(F("Start program"));
     WiFiInit();
-    clk.initRTC(); 
+    hwclock.initRTC();
     db.initDataBase();
     initCardReader();
     currentMillis = millis();
@@ -24,7 +22,7 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    db.dbMaintenance(DateTime(clk.unixTime()));
-    clk.checkRTCsync();
+    db.dbMaintenance(DateTime(hwclock.unixTime()));
+    hwclock.checkRTCsync();
     cardMaintenance();
 }
