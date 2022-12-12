@@ -118,15 +118,21 @@ void initCardReader(){
     pinStateChanged();
 }
 
+unsigned int pseudoDelay = 0; // Used in cardMaintenance
+
 void cardMaintenance(){
+    // No need to run this on every loop
+    if (pseudoDelay < 10000) {
+        ++pseudoDelay;
+        return;
+    }
+
+    pseudoDelay = 0;
+
     // Only very recent versions of the arduino framework for ESP32
     // support interrupts()/noInterrupts()
     portDISABLE_INTERRUPTS();
     wiegand2.flush();
     wiegand1.flush();
     portENABLE_INTERRUPTS();
-    delay(150); //Sleep a little -- this doesn't have to run very often.
 }
-
-
-
