@@ -42,7 +42,7 @@ unsigned long bitsToNumber(uint8_t* data, uint8_t bits){
 // Function that is called when card is read
 void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id) {
     currentCardReader = atoi(reader_id);
-    input = bitsToNumber(data, bits);
+    currentCardID = bitsToNumber(data, bits);
 
     // start search
     isSearching = true;
@@ -50,7 +50,7 @@ void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id) {
     Serial.print(currentCardReader);
     Serial.println(" was used.");
     Serial.print("We received -> ");
-    Serial.println(input);
+    Serial.println(currentCardID);
 }
 
 // When any of the pins have changed, update the state of the wiegand library

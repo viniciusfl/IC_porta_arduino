@@ -35,7 +35,7 @@ class dataBase{
         void processDownload();
         void chooseCurrentDB();
         void resetTimestampFiles();
-        void generateLog(DateTime moment, unsigned long int input);
+        void generateLog(DateTime moment, unsigned long int id);
         int openDb(const char *filename) ;
         void close();
         int exec(const char *sql);

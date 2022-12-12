@@ -36,13 +36,13 @@ void dataBase::initDataBase(){
 // a small chunk of work, and return. This means we do not hog the
 // processor and can pursue other tasks while updating the DB.
 void dataBase::dbMaintenance(DateTime moment){
-    
+
     if (isSearching){
         search(moment);
     }
-    
+
     // We start a download only if we are not already downloading
-    
+
     if (!downloading) {
         // millis() wraps every ~49 days, but
         // wrapping does not cause problems here
@@ -52,7 +52,7 @@ void dataBase::dbMaintenance(DateTime moment){
         // ANWSER: we can use an alarm with RTC 1307
         // https://robojax.com/learn/arduino/?vid=robojax_DS1307-clock-alarm
         //
-        if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) 
+        if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL)
             startDownload();
         return;
     }
@@ -108,7 +108,7 @@ void dataBase::startDownload(){
     char removeDB[20];
     sprintf(removeDB, "DELETE FROM %s", dbNames[newDB]);
     exec(removeDB);
-    
+
     // remove timestamp file
     SD.remove(timestampfiles[newDB]);
 
@@ -227,7 +227,7 @@ void dataBase::resetTimestampFiles()
     }
 }
 
-// receive db name and opens it 
+// receive db name and opens it
 int dataBase::openDb(const char *filename)
 {
     int rc = sqlite3_open(filename, &db);
@@ -251,11 +251,11 @@ static int callback(void *data, int argc, char **argv, char **azColName){
     if (!isSearching)
         return 0;
 
-    if (atoi(argv[0]) == 1) 
+    if (atoi(argv[0]) == 1)
         Serial.println("Exists in db.");
-    else 
+    else
         Serial.println("Doesn't exist in db.");
-    
+
     return 0;
 }
 
@@ -267,14 +267,14 @@ bool dataBase::search(DateTime moment){
     Serial.print(currentCardReader);
     Serial.println(" was used.");
     Serial.print("We received -> ");
-    Serial.println(input);
+    Serial.println(currentCardID);
 
     //openDb("/sd/banco.db");
 
     // Make query and execute it
     /*
     char searchDB[300];
-    sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], input);
+    sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], currentCardID);
     exec(searchDB);
 
     isSearching = false;
@@ -282,17 +282,17 @@ bool dataBase::search(DateTime moment){
     */
     // Close db if its not opened
     //close();
-    
 
-    //generateLog(moment, input);
 
-    
+    //generateLog(moment, currentCardID);
+
+
     return true; // FIXME: not used yet
 
 }
 
-void dataBase::generateLog(DateTime moment, unsigned long int input){ // FIXME: we should generate log with name/RA 
-    // FIXME: generate log for both people allowed and not allowed 
+void dataBase::generateLog(DateTime moment, unsigned long int id){ // FIXME: we should generate log with name/RA
+    // FIXME: generate log for both people allowed and not allowed
     Serial.println("generating log");
     SD.remove("/log.txt");
     File log = SD.open("/log.txt", FILE_APPEND);
@@ -300,7 +300,7 @@ void dataBase::generateLog(DateTime moment, unsigned long int input){ // FIXME: 
             Serial.println(" couldnt open log file...");
     }
     char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sabado"};
-    log.print(input);
+    log.print(id);
     log.print(" entered ");
     log.print(moment.year(), DEC);
     log.print('/');

@@ -3,7 +3,7 @@
 unsigned long currentMillis;
 
 bool isSearching = false;
-unsigned long int input;
+unsigned long int currentCardID;
 int currentCardReader;
 
 bool downloading = false;
