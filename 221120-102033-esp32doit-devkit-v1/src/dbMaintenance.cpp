@@ -20,6 +20,7 @@ void dataBase::initDataBase(){
         Serial.println("SD connected.");
     }
 
+    // TODO: Why is this here?
     delay(300);
 
     sqlite3_initialize();
