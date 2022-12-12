@@ -13,13 +13,13 @@ void stateChanged(bool plugged, const char* message);
 void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message);
 
 // pins for card reader 1
-#define PIN_D0 26
-#define PIN_D1 27 
+#define READER1_D0 26
+#define READER1_D1 27
 Wiegand wiegand1;
 
 // pins for card reader 2
-#define PIN2_D0 33
-#define PIN2_D1 25 
+#define READER2_D0 33
+#define READER2_D1 25
 Wiegand wiegand2;
 
 
@@ -54,10 +54,10 @@ void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id){
 
 // When any of the pins have changed, update the state of the wiegand library
 void pinStateChanged() {
-    wiegand1.setPin0State(digitalRead(PIN_D0));
-    wiegand1.setPin1State(digitalRead(PIN_D1));
-    wiegand2.setPin0State(digitalRead(PIN2_D0));
-    wiegand2.setPin1State(digitalRead(PIN2_D1));
+    wiegand1.setPin0State(digitalRead(READER1_D0));
+    wiegand1.setPin1State(digitalRead(READER1_D1));
+    wiegand2.setPin0State(digitalRead(READER2_D0));
+    wiegand2.setPin1State(digitalRead(READER2_D1));
 }
 
 // Notifies when a reader has been connected or disconnected.
@@ -94,11 +94,11 @@ void initCardReader(){
     wiegand1.begin(Wiegand::LENGTH_ANY, true);
 
     //initialize pins as INPUT and attaches interruptions
-    pinMode(PIN_D0, INPUT);
-    pinMode(PIN_D1, INPUT);
+    pinMode(READER1_D0, INPUT);
+    pinMode(READER1_D1, INPUT);
 
-    attachInterrupt(digitalPinToInterrupt(PIN_D0), pinStateChanged, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(PIN_D1), pinStateChanged, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(READER1_D0), pinStateChanged, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(READER1_D1), pinStateChanged, CHANGE);
 
     //Install listeners and initialize Wiegand reader
     wiegand2.onReceive(dbTriggerSearch, "2");
@@ -108,11 +108,11 @@ void initCardReader(){
 
 
     //initialize pins as INPUT and attaches interruptions
-    pinMode(PIN2_D0, INPUT);
-    pinMode(PIN2_D1, INPUT);
+    pinMode(READER2_D0, INPUT);
+    pinMode(READER2_D1, INPUT);
 
-    attachInterrupt(digitalPinToInterrupt(PIN2_D0), pinStateChanged, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(PIN2_D1), pinStateChanged, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(READER2_D0), pinStateChanged, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(READER2_D1), pinStateChanged, CHANGE);
 
     //Sends the initial pin state to the Wiegand library
     pinStateChanged();
