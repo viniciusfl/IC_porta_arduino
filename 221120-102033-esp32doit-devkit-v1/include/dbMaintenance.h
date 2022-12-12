@@ -43,6 +43,4 @@ class dataBase{
         bool search(DateTime moment);
 };
 
-static int callback(void *data, int argc, char **argv, char **azColName);
-
 #endif

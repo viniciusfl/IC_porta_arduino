@@ -8,8 +8,9 @@ WiFiClient client;
 
 char SERVER[] = {"10.0.2.106"};
 
-// This should be called from setup()
+static int callback(void *data, int argc, char **argv, char **azColName);
 
+// This should be called from setup()
 void dataBase::initDataBase(){
     if (!SD.begin()){
         Serial.println("Card Mount Failed");
@@ -355,5 +356,4 @@ void dataBase::insert(char* element){
 void dataBase::close(){
     sqlite3_close(db);
 }
-
 
