@@ -27,5 +27,4 @@ void loop() {
     db.dbMaintenance(DateTime(clk.unixTime()));
     clk.checkRTCsync();
     cardMaintenance();
-    delay(150);
 }
