@@ -239,6 +239,8 @@ void dataBase::resetTimestampFiles()
 }
 
 int dataBase::openDB() {
+    if (db != NULL) return 0;
+
     int rc = sqlite3_open(dbNames[currentDB], &db);
     if (rc) {
         Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
@@ -269,6 +271,8 @@ static int callback(void *action, int argc, char **argv, char **azColName){
 // search element through current database
 // TODO: there is some problem with the wiegand reader and open DB files
 bool dataBase::checkCurrentCard(int readerID, unsigned long cardID) {
+    if (db == NULL) return false;
+
     Serial.print("Card reader ");
     Serial.print(readerID);
     Serial.println(" was used.");
@@ -338,6 +342,8 @@ int dataBase::exec(const char *sql, CBAction action){
 
 // insert element on current db
 void dataBase::insert(char* element){
+    if (db == NULL) return;
+
     int rc;
     char insertMsg[100];
     sprintf(insertMsg, "INSERT INTO %s (cartao) VALUES ('%s')", dbNames[0], element);
