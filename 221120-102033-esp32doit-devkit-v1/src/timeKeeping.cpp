@@ -1,7 +1,6 @@
 #include <common.h>
 #include <SPI.h>
 #include <stdlib.h>
-#include <WiFiUdp.h>
 #include <RTClib.h>
 #include <time.h>
 #include <timeKeeping.h>
@@ -145,8 +144,4 @@ void RTC::update(){
         Serial.println("Updating hardware RTC time");
         rtc.adjust(DateTime(systemtime));
     }
-}
-
-unsigned long int RTC::unixTime(){
-    return rtc.now().unixtime();
 }

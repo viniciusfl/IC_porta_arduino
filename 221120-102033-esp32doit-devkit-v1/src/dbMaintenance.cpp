@@ -3,9 +3,8 @@
 #include "SD.h"
 #include "SPI.h"
 #include <sqlite3.h>
-#include <networkConnection.h>
 #include <common.h>
-#include <timeKeeping.h>
+#include <RTClib.h>
 #include <dbMaintenance.h>
 
 #define RETRY_DOWNLOAD_TIME 60000
@@ -291,7 +290,7 @@ bool dataBase::checkCurrentCard(int readerID, unsigned long cardID) {
 
 void dataBase::generateLog(unsigned long int id){ // FIXME: we should generate log with name/RA
 
-    DateTime moment = DateTime(hwclock.unixTime());
+    DateTime moment = DateTime(time(NULL));
     // FIXME: generate log for both people allowed and not allowed
     Serial.println("generating log");
     SD.remove("/log.txt");
