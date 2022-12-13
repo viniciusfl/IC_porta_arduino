@@ -6,7 +6,7 @@
 class dataBase{
     public:
         void init();
-        void dbMaintenance(DateTime moment);
+        void update();
 
     private:
         sqlite3 *db;
@@ -28,12 +28,12 @@ class dataBase{
         void processDownload();
         void chooseCurrentDB();
         void resetTimestampFiles();
-        void generateLog(DateTime moment, unsigned long int id);
+        void generateLog(unsigned long int id);
         int openDb(const char *filename) ;
         void close();
         int exec(const char *sql);
         void insert(char *element);
-        bool search(DateTime moment);
+        bool search();
 };
 
 #endif

@@ -21,7 +21,7 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    db.dbMaintenance(DateTime(hwclock.unixTime()));
+    db.update();
     hwclock.checkSync();
     cardMaintenance();
 }

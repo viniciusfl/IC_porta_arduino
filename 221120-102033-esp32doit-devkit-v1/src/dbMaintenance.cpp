@@ -43,10 +43,10 @@ void dataBase::init(){
 // At each call, we determine the current state we are in, perform
 // a small chunk of work, and return. This means we do not hog the
 // processor and can pursue other tasks while updating the DB.
-void dataBase::dbMaintenance(DateTime moment){
+void dataBase::update(){
 
     if (searching){
-        search(moment);
+        search();
     }
 
     // We start a download only if we are not already downloading
@@ -269,7 +269,7 @@ static int callback(void *data, int argc, char **argv, char **azColName){
 
 
 // search element through current database
-bool dataBase::search(DateTime moment){
+bool dataBase::search(){
     searching = false;
     Serial.print("Card reader ");
     Serial.print(currentCardReader);
@@ -292,14 +292,16 @@ bool dataBase::search(DateTime moment){
     //close();
 
 
-    //generateLog(moment, currentCardID);
+    //generateLog(currentCardID);
 
 
     return true; // FIXME: not used yet
 
 }
 
-void dataBase::generateLog(DateTime moment, unsigned long int id){ // FIXME: we should generate log with name/RA
+void dataBase::generateLog(unsigned long int id){ // FIXME: we should generate log with name/RA
+
+    DateTime moment = DateTime(hwclock.unixTime());
     // FIXME: generate log for both people allowed and not allowed
     Serial.println("generating log");
     SD.remove("/log.txt");
