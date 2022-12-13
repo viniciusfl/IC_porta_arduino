@@ -3,8 +3,7 @@
 #include <cardReader.h>
 #include <common.h>
 
-
-void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id);
+void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id);
 
 unsigned long bitsToNumber(uint8_t* data, uint8_t bits);
 
@@ -24,6 +23,11 @@ Wiegand wiegand1;
 #define READER2_D1 25
 Wiegand wiegand2;
 
+// We read the Wiegand data in a callback; to pass this data to the
+// "normal" program flow, we use these globals:
+bool newAccess; // Is there a user trying to open a door?
+unsigned long int cardID; // If so, this is his ID number
+int readerID; // And it came from this reader
 
 // This reads the bitstream provided by the wiegand reader and converts
 // to a single number.
@@ -42,17 +46,16 @@ unsigned long bitsToNumber(uint8_t* data, uint8_t bits){
 }
 
 // Function that is called when card is read
-void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id) {
-    currentCardReader = atoi(reader_id);
-    currentCardID = bitsToNumber(data, bits);
+void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id) {
+    newAccess = true;
+    readerID = atoi(reader_id);
+    cardID = bitsToNumber(data, bits);
 
-    // start search
-    searching = true;
     Serial.print("Card reader ");
-    Serial.print(currentCardReader);
+    Serial.print(readerID);
     Serial.println(" was used.");
     Serial.print("We received -> ");
-    Serial.println(currentCardID);
+    Serial.println(cardID);
 }
 
 // When any of the pins have changed, update the state of the wiegand library
@@ -90,7 +93,7 @@ void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBi
 void initCardReader(){
 
     //Install listeners and initialize Wiegand reader
-    wiegand1.onReceive(dbTriggerSearch, "1");
+    wiegand1.onReceive(exposeCardData, "1");
     wiegand1.onReceiveError(receivedDataError, "Card reader 1 error: ");
     wiegand1.onStateChange(stateChanged, "Card reader 1 state changed: ");
     wiegand1.begin(Wiegand::LENGTH_ANY, true);
@@ -103,7 +106,7 @@ void initCardReader(){
     attachInterrupt(digitalPinToInterrupt(READER1_D1), pinStateChanged, CHANGE);
 
     //Install listeners and initialize Wiegand reader
-    wiegand2.onReceive(dbTriggerSearch, "2");
+    wiegand2.onReceive(exposeCardData, "2");
     wiegand2.onReceiveError(receivedDataError, "Card reader 2 error: ");
     wiegand2.onStateChange(stateChanged, "Card reader 2 state changed: ");
     wiegand2.begin(Wiegand::LENGTH_ANY, true);
@@ -120,16 +123,14 @@ void initCardReader(){
     pinStateChanged();
 }
 
-unsigned int pseudoDelay = 0; // Used in cardMaintenance
+unsigned long lastFlush = 0;
 
-void cardMaintenance(){
-    // No need to run this on every loop
-    if (pseudoDelay < 10000) {
-        ++pseudoDelay;
-        return;
-    }
+bool cardMaintenance(cardData* returnVal){
+    // We could run this on every loop, but since we
+    // disable interrupts it might be better not to.
+    if (currentMillis - lastFlush < 20) return false;
 
-    pseudoDelay = 0;
+    lastFlush = currentMillis;
 
     // Only very recent versions of the arduino framework for ESP32
     // support interrupts()/noInterrupts()
@@ -137,4 +138,13 @@ void cardMaintenance(){
     wiegand2.flush();
     wiegand1.flush();
     portENABLE_INTERRUPTS();
+
+    if (newAccess) {
+        newAccess = false;
+        returnVal->cardID = cardID;
+        returnVal->readerID = readerID;
+        return true;
+    } else {
+        return false;
+    }
 }

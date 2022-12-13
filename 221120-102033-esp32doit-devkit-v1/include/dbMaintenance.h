@@ -12,7 +12,7 @@ class dataBase{
     public:
         void init();
         void update();
-        void checkCurrentCard();
+        bool checkCurrentCard(int readerID, unsigned long cardID);
 
     private:
         sqlite3 *db;
@@ -37,7 +37,6 @@ class dataBase{
         void closeDB();
         int exec(const char *sql, CBAction);
         void insert(char *element);
-        bool search();
 };
 
 #endif

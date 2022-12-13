@@ -73,10 +73,6 @@ void dataBase::update(){
     processDownload();
 }
 
-void dataBase::checkCurrentCard() {
-    if (searching) search();
-}
-
 void dataBase::startDownload(){
     client.connect(SERVER, 80);
     if (client.connected()) {
@@ -270,23 +266,21 @@ static int callback(void *action, int argc, char **argv, char **azColName){
     return 0;
 }
 
-
 // search element through current database
-bool dataBase::search(){
+// TODO: there is some problem with the wiegand reader and open DB files
+bool dataBase::checkCurrentCard(int readerID, unsigned long cardID) {
     Serial.print("Card reader ");
-    Serial.print(currentCardReader);
+    Serial.print(readerID);
     Serial.println(" was used.");
     Serial.print("We received -> ");
-    Serial.println(currentCardID);
+    Serial.println(cardID);
 
     // Make query and execute it
     char searchDB[300];
-    sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], currentCardID);
+    sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], cardID);
     exec(searchDB, CHECK_CARD);
 
-    searching = false;
-
-    //generateLog(currentCardID);
+    //generateLog(cardID);
 
     return true; // FIXME: not used yet
 }

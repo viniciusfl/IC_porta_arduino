@@ -7,6 +7,8 @@
 
 dataBase db = dataBase();
 
+cardData theCardData;
+
 void setup() {
     Serial.begin(115200);
     // wait for serial port to connect. Needed for native USB port only
@@ -23,6 +25,7 @@ void loop() {
     currentMillis = millis();
     db.update();
     hwclock.checkSync();
-    cardMaintenance();
-    db.checkCurrentCard();
+    if (cardMaintenance(&theCardData)) {
+        db.checkCurrentCard(theCardData.readerID, theCardData.cardID);
+    }
 }
