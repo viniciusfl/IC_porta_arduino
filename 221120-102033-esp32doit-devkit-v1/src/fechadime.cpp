@@ -24,4 +24,5 @@ void loop() {
     db.update();
     hwclock.checkSync();
     cardMaintenance();
+    db.checkCurrentCard();
 }

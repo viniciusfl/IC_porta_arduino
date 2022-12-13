@@ -44,13 +44,7 @@ void dataBase::init(){
 // a small chunk of work, and return. This means we do not hog the
 // processor and can pursue other tasks while updating the DB.
 void dataBase::update(){
-
-    if (searching){
-        search();
-    }
-
     // We start a download only if we are not already downloading
-
     if (!downloading) {
         // millis() wraps every ~49 days, but
         // wrapping does not cause problems here
@@ -73,6 +67,10 @@ void dataBase::update(){
 
     // If we did not disconnect above, we are connected
     processDownload();
+}
+
+void dataBase::checkCurrentCard() {
+    if (searching) search();
 }
 
 void dataBase::startDownload(){

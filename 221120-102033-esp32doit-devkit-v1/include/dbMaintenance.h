@@ -7,6 +7,7 @@ class dataBase{
     public:
         void init();
         void update();
+        void checkCurrentCard();
 
     private:
         sqlite3 *db;
