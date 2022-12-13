@@ -1,6 +1,8 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include<timeKeeping.h>
+
 // On every loop, we check for the amount of time passed since we last
 // did some operations. Instead of calling millis() everywhere, we call
 // it only once per loop and store the value here. This *might* save
@@ -17,5 +19,7 @@ extern unsigned long int currentCardID; // If so, this is his ID number
 extern int currentCardReader; // And it came from this reader
 
 extern bool downloading; // Is there an ongoing DB update?
+
+extern RTC hwclock; // Everybody needs to know the current time!
 
 #endif

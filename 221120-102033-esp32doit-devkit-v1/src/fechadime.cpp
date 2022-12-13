@@ -5,8 +5,6 @@
 #include <cardReader.h>
 #include <Arduino.h>
 
-RTC hwclock = RTC();
-
 dataBase db = dataBase();
 
 void setup() {

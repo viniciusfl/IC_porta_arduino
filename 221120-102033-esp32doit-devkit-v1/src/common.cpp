@@ -7,3 +7,5 @@ unsigned long int currentCardID;
 int currentCardReader;
 
 bool downloading = false;
+
+RTC hwclock = RTC();
