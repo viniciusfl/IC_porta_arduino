@@ -12,6 +12,8 @@
 
 #define DOWNLOAD_INTERVAL 20000
 
+bool downloading = false; // Is there an ongoing DB update?
+
 WiFiClient client;
 
 char SERVER[] = {"10.0.2.106"};
