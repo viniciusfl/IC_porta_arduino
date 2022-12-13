@@ -14,11 +14,11 @@ void setup() {
     // wait for serial port to connect. Needed for native USB port only
     while (!Serial) { ; }
     Serial.println(F("Start program"));
+    currentMillis = millis();
     WiFiInit();
     hwclock.init();
     db.init();
     initCardReader();
-    currentMillis = millis();
 }
 
 void loop() {
