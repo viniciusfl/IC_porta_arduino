@@ -16,13 +16,14 @@ WiFiClient client;
 
 char SERVER[] = {"10.0.2.106"};
 
-static int callback(void *data, int argc, char **argv, char **azColName);
-
 // This should be called from setup()
 void dataBase::init(){
+    db = NULL; // check the comment near dataBase::close()
+
     if (!SD.begin()){
-        Serial.println("Card Mount Failed");
-        return;
+        Serial.println("Card Mount Failed, aborting");
+        Serial.flush();
+        while (true) delay(10);
     }
     else{
         Serial.println("SD connected.");
@@ -33,10 +34,10 @@ void dataBase::init(){
 
     sqlite3_initialize();
 
+    // TODO: this is weird, we want to be able to survive crashes
     // reset both timestamps and then update one BD so we don't have trouble when we reset program
-    resetTimestampFiles();
-    chooseCurrentDB();
-    // startDownload();
+    //resetTimestampFiles();
+    chooseInitialDB();
 }
 
 // This should be called from loop()
@@ -53,7 +54,8 @@ void dataBase::update(){
         //
         // ANWSER: we can use an alarm with RTC 1307
         // https://robojax.com/learn/arduino/?vid=robojax_DS1307-clock-alarm
-        //
+        // I believe the nodeMCU RTC might also have this feature
+
         if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL)
             startDownload();
         return;
@@ -75,11 +77,11 @@ void dataBase::checkCurrentCard() {
 
 void dataBase::startDownload(){
     client.connect(SERVER, 80);
-    if (client.connected())
+    if (client.connected()) {
         Serial.println(F("Connected to server."));
-    else
+    } else {
         Serial.println(F("Connection to server failed."));
-
+    }
 
     // If connection failed, pretend nothing
     // ever happened and try again later
@@ -103,20 +105,11 @@ void dataBase::startDownload(){
 
     // Hack alert! This is a dirty way of saying "not the current DB"
     newDB = 0;
-    if (currentDB == 0)
-        newDB = 1;
+    if (currentDB == 0) newDB = 1;
 
-    // Open database
-    if (openDb("/sd/banco.db"))
-        return;
-
-    // drop old database
-    char removeDB[20];
-    sprintf(removeDB, "DELETE FROM %s", dbNames[newDB]);
-    exec(removeDB);
-
-    // remove timestamp file
+    // remove old DB files
     SD.remove(timestampfiles[newDB]);
+    SD.remove(dbNames[newDB]);
 
 #ifdef DEBUG
     Serial.print("Writing to ");
@@ -129,6 +122,8 @@ void dataBase::finishDownload(){
     client.flush();
     client.stop();
     downloading = false;
+
+    // Out with the old, in with the new
 
     // FIXME: we should only save the timestamp etc.
     //        if the download was successful
@@ -146,17 +141,23 @@ void dataBase::finishDownload(){
     Serial.println("Disconnecting from server and finishing db update.");
 
     currentDB = newDB;
+    newDB = -1; // invalid
 
-    sqlite3_close(db);
+    closeDB();
+    openDB();
 }
 
 void dataBase::processDownload(){
+    if (!client.available()) return;
+
     char c = client.read();
 
-    if (headerDone){
+    if (headerDone) {
+        // TODO: This works line-by-line, but we are downloading a
+        //       binary file, we might exhaust the device memory.
         if (c == '\r')
             return;
-        if (c == '\n'){
+        if (c == '\n') {
             #ifdef DEBUG
                 Serial.println("Writing " + String(netLineBuffer) + " to DB file");
             #endif
@@ -168,9 +169,8 @@ void dataBase::processDownload(){
         netLineBuffer[position] = c;
         netLineBuffer[position + 1] = 0;
         ++position;
-    }
-    else{
-        if (c == '\n'){
+    } else {
+        if (c == '\n') {
             if (beginningOfLine and previous == '\r')
             {
                 headerDone = true;
@@ -178,12 +178,11 @@ void dataBase::processDownload(){
                 Serial.println(F("Header done!"));
             #endif
             }
-            else{
+            else {
                 previous = 0;
             }
             beginningOfLine = true;
-        }
-        else{
+        } else {
             previous = c;
             if (c != '\r')
                 beginningOfLine = false;
@@ -191,7 +190,7 @@ void dataBase::processDownload(){
     }
 }
 
-void dataBase::chooseCurrentDB(){
+void dataBase::chooseInitialDB(){
     currentDB = -1; // invalid
     int max = -1;
     for (char i = 0; i < 2; ++i){ // 2 is the number of DBs
@@ -215,10 +214,18 @@ void dataBase::chooseCurrentDB(){
         }
         f.close();
     }
-    Serial.printf("Choosing %s as actual DB.\n", dbNames[currentDB] );
+
+    if (currentDB < 0) {
+        currentDB = 0;
+        startDownload();
+        Serial.printf("Downloading DB for the first time...");
+    } else {
+        Serial.printf("Choosing %s as current DB.\n", dbNames[currentDB]);
+        openDB();
+    }
 }
 
-
+// TODO: I think this should not exist
 // reset both timestamp files to zero
 void dataBase::resetTimestampFiles()
 {
@@ -233,34 +240,30 @@ void dataBase::resetTimestampFiles()
     }
 }
 
-// receive db name and opens it
-int dataBase::openDb(const char *filename)
-{
-    int rc = sqlite3_open(filename, &db);
-    if (rc)
-    {
+int dataBase::openDB() {
+    int rc = sqlite3_open(dbNames[currentDB], &db);
+    if (rc) {
         Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
-        return rc;
-    }
-    else
-    {
+    } else {
         Serial.printf("Opened database successfully\n");
     }
+
     return rc;
 }
 
-static int callback(void *data, int argc, char **argv, char **azColName){
-    /*
-     * This function is called when we make a query and receives db output.
-     * We only care about output when we are searching an card id.
-     */
-    if (!searching)
-        return 0;
-
-    if (atoi(argv[0]) == 1)
-        Serial.println("Exists in db.");
-    else
-        Serial.println("Doesn't exist in db.");
+static int callback(void *action, int argc, char **argv, char **azColName){
+    switch (*((CBAction*) action)) {
+        case CHECK_CARD:
+            if (atoi(argv[0]) == 1)
+                Serial.println("Exists in db.");
+            else
+                Serial.println("Doesn't exist in db.");
+            break;
+        case IGNORE:
+            break;
+        default:
+            ;
+    }
 
     return 0;
 }
@@ -268,33 +271,22 @@ static int callback(void *data, int argc, char **argv, char **azColName){
 
 // search element through current database
 bool dataBase::search(){
-    searching = false;
     Serial.print("Card reader ");
     Serial.print(currentCardReader);
     Serial.println(" was used.");
     Serial.print("We received -> ");
     Serial.println(currentCardID);
 
-    //openDb("/sd/banco.db");
-
     // Make query and execute it
-    /*
     char searchDB[300];
     sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')", dbNames[0], currentCardID);
-    exec(searchDB);
+    exec(searchDB, CHECK_CARD);
 
     searching = false;
 
-    */
-    // Close db if its not opened
-    //close();
-
-
     //generateLog(currentCardID);
 
-
     return true; // FIXME: not used yet
-
 }
 
 void dataBase::generateLog(unsigned long int id){ // FIXME: we should generate log with name/RA
@@ -329,10 +321,11 @@ void dataBase::generateLog(unsigned long int id){ // FIXME: we should generate l
 }
 
 // receive sql query and execute it
-int dataBase::exec(const char *sql){
+int dataBase::exec(const char *sql, CBAction action){
     Serial.println(sql);
+    char *zErrMsg;
     long start = micros();
-    int rc = sqlite3_exec(db, sql, callback, (void *)data, &zErrMsg);
+    int rc = sqlite3_exec(db, sql, callback, (void *) (&action), &zErrMsg);
     if (rc != SQLITE_OK)
     {
         Serial.printf("SQL error: %s\n", zErrMsg);
@@ -349,20 +342,26 @@ int dataBase::exec(const char *sql){
 
 // insert element on current db
 void dataBase::insert(char* element){
-    char *zErrMsg = 0;
     int rc;
     char insertMsg[100];
     sprintf(insertMsg, "INSERT INTO %s (cartao) VALUES ('%s')", dbNames[0], element);
-    rc = exec(insertMsg);
+    rc = exec(insertMsg, IGNORE);
     if (rc != SQLITE_OK)
     {
         sqlite3_close(db);
+        db = NULL;
         return;
     }
 }
 
-//close database
-void dataBase::close(){
+// In some rare situations, we might call this twice or call this before we
+// ever initialize the db first (which means the pointer is in an undefined
+// state). The sqlite3 docs say "The C parameter to sqlite3_close(C) and
+// sqlite3_close_v2(C) must be either a NULL pointer or an sqlite3 object
+// pointer [...] and not previously closed". So, we explicitly make it NULL
+// here and in dataBase::init() just in case.
+void dataBase::closeDB(){
     sqlite3_close(db);
+    db = NULL;
 }
 

@@ -3,6 +3,11 @@
 
 #include <sqlite3.h>
 
+enum CBAction {
+    CHECK_CARD,
+    IGNORE
+};
+
 class dataBase{
     public:
         void init();
@@ -21,18 +26,16 @@ class dataBase{
         char netLineBuffer[11];
         char position = 0;
         char previous;
-        char *zErrMsg = 0;
-        const char* data = "Callback function called";
 
         void startDownload();
         void finishDownload();
         void processDownload();
-        void chooseCurrentDB();
+        void chooseInitialDB();
         void resetTimestampFiles();
         void generateLog(unsigned long int id);
-        int openDb(const char *filename) ;
-        void close();
-        int exec(const char *sql);
+        int openDB();
+        void closeDB();
+        int exec(const char *sql, CBAction);
         void insert(char *element);
         bool search();
 };
