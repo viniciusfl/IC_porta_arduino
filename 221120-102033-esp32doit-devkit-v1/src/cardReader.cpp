@@ -3,6 +3,10 @@
 #include <cardReader.h>
 #include <common.h>
 
+// Note that, with more than one reader, trying to read two cards at
+// exactly the same time will probably fail (we use a single data buffer
+// for all readers). For our use case at least, that is irrelevant.
+
 void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id);
 
 unsigned long bitsToNumber(uint8_t* data, uint8_t bits);
@@ -23,14 +27,18 @@ Wiegand wiegand1;
 #define READER2_D1 25
 Wiegand wiegand2;
 
-// We read the Wiegand data in a callback; to pass this data to the
-// "normal" program flow, we use these globals:
+// We read the Wiegand data in a callback; to make this callback as short
+// as possible and pass this data to the "normal" program flow, we use these:
 bool newAccess; // Is there a user trying to open a door?
-unsigned long int cardID; // If so, this is his ID number
-int readerID; // And it came from this reader
+const char* readerID; // If so, it came from this reader
+uint8_t cardIDRaw[Wiegand::MAX_BYTES]; // And this is the unprocessed card ID;
+                                       // just a copy of what the wiegand lib
+                                       // gives us
+uint8_t cardIDBits; // This is the bit length of the card ID, also a copy of
+                    // what the wiegand lib gives us
 
 // This reads the bitstream provided by the wiegand reader and converts
-// to a single number.
+// it to a single number.
 unsigned long bitsToNumber(uint8_t* data, uint8_t bits){
     String number = "";
     
@@ -45,17 +53,19 @@ unsigned long bitsToNumber(uint8_t* data, uint8_t bits){
     return strtoul(number.c_str(), NULL, 16);
 }
 
-// Function that is called when card is read
+// Function that is called when card is read; we do not call
+// bitsToNumber() here to make it as fast as possible.
 void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id) {
     newAccess = true;
-    readerID = atoi(reader_id);
-    cardID = bitsToNumber(data, bits);
+    readerID = reader_id;
+    cardIDBits = bits;
 
-    Serial.print("Card reader ");
-    Serial.print(readerID);
-    Serial.println(" was used.");
-    Serial.print("We received -> ");
-    Serial.println(cardID);
+    // It would be possible to avoid copying, but that could break
+    // if something changes in the wiegand lib implementation.
+    uint8_t bytes = (bits+7)/8;
+    for (int i = 0; i < bytes; ++i){
+        cardIDRaw[i] = data[i];
+    }
 }
 
 // When any of the pins have changed, update the state of the wiegand library
@@ -132,19 +142,25 @@ bool cardMaintenance(cardData* returnVal){
 
     lastFlush = currentMillis;
 
-    // Only very recent versions of the arduino framework for ESP32
-    // support interrupts()/noInterrupts()
+    // Only very recent versions of the arduino framework
+    // for ESP32 support interrupts()/noInterrupts()
     portDISABLE_INTERRUPTS();
     wiegand2.flush();
     wiegand1.flush();
     portENABLE_INTERRUPTS();
 
-    if (newAccess) {
-        newAccess = false;
-        returnVal->cardID = cardID;
-        returnVal->readerID = readerID;
-        return true;
-    } else {
-        return false;
-    }
+    if (!newAccess) return false;
+
+    returnVal->readerID = atoi(readerID);
+    returnVal->cardID = bitsToNumber(cardIDRaw, cardIDBits);
+
+    Serial.print("Card reader ");
+    Serial.print(returnVal->readerID);
+    Serial.println(" was used.");
+    Serial.print("We received -> ");
+    Serial.println(returnVal->cardID);
+
+    newAccess = false;
+
+    return true;
 }
