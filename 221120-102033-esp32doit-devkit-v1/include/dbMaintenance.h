@@ -1,14 +1,7 @@
-#ifndef DB_MAITENANCE
-#define DB_MAITENANCE
+#ifndef DB_MAINTENANCE_H
+#define DB_MAINTENANCE_H
 
-#include <WiFi.h>
-#include "FS.h"
-#include "SD.h"
-#include "SPI.h"
 #include <sqlite3.h>
-#include <networkConnection.h>
-#include <common.h>
-#include <timeKeeping.h>
 
 class dataBase{
     public:

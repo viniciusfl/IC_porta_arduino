@@ -1,4 +1,12 @@
-#include <../include/dbMaintenance.h>
+#include <WiFi.h>
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+#include <sqlite3.h>
+#include <networkConnection.h>
+#include <common.h>
+#include <timeKeeping.h>
+#include <dbMaintenance.h>
 
 #define RETRY_DOWNLOAD_TIME 60000
 

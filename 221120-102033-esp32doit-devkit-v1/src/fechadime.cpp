@@ -1,7 +1,8 @@
-#include <../include/common.h>
-#include <../include/timeKeeping.h>
-#include <../include/dbMaintenance.h>
-#include <../include/cardReader.h>
+#include <common.h>
+#include <networkConnection.h>
+#include <timeKeeping.h>
+#include <dbMaintenance.h>
+#include <cardReader.h>
 #include <Arduino.h>
 
 RTC hwclock = RTC();

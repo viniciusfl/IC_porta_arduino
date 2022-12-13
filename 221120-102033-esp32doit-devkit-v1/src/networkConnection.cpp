@@ -1,4 +1,6 @@
-#include <../include/networkConnection.h>
+#include <common.h>
+#include <WiFi.h>
+#include <networkConnection.h>
 
 char ssid[] = "Familia Ferraz 2.4G";
 

@@ -1,12 +1,7 @@
 #ifndef TIME_KEEPING_H
 #define TIME_KEEPING_H
 
-#include <common.h>
-#include <SPI.h>
-#include <stdlib.h>
-#include <WiFiUdp.h>
 #include <RTClib.h>
-#include <time.h>
 
 class RTC{
     public:

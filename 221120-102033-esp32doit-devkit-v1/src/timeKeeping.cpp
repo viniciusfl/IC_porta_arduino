@@ -1,4 +1,11 @@
-#include <../include/timeKeeping.h>
+#include <common.h>
+#include <SPI.h>
+#include <stdlib.h>
+#include <WiFiUdp.h>
+#include <RTClib.h>
+#include <time.h>
+#include <timeKeeping.h>
+
 #define DEBUGRTC
 
 #define READJUST_CLOCK_INTERVAL 60000 // 10s, just for testing; a good

@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <Wiegand.h>
-#include <../include/cardReader.h>
+#include <cardReader.h>
+#include <common.h>
+
 
 void dbTriggerSearch(uint8_t* data, uint8_t bits, const char* reader_id);
 
