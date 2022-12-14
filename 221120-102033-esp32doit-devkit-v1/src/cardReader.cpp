@@ -7,7 +7,7 @@
 // exactly the same time will probably fail (we use a single data buffer
 // for all readers). For our use case at least, that is irrelevant.
 
-void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id);
+void captureIncomingData(uint8_t* data, uint8_t bits, const char* reader);
 
 unsigned long bitsToNumber(volatile const uint8_t*, volatile const uint8_t);
 
@@ -65,9 +65,9 @@ unsigned long bitsToNumber(volatile const uint8_t* data,
 // Function that is called when card is read; we do not call
 // bitsToNumber() here to make it as fast as possible (this
 // is called with interrupts disabled).
-void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id) {
+void captureIncomingData(uint8_t* data, uint8_t bits, const char* reader) {
     newAccess = true;
-    readerID = reader_id;
+    readerID = reader;
     cardIDBits = bits;
 
     // It would be possible to avoid copying, but that could break
@@ -108,13 +108,13 @@ void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
 void initCardReader(){
 
     // Install listeners and initialize first Wiegand reader
-    wiegand1.onReceive(exposeCardData, "1");
+    wiegand1.onReceive(captureIncomingData, "1");
     wiegand1.onReceiveError(receivedDataError, "Card reader 1 error: ");
     wiegand1.onStateChange(stateChanged, "Card reader 1 state changed: ");
     wiegand1.begin(Wiegand::LENGTH_ANY, true);
 
     // Install listeners and initialize second Wiegand reader
-    wiegand2.onReceive(exposeCardData, "2");
+    wiegand2.onReceive(captureIncomingData, "2");
     wiegand2.onReceiveError(receivedDataError, "Card reader 2 error: ");
     wiegand2.onStateChange(stateChanged, "Card reader 2 state changed: ");
     wiegand2.begin(Wiegand::LENGTH_ANY, true);
@@ -132,7 +132,7 @@ void initCardReader(){
     // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/intr_alloc.html
     // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/memory-types.html
     // However, this is probably overkill and would be complicated because
-    // we would need to use it for setPinXState & friends too.
+    // we would need to apply that to setPinXState & friends too.
     //
     // We use lambda functions to call the correct object from
     // the wiegand library with the appropriate parameter
