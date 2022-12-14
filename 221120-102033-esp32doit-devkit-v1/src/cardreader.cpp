@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Wiegand.h>
-#include <cardReader.h>
+#include <cardreader.h>
 #include <common.h>
 
 // Note that, with more than one reader, trying to read two cards at

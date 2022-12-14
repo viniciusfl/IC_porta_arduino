@@ -2,7 +2,7 @@
 #include <networkConnection.h>
 #include <timemanager.h>
 #include <dbmanager.h>
-#include <cardReader.h>
+#include <cardreader.h>
 #include <Arduino.h>
 
 TimeManager hwclock;
