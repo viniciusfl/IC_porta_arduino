@@ -15,7 +15,8 @@ void pinStateChanged();
 
 void stateChanged(bool plugged, const char* message);
 
-void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message);
+void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
+                       uint8_t rawBits, const char* message);
 
 // pins for card reader 1
 #define READER1_D0 26
@@ -86,13 +87,16 @@ void pinStateChanged() {
 }
 
 // Notifies when a reader has been connected or disconnected.
-// Instead of a message, the seconds parameter can be anything you want -- Whatever you specify on `wiegand.onStateChange()`
+// Instead of a message, the seconds parameter can be anything you want --
+// Whatever you specify on `wiegand.onStateChange()`
 void stateChanged(bool plugged, const char* message) {
     Serial.print(message);
     Serial.println(plugged ? "CONNECTED" : "DISCONNECTED");
 }
 
-void receivedDataError(Wiegand::DataError error, uint8_t* rawData, uint8_t rawBits, const char* message) {
+void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
+                       uint8_t rawBits, const char* message) {
+
     Serial.print(message);
     Serial.print(Wiegand::DataErrorStr(error));
     Serial.print(" - Raw data: ");
