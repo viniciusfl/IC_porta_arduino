@@ -20,7 +20,7 @@ void WiFiInit(){
     // select WiFi mode
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(true);
-    
+
     // register WiFi event handlers
     WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
     WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
@@ -161,7 +161,7 @@ inline void checkNetConnection() {
     if (currentMillis - lastNetCheck > CHECK_NET_INTERVAL) {
 #       ifdef DEBUG
         printNetStatus();
-#       endif        
+#       endif
         Ethernet.maintain();
         lastNetCheck = currentMillis;
     }

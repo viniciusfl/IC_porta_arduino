@@ -50,7 +50,7 @@ unsigned long bitsToNumber(volatile const uint8_t* data,
                            volatile const uint8_t bits){
 
     String number = "";
-    
+
     uint8_t bytes = (bits+7)/8;
 
     // concatenate each byte from hex
@@ -58,7 +58,7 @@ unsigned long bitsToNumber(volatile const uint8_t* data,
       number += String(data[i] >> 4, HEX);
       number += String(data[i] & 0xF, HEX);
     }
-    
+
     return strtoul(number.c_str(), NULL, 16);
 }
 
