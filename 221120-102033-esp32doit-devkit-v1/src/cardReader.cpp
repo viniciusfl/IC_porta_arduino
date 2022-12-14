@@ -9,7 +9,7 @@
 
 void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id);
 
-unsigned long bitsToNumber(uint8_t* data, uint8_t bits);
+unsigned long bitsToNumber(volatile const uint8_t*, volatile const uint8_t);
 
 void pinStateChanged();
 
@@ -29,17 +29,26 @@ Wiegand wiegand2;
 
 // We read the Wiegand data in a callback; to make this callback as short
 // as possible and pass this data to the "normal" program flow, we use these:
-bool newAccess; // Is there a user trying to open a door?
-const char* readerID; // If so, it came from this reader
-uint8_t cardIDRaw[Wiegand::MAX_BYTES]; // And this is the unprocessed card ID;
-                                       // just a copy of what the wiegand lib
-                                       // gives us
-uint8_t cardIDBits; // This is the bit length of the card ID, also a copy of
-                    // what the wiegand lib gives us
+
+// Is there a user trying to open a door?
+volatile bool newAccess;
+
+// If so, it came from this reader
+const char* volatile readerID;
+
+// And this is the unprocessed card ID; just
+// a copy of what the wiegand lib gives us
+volatile uint8_t cardIDRaw[Wiegand::MAX_BYTES];
+
+// This is the bit length of the card ID, also
+// a copy of  what the wiegand lib gives us
+volatile uint8_t cardIDBits;
 
 // This reads the bitstream provided by the wiegand reader and converts
 // it to a single number.
-unsigned long bitsToNumber(uint8_t* data, uint8_t bits){
+unsigned long bitsToNumber(volatile const uint8_t* data,
+                           volatile const uint8_t bits){
+
     String number = "";
     
     uint8_t bytes = (bits+7)/8;
