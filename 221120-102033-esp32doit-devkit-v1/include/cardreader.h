@@ -2,8 +2,8 @@
 #define CARD_READER_H
 
 struct cardData {
-    unsigned long int cardID; // If so, this is his ID number
-    int readerID; // And it came from this reader
+    unsigned long int cardID;
+    int readerID;
 };
 
 void initCardReaders();

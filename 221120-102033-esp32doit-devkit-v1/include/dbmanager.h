@@ -1,6 +1,9 @@
 #ifndef DB_MANAGER_H
 #define DB_MANAGER_H
 
+// TODO: consider using the pimpl idiom to remove private items
+//       from here, which includes sqlite3.h and CBAction.
+
 #include <sqlite3.h>
 
 enum CBAction {
