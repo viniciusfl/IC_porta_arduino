@@ -1,5 +1,5 @@
 #include <common.h>
-#include <networkConnection.h>
+#include <networkmanager.h>
 #include <timemanager.h>
 #include <dbmanager.h>
 #include <cardreader.h>
