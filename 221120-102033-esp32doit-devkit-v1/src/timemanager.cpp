@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <RTClib.h>
 #include <time.h>
-#include <timeKeeping.h>
+#include <timemanager.h>
 
-#define DEBUGRTC
+#define DEBUGTIMEMAN
 
 #define READJUST_CLOCK_INTERVAL 60000 // 10s, just for testing; a good
                                       // value is 10800 (3 hours)
@@ -23,11 +23,11 @@ const int   daylightOffset_sec = 0;
 //
 // TODO: This needs to be called after the network is up; It would
 //       be better to use network event handlers or something.
-void RTC::init(){
+void TimeManager::init(){
     lastClockAdjustment = 0; // when we last adjusted the HW clock
 
     if (!rtc.begin()) {
-        Serial.println("Couldn't find RTC hardware, aborting");
+        Serial.println("Couldn't find HW clock, aborting");
         Serial.flush();
         while (true) delay(10);
     }
@@ -61,7 +61,7 @@ void RTC::init(){
         // everything up to perform a query on the next poll...)
         configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     } else {
-        Serial.println("Hardware RTC NOT running, waiting for NTP to set the date");
+        Serial.println("Hardware clock NOT running, waiting for NTP to set the date");
 
         // Initialize esp32 sntp client
         configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -84,12 +84,12 @@ void RTC::init(){
         update();
     }
 
-    Serial.println("RTC is ready!");
+    Serial.println("Date/time are set!");
 }
 
 
 // This should be called from loop()
-void RTC::checkSync() {
+void TimeManager::checkSync() {
     if (currentMillis - lastClockAdjustment > READJUST_CLOCK_INTERVAL) {
         // Actually, this is the time of the last *attempt* to adjust
         // the clock, but that's ok: If it fails, we do nothing special,
@@ -123,25 +123,25 @@ void printDate(DateTime moment){
     Serial.println(" UTC"); // Let's always use UTC
 }
 
-void RTC::update(){
+void TimeManager::update(){
     time_t now;
     time(&now);
 
     unsigned long systemtime = now;
-    unsigned long rtctime = rtc.now().unixtime();
-#   ifdef DEBUGRTC
+    unsigned long hwclocktime = rtc.now().unixtime();
+#   ifdef DEBUGTIMEMAN
     Serial.print("System date: ");
     Serial.println(systemtime);
     printDate(DateTime(systemtime));
-    Serial.print("HW RTC date: ");
-    Serial.println(rtctime);
-    printDate(DateTime(rtctime));
+    Serial.print("HW clock date: ");
+    Serial.println(hwclocktime);
+    printDate(DateTime(hwclocktime));
     Serial.print("Difference: ");
-    Serial.println(systemtime - rtctime);
+    Serial.println(systemtime - hwclocktime);
 #   endif
 
-    if(systemtime - rtctime >= 10){
-        Serial.println("Updating hardware RTC time");
+    if(systemtime - hwclocktime >= 10){
+        Serial.println("Updating hardware clock time");
         rtc.adjust(DateTime(systemtime));
     }
 }

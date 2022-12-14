@@ -1,9 +1,9 @@
-#ifndef TIME_KEEPING_H
-#define TIME_KEEPING_H
+#ifndef TIME_MANAGER_H
+#define TIME_MANAGER_H
 
 #include <RTClib.h>
 
-class RTC{
+class TimeManager {
     public:
         void init();
         void checkSync();

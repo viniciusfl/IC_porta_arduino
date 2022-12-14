@@ -1,13 +1,13 @@
 #include <common.h>
 #include <networkConnection.h>
-#include <timeKeeping.h>
+#include <timemanager.h>
 #include <dbMaintenance.h>
 #include <cardReader.h>
 #include <Arduino.h>
 
-RTC hwclock = RTC();
+TimeManager hwclock;
 unsigned long currentMillis;
-dataBase db = dataBase();
+dataBase db;
 cardData theCardData;
 
 void setup() {
