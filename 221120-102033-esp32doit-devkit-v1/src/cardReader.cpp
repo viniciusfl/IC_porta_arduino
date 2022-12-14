@@ -11,8 +11,6 @@ void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id);
 
 unsigned long bitsToNumber(volatile const uint8_t*, volatile const uint8_t);
 
-void pinStateChanged();
-
 void stateChanged(bool plugged, const char* message);
 
 void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
@@ -28,8 +26,9 @@ Wiegand wiegand1;
 #define READER2_D1 25
 Wiegand wiegand2;
 
-// We read the Wiegand data in a callback; to make this callback as short
-// as possible and pass this data to the "normal" program flow, we use these:
+// We read the Wiegand data in a callback with interrupts disabled; to make
+// this callback as short as possible and pass this data to the "normal"
+// program flow, we use these:
 
 // Is there a user trying to open a door?
 volatile bool newAccess;
@@ -64,7 +63,8 @@ unsigned long bitsToNumber(volatile const uint8_t* data,
 }
 
 // Function that is called when card is read; we do not call
-// bitsToNumber() here to make it as fast as possible.
+// bitsToNumber() here to make it as fast as possible (this
+// is called with interrupts disabled).
 void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id) {
     newAccess = true;
     readerID = reader_id;
@@ -76,14 +76,6 @@ void exposeCardData(uint8_t* data, uint8_t bits, const char* reader_id) {
     for (int i = 0; i < bytes; ++i){
         cardIDRaw[i] = data[i];
     }
-}
-
-// When any of the pins have changed, update the state of the wiegand library
-void pinStateChanged() {
-    wiegand1.setPin0State(digitalRead(READER1_D0));
-    wiegand1.setPin1State(digitalRead(READER1_D1));
-    wiegand2.setPin0State(digitalRead(READER2_D0));
-    wiegand2.setPin1State(digitalRead(READER2_D1));
 }
 
 // Notifies when a reader has been connected or disconnected.
@@ -115,35 +107,61 @@ void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
 // This should be called from setup()
 void initCardReader(){
 
-    //Install listeners and initialize Wiegand reader
+    // Install listeners and initialize first Wiegand reader
     wiegand1.onReceive(exposeCardData, "1");
     wiegand1.onReceiveError(receivedDataError, "Card reader 1 error: ");
     wiegand1.onStateChange(stateChanged, "Card reader 1 state changed: ");
     wiegand1.begin(Wiegand::LENGTH_ANY, true);
 
-    //initialize pins as INPUT and attaches interruptions
-    pinMode(READER1_D0, INPUT);
-    pinMode(READER1_D1, INPUT);
-
-    attachInterrupt(digitalPinToInterrupt(READER1_D0), pinStateChanged, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(READER1_D1), pinStateChanged, CHANGE);
-
-    //Install listeners and initialize Wiegand reader
+    // Install listeners and initialize second Wiegand reader
     wiegand2.onReceive(exposeCardData, "2");
     wiegand2.onReceiveError(receivedDataError, "Card reader 2 error: ");
     wiegand2.onStateChange(stateChanged, "Card reader 2 state changed: ");
     wiegand2.begin(Wiegand::LENGTH_ANY, true);
 
+    // Initialize pins for first Wiegand reader as INPUT
+    pinMode(READER1_D0, INPUT);
+    pinMode(READER1_D1, INPUT);
 
-    //initialize pins as INPUT and attaches interruptions
+    // Initialize pins for second Wiegand reader as INPUT
     pinMode(READER2_D0, INPUT);
     pinMode(READER2_D1, INPUT);
 
-    attachInterrupt(digitalPinToInterrupt(READER2_D0), pinStateChanged, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(READER2_D1), pinStateChanged, CHANGE);
+    // Ideally, we should define the interrupt handlers with ESP_INTR_FLAG_IRAM
+    // and IRAM_ATTR (or at least with only IRAM_ATTR):
+    // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/intr_alloc.html
+    // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/memory-types.html
+    // However, this is probably overkill and would be complicated because
+    // we would need to use it for setPinXState & friends too.
+    //
+    // We use lambda functions to call the correct object from
+    // the wiegand library with the appropriate parameter
 
-    //Sends the initial pin state to the Wiegand library
-    pinStateChanged();
+    // Initialize interrupt handler for first Wiegand reader pins
+    attachInterrupt(digitalPinToInterrupt(READER1_D0),
+                    [](){wiegand1.setPin0State(digitalRead(READER1_D0));},
+                    CHANGE);
+
+    attachInterrupt(digitalPinToInterrupt(READER1_D1),
+                    [](){wiegand1.setPin1State(digitalRead(READER1_D1));},
+                    CHANGE);
+
+    // Initialize interrupt handler for second Wiegand reader pins
+    attachInterrupt(digitalPinToInterrupt(READER2_D0),
+                    [](){wiegand2.setPin0State(digitalRead(READER2_D0));},
+                    CHANGE);
+
+    attachInterrupt(digitalPinToInterrupt(READER2_D1),
+                    [](){wiegand2.setPin1State(digitalRead(READER2_D1));},
+                    CHANGE);
+
+    // Register the initial pin state for first Wiegand reader pins
+    wiegand1.setPin0State(digitalRead(READER1_D0));
+    wiegand1.setPin1State(digitalRead(READER1_D1));
+
+    // Register the initial pin state for second Wiegand reader pins
+    wiegand2.setPin0State(digitalRead(READER2_D0));
+    wiegand2.setPin1State(digitalRead(READER2_D1));
 }
 
 unsigned long lastFlush = 0;
