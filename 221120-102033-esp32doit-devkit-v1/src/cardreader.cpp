@@ -166,7 +166,7 @@ void initCardReaders(){
 
 unsigned long lastFlush = 0;
 
-bool checkCardReaders(cardData* returnVal){
+bool checkCardReaders(int& returnReaderID, unsigned long int& returnCardID){
     // We could run this on every loop, but since we
     // disable interrupts it might be better not to.
     if (currentMillis - lastFlush < 20) return false;
@@ -182,14 +182,14 @@ bool checkCardReaders(cardData* returnVal){
 
     if (!newAccess) return false;
 
-    returnVal->readerID = atoi(readerID);
-    returnVal->cardID = bitsToNumber(cardIDRaw, cardIDBits);
+    returnReaderID = atoi(readerID);
+    returnCardID = bitsToNumber(cardIDRaw, cardIDBits);
 
     Serial.print("Card reader ");
-    Serial.print(returnVal->readerID);
+    Serial.print(returnReaderID);
     Serial.println(" was used.");
     Serial.print("We received -> ");
-    Serial.println(returnVal->cardID);
+    Serial.println(returnCardID);
 
     newAccess = false;
 

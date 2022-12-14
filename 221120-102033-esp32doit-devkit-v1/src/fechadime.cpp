@@ -8,7 +8,8 @@
 TimeManager hwclock;
 unsigned long currentMillis;
 DBManager db;
-cardData theCardData;
+int lastReaderID;
+unsigned long int lastCardID;
 
 void setup() {
     Serial.begin(115200);
@@ -26,7 +27,7 @@ void loop() {
     currentMillis = millis();
     db.update();
     hwclock.checkSync();
-    if (checkCardReaders(&theCardData)) {
-        db.checkCard(theCardData.readerID, theCardData.cardID);
+    if (checkCardReaders(lastReaderID, lastCardID)) {
+        db.checkCard(lastReaderID, lastCardID);
     }
 }
