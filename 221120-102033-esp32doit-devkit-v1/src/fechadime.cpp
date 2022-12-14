@@ -27,6 +27,6 @@ void loop() {
     db.update();
     hwclock.checkSync();
     if (checkCardReaders(&theCardData)) {
-        db.checkCurrentCard(theCardData.readerID, theCardData.cardID);
+        db.checkCard(theCardData.readerID, theCardData.cardID);
     }
 }

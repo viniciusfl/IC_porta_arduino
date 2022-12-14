@@ -12,7 +12,7 @@ class dataBase{
     public:
         void init();
         void update();
-        bool checkCurrentCard(int readerID, unsigned long cardID);
+        bool checkCard(int readerID, unsigned long cardID);
 
     private:
         sqlite3 *db;

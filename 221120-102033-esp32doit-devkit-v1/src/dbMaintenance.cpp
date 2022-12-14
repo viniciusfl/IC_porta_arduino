@@ -269,7 +269,7 @@ static int callback(void *action, int argc, char **argv, char **azColName){
 
 // search element through current database
 // TODO: there is some problem with the wiegand reader and open DB files
-bool dataBase::checkCurrentCard(int readerID, unsigned long cardID) {
+bool dataBase::checkCard(int readerID, unsigned long cardID) {
     if (db == NULL) return false;
 
     Serial.print("Card reader ");
