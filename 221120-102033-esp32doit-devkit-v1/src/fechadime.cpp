@@ -19,14 +19,14 @@ void setup() {
     WiFiInit();
     hwclock.init();
     db.init();
-    initCardReader();
+    initCardReaders();
 }
 
 void loop() {
     currentMillis = millis();
     db.update();
     hwclock.checkSync();
-    if (cardMaintenance(&theCardData)) {
+    if (checkCardReaders(&theCardData)) {
         db.checkCurrentCard(theCardData.readerID, theCardData.cardID);
     }
 }

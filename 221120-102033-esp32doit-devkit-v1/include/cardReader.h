@@ -6,8 +6,8 @@ struct cardData {
     int readerID; // And it came from this reader
 };
 
-void initCardReader();
+void initCardReaders();
 
-bool cardMaintenance(cardData*);
+bool checkCardReaders(cardData*);
 
 #endif

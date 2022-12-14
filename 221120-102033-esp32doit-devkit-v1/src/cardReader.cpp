@@ -105,7 +105,7 @@ void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
 }
 
 // This should be called from setup()
-void initCardReader(){
+void initCardReaders(){
 
     // Install listeners and initialize first Wiegand reader
     wiegand1.onReceive(captureIncomingData, "1");
@@ -166,7 +166,7 @@ void initCardReader(){
 
 unsigned long lastFlush = 0;
 
-bool cardMaintenance(cardData* returnVal){
+bool checkCardReaders(cardData* returnVal){
     // We could run this on every loop, but since we
     // disable interrupts it might be better not to.
     if (currentMillis - lastFlush < 20) return false;
