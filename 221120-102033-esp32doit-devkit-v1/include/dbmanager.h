@@ -1,5 +1,5 @@
-#ifndef DB_MAINTENANCE_H
-#define DB_MAINTENANCE_H
+#ifndef DB_MANAGER_H
+#define DB_MANAGER_H
 
 #include <sqlite3.h>
 
@@ -8,7 +8,7 @@ enum CBAction {
     IGNORE
 };
 
-class dataBase{
+class DBManager{
     public:
         void init();
         void update();

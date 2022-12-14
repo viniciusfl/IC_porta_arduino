@@ -5,11 +5,14 @@
 #include <sqlite3.h>
 #include <common.h>
 #include <RTClib.h>
-#include <dbMaintenance.h>
+#include <dbmanager.h>
 
 #define RETRY_DOWNLOAD_TIME 60000
 
 #define DOWNLOAD_INTERVAL 20000
+
+// TODO: put "downloading", "client" and "SERVER" inside
+//       the class or inside a local namespace
 
 bool downloading = false; // Is there an ongoing DB update?
 
@@ -18,8 +21,8 @@ WiFiClient client;
 char SERVER[] = {"10.0.2.106"};
 
 // This should be called from setup()
-void dataBase::init(){
-    db = NULL; // check the comment near dataBase::close()
+void DBManager::init(){
+    db = NULL; // check the comment near DBManager::close()
 
     if (!SD.begin()){
         Serial.println("Card Mount Failed, aborting");
@@ -45,7 +48,7 @@ void dataBase::init(){
 // At each call, we determine the current state we are in, perform
 // a small chunk of work, and return. This means we do not hog the
 // processor and can pursue other tasks while updating the DB.
-void dataBase::update(){
+void DBManager::update(){
     // We start a download only if we are not already downloading
     if (!downloading) {
         // millis() wraps every ~49 days, but
@@ -72,7 +75,7 @@ void dataBase::update(){
     processDownload();
 }
 
-void dataBase::startDownload(){
+void DBManager::startDownload(){
     client.connect(SERVER, 80);
     if (client.connected()) {
         Serial.println(F("Connected to server."));
@@ -114,7 +117,7 @@ void dataBase::startDownload(){
 #endif
 }
 
-void dataBase::finishDownload(){
+void DBManager::finishDownload(){
 
     client.flush();
     client.stop();
@@ -144,7 +147,7 @@ void dataBase::finishDownload(){
     openDB();
 }
 
-void dataBase::processDownload(){
+void DBManager::processDownload(){
     if (!client.available()) return;
 
     char c = client.read();
@@ -187,7 +190,7 @@ void dataBase::processDownload(){
     }
 }
 
-void dataBase::chooseInitialDB(){
+void DBManager::chooseInitialDB(){
     currentDB = -1; // invalid
     int max = -1;
     for (char i = 0; i < 2; ++i){ // 2 is the number of DBs
@@ -224,7 +227,7 @@ void dataBase::chooseInitialDB(){
 
 // TODO: I think this should not exist
 // reset both timestamp files to zero
-void dataBase::resetTimestampFiles()
+void DBManager::resetTimestampFiles()
 {
     File f;
     for (int i = 0; i < 2; i++)
@@ -237,7 +240,7 @@ void dataBase::resetTimestampFiles()
     }
 }
 
-int dataBase::openDB() {
+int DBManager::openDB() {
     if (db != NULL) return 0;
 
     int rc = sqlite3_open(dbNames[currentDB], &db);
@@ -269,7 +272,7 @@ static int callback(void *action, int argc, char **argv, char **azColName){
 
 // search element through current database
 // TODO: there is some problem with the wiegand reader and open DB files
-bool dataBase::checkCard(int readerID, unsigned long cardID) {
+bool DBManager::checkCard(int readerID, unsigned long cardID) {
     if (db == NULL) return false;
 
     Serial.print("Card reader ");
@@ -288,7 +291,7 @@ bool dataBase::checkCard(int readerID, unsigned long cardID) {
     return true; // FIXME: not used yet
 }
 
-void dataBase::generateLog(unsigned long int id){ // FIXME: we should generate log with name/RA
+void DBManager::generateLog(unsigned long int id){ // FIXME: we should generate log with name/RA
 
     DateTime moment = DateTime(time(NULL));
     // FIXME: generate log for both people allowed and not allowed
@@ -320,7 +323,7 @@ void dataBase::generateLog(unsigned long int id){ // FIXME: we should generate l
 }
 
 // receive sql query and execute it
-int dataBase::exec(const char *sql, CBAction action){
+int DBManager::exec(const char *sql, CBAction action){
     Serial.println(sql);
     char *zErrMsg;
     long start = micros();
@@ -340,7 +343,7 @@ int dataBase::exec(const char *sql, CBAction action){
 }
 
 // insert element on current db
-void dataBase::insert(char* element){
+void DBManager::insert(char* element){
     if (db == NULL) return;
 
     int rc;
@@ -360,8 +363,8 @@ void dataBase::insert(char* element){
 // state). The sqlite3 docs say "The C parameter to sqlite3_close(C) and
 // sqlite3_close_v2(C) must be either a NULL pointer or an sqlite3 object
 // pointer [...] and not previously closed". So, we explicitly make it NULL
-// here and in dataBase::init() just in case.
-void dataBase::closeDB(){
+// here and in DBManager::init() just in case.
+void DBManager::closeDB(){
     sqlite3_close(db);
     db = NULL;
 }

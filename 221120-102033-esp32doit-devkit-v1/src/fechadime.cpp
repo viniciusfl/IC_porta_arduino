@@ -1,13 +1,13 @@
 #include <common.h>
 #include <networkConnection.h>
 #include <timemanager.h>
-#include <dbMaintenance.h>
+#include <dbmanager.h>
 #include <cardReader.h>
 #include <Arduino.h>
 
 TimeManager hwclock;
 unsigned long currentMillis;
-dataBase db;
+DBManager db;
 cardData theCardData;
 
 void setup() {
