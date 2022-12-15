@@ -16,6 +16,8 @@
 
 bool downloading = false; // Is there an ongoing DB update?
 
+bool userAuthorized = false;
+
 WiFiClient client;
 
 char SERVER[] = {"10.0.2.106"};
@@ -256,10 +258,7 @@ int DBManager::openDB() {
 static int callback(void *action, int argc, char **argv, char **azColName){
     switch (*((CBAction*) action)) {
         case CHECK_CARD:
-            if (atoi(argv[0]) == 1)
-                Serial.println("Exists in db.");
-            else
-                Serial.println("Doesn't exist in db.");
+            if (atoi(argv[0]) == 1) userAuthorized = true;
             break;
         case IGNORE:
             break;
@@ -288,7 +287,12 @@ bool DBManager::checkCard(int readerID, unsigned long cardID) {
 
     //generateLog(cardID);
 
-    return true; // FIXME: not used yet
+    if (userAuthorized) {
+        userAuthorized = false;
+        return true;
+    } else {
+        return false;
+    }
 }
 
 void DBManager::generateLog(unsigned long int id){ // FIXME: we should generate log with name/RA

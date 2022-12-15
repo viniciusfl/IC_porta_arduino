@@ -16,6 +16,11 @@ void stateChanged(bool plugged, const char* message);
 void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
                        uint8_t rawBits, const char* message);
 
+// TODO: implement this :)
+void blinkOk(int reader) {};
+
+void blinkFail(int reader) {};
+
 // pins for card reader 1
 #define READER1_D0 26
 #define READER1_D1 27

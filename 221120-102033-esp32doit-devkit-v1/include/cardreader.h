@@ -5,4 +5,8 @@ void initCardReaders();
 
 bool checkCardReaders(int& readerID, unsigned long int& cardID);
 
+void blinkOk(int reader);
+
+void blinkFail(int reader);
+
 #endif

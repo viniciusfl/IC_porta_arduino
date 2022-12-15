@@ -28,6 +28,12 @@ void loop() {
     db.update();
     hwclock.checkSync();
     if (checkCardReaders(lastReaderID, lastCardID)) {
-        db.checkCard(lastReaderID, lastCardID);
+        if (db.checkCard(lastReaderID, lastCardID)) {
+            blinkOk(lastReaderID);
+            Serial.println("Exists in db.");
+        } else {
+            blinkFail(lastReaderID);
+            Serial.println("Doesn't exist in db.");
+        }
     }
 }
