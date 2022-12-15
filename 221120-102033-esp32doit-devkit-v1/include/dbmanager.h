@@ -6,6 +6,8 @@
 
 #include <sqlite3.h>
 
+// TODO: this is actually a hack, we should use
+//       one specific callback for each thing
 enum CBAction {
     CHECK_CARD,
     IGNORE
