@@ -258,7 +258,7 @@ int DBManager::openDB() {
 static int callback(void *action, int argc, char **argv, char **azColName){
     switch (*((CBAction*) action)) {
         case CHECK_CARD:
-            if (atoi(argv[0]) == 1) userAuthorized = true;
+            if (atoi(argv[0]) >= 1) userAuthorized = true;
             break;
         case IGNORE:
             break;
