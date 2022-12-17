@@ -26,7 +26,7 @@ namespace DBNS {
         public:
             void init();
             void update();
-            bool checkCard(int readerID, unsigned long cardID);
+            bool userAuthorized(int readerID, unsigned long cardID);
 
         private:
             sqlite3 *db;
@@ -56,7 +56,7 @@ namespace DBNS {
 
     bool downloading = false; // Is there an ongoing DB update?
 
-    bool userAuthorized = false;
+    bool authorized = false;
 
     WiFiClient client;
 
@@ -300,7 +300,7 @@ namespace DBNS {
     static int callback(void *action, int argc, char **argv, char **azColName) {
         switch (*((CBAction*) action)) {
             case CHECK_CARD:
-                if (atoi(argv[0]) >= 1) userAuthorized = true;
+                if (atoi(argv[0]) >= 1) authorized = true;
                 break;
             case IGNORE:
                 break;
@@ -313,7 +313,7 @@ namespace DBNS {
 
     // search element through current database
     // TODO: there is some problem with the wiegand reader and open DB files
-    bool DBManager::checkCard(int readerID, unsigned long cardID) {
+    bool DBManager::userAuthorized(int readerID, unsigned long cardID) {
         if (db == NULL) return false;
 
         Serial.print("Card reader ");
@@ -331,8 +331,8 @@ namespace DBNS {
 
         //generateLog(cardID);
 
-        if (userAuthorized) {
-            userAuthorized = false;
+        if (authorized) {
+            authorized = false;
             return true;
         } else {
             return false;
@@ -433,6 +433,6 @@ void updateDB() {
     DBNS::db.update();
 }
 
-bool checkCard(int readerID, unsigned long cardID) {
-    return DBNS::db.checkCard(readerID, cardID);
+bool userAuthorized(int readerID, unsigned long cardID) {
+    return DBNS::db.userAuthorized(readerID, cardID);
 }

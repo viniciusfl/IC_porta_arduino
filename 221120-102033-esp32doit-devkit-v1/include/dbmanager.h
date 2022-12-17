@@ -3,6 +3,6 @@
 
 void initDB();
 void updateDB();
-bool checkCard(int readerID, unsigned long cardID);
+bool userAuthorized(int readerID, unsigned long cardID);
 
 #endif

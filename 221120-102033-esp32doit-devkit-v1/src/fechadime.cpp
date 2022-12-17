@@ -26,7 +26,7 @@ void loop() {
     int lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
-        if (checkCard(lastReaderID, lastCardID)) {
+        if (userAuthorized(lastReaderID, lastCardID)) {
             blinkOk(lastReaderID);
             Serial.println("Exists in db.");
         } else {
