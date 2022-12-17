@@ -15,7 +15,7 @@ void setup() {
     while (!Serial) { ; }
     Serial.println(F("Start program"));
     currentMillis = millis();
-    WiFiInit();
+    initWiFi();
     initTime();
     initDB();
     initCardReaders();

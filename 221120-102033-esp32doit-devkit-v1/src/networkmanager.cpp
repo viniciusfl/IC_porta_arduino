@@ -17,7 +17,7 @@ namespace NetNS {
     void printNetStatus();
 
     // This should be called from setup()
-    void WiFiInit() {
+    void initWiFi() {
 
         // select WiFi mode
         WiFi.mode(WIFI_STA);
@@ -178,6 +178,6 @@ namespace NetNS {
 
 }
 
-void WiFiInit() {
-    NetNS::WiFiInit();
+void initWiFi() {
+    NetNS::initWiFi();
 }
