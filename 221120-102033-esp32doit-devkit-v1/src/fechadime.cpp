@@ -6,8 +6,6 @@
 #include <Arduino.h>
 
 unsigned long currentMillis;
-int lastReaderID;
-unsigned long int lastCardID;
 
 void setup() {
     Serial.begin(115200);
@@ -25,6 +23,8 @@ void loop() {
     currentMillis = millis();
     updateDB();
     checkTimeSync();
+    int lastReaderID;
+    unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
         if (checkCard(lastReaderID, lastCardID)) {
             blinkOk(lastReaderID);
