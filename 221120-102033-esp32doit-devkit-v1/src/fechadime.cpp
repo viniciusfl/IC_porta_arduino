@@ -5,9 +5,7 @@
 #include <cardreader.h>
 #include <Arduino.h>
 
-TimeManager hwclock;
 unsigned long currentMillis;
-DBManager db;
 int lastReaderID;
 unsigned long int lastCardID;
 
@@ -18,17 +16,17 @@ void setup() {
     Serial.println(F("Start program"));
     currentMillis = millis();
     WiFiInit();
-    hwclock.init();
-    db.init();
+    initTime();
+    initDB();
     initCardReaders();
 }
 
 void loop() {
     currentMillis = millis();
-    db.update();
-    hwclock.checkSync();
+    updateDB();
+    checkTimeSync();
     if (checkCardReaders(lastReaderID, lastCardID)) {
-        if (db.checkCard(lastReaderID, lastCardID)) {
+        if (checkCard(lastReaderID, lastCardID)) {
             blinkOk(lastReaderID);
             Serial.println("Exists in db.");
         } else {

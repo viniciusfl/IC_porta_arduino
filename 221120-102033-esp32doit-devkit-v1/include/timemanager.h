@@ -3,14 +3,7 @@
 
 #include <RTClib.h>
 
-class TimeManager {
-    public:
-        void init();
-        void checkSync();
-    private:
-        RTC_DS1307 rtc;
-        unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
-        void update();
-};
+void initTime ();
+void checkTimeSync();
 
 #endif
