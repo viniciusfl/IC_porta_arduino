@@ -16,15 +16,16 @@ void setup() {
     initWiFi();
     initTime();
     initDB();
-    initCardReaders();
+    //initCardReaders();
 }
 
 void loop() {
     currentMillis = millis();
     updateDB();
-    checkTimeSync();
+    //checkTimeSync();
     int lastReaderID;
     unsigned long int lastCardID;
+    /*
     if (checkCardReaders(lastReaderID, lastCardID)) {
         if (userAuthorized(lastReaderID, lastCardID)) {
             blinkOk(lastReaderID);
@@ -34,4 +35,5 @@ void loop() {
             Serial.println("Doesn't exist in db.");
         }
     }
+    */
 }

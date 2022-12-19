@@ -11,6 +11,8 @@
 
 #define DOWNLOAD_INTERVAL 20000
 
+#define DEBUG
+
 #include <sqlite3.h>
 
 namespace DBNS {
@@ -30,22 +32,24 @@ namespace DBNS {
 
         private:
             sqlite3 *db;
-            const char *dbNames[100] = {"bancoA", "bancoB"};
+            File file;
+            const char *dbNames[100] = {"/bancoA.db", "/bancoB.db"};
             const char *timestampfiles[100] = {"/TSA.TXT", "/TSB.TXT"};
             int currentDB = -1; // invalid
             int newDB = -1;
             unsigned long lastDownloadTime = 0;
             bool headerDone = false;
             bool beginningOfLine = true;
-            char netLineBuffer[11];
-            char position = 0;
+
+            String netLineBuffer;
             char previous;
+            int position = 0;
+            int netLineBufferSize = 40;
 
             void startDownload();
             void finishDownload();
             void processDownload();
             void chooseInitialDB();
-            void resetTimestampFiles();
             void generateLog(unsigned long int id);
             int openDB();
             void closeDB();
@@ -75,15 +79,8 @@ namespace DBNS {
             Serial.println("SD connected.");
         }
 
-        // TODO: Why is this here?
-        delay(300);
-
         sqlite3_initialize();
 
-        // TODO: this is weird, we want to be able to survive crashes
-        // reset both timestamps and then update one BD so we don't have
-        // trouble when we reset program
-        //resetTimestampFiles();
         chooseInitialDB();
     }
 
@@ -141,18 +138,21 @@ namespace DBNS {
         position = 0;
         previous = 0;
 
-        client.println("GET /arduino.txt HTTP/1.1");
-        client.println("Host: 10.0.2.106");
-        client.println("Connection: close");
-        client.println();
-
         // Hack alert! This is a dirty way of saying "not the current DB"
         newDB = 0;
         if (currentDB == 0) newDB = 1;
 
+        client.println((String) "GET /banco.db HTTP/1.1");
+        client.println("Host: 10.0.2.106");
+        client.println("Connection: close");
+        client.println();
+
+
         // remove old DB files
         SD.remove(timestampfiles[newDB]);
         SD.remove(dbNames[newDB]);
+
+        file = SD.open(dbNames[newDB], FILE_WRITE);
 
     #ifdef DEBUG
         Serial.print("Writing to ");
@@ -166,19 +166,21 @@ namespace DBNS {
         client.stop();
         downloading = false;
 
+        file.close();
+
         // Out with the old, in with the new
 
         // FIXME: we should only save the timestamp etc.
         //        if the download was successful
-        // QUESTION:how can i know that?
+        // QUESTION: how can i know that?
 
-        File f = SD.open(dbNames[newDB], FILE_WRITE);
-        f.println(1);
-        f.close();
+        file = SD.open(timestampfiles[newDB], FILE_WRITE);
+        file.println(1);
+        file.close();
 
-        f = SD.open(dbNames[currentDB], FILE_WRITE);
-        f.println(0);
-        f.close();
+        file = SD.open(timestampfiles[currentDB], FILE_WRITE);
+        file.println(0);
+        file.close();
 
         lastDownloadTime = currentMillis;
         Serial.println("Disconnecting from server and finishing db update.");
@@ -192,30 +194,19 @@ namespace DBNS {
 
     void DBManager::processDownload(){
         if (!client.available()) return;
-
         char c = client.read();
 
         if (headerDone) {
-            // TODO: This works line-by-line, but we are downloading a
-            //       binary file, we might exhaust the device memory.
-            if (c == '\r')
-                return;
-            if (c == '\n') {
-                #ifdef DEBUG
-                    Serial.println("Writing " + String(netLineBuffer)
-                                              + " to DB file");
-                #endif
-                insert(netLineBuffer);
-                position = 0;
-                netLineBuffer[position] = 0;
+            netLineBuffer = netLineBuffer + c;
+            if(netLineBuffer.length() == netLineBufferSize || !client.available()){
+                Serial.println((String) "Writing " + netLineBuffer + " to db....");
+                file.print(netLineBuffer);
                 return;
             }
-            netLineBuffer[position] = c;
-            netLineBuffer[position + 1] = 0;
-            ++position;
+            return;
         } else {
             if (c == '\n') {
-                if (beginningOfLine and previous == '\r')
+                if (beginningOfLine && previous == '\r')
                 {
                     headerDone = true;
                 #ifdef DEBUG
@@ -266,21 +257,6 @@ namespace DBNS {
         } else {
             Serial.printf("Choosing %s as current DB.\n", dbNames[currentDB]);
             openDB();
-        }
-    }
-
-    // TODO: I think this should not exist
-    // reset both timestamp files to zero
-    void DBManager::resetTimestampFiles()
-    {
-        File f;
-        for (int i = 0; i < 2; i++)
-        {
-            SD.remove(timestampfiles[i]);
-            f = SD.open(timestampfiles[i], FILE_WRITE);
-            int a = 0;
-            f.println(a);
-            f.close();
         }
     }
 
@@ -340,10 +316,10 @@ namespace DBNS {
     }
 
     void DBManager::generateLog(unsigned long int id){
-        // FIXME: we should generate log with name/RA
+        // TODO: we should generate log with name/RA
 
         DateTime moment = DateTime(time(NULL));
-        // FIXME: generate log for both people allowed and not allowed
+        // TODO: generate log for both people allowed and not allowed
         Serial.println("generating log");
         SD.remove("/log.txt");
         File log = SD.open("/log.txt", FILE_APPEND);

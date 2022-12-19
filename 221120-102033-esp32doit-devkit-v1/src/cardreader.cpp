@@ -211,6 +211,8 @@ bool checkCardReaders(int& readerID, unsigned long int& cardID) {
 }
 
 // TODO: implement this :)
-void blinkOk(int reader) {};
+void blinkOk(int reader) {
+    
+};
 
 void blinkFail(int reader) {};
