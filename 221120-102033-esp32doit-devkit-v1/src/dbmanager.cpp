@@ -17,13 +17,6 @@
 
 namespace DBNS {
 
-    // TODO: this is actually a hack, we should use
-    //       one specific callback for each thing
-    enum CBAction {
-        CHECK_CARD,
-        IGNORE
-    };
-
     class DBManager{
         public:
             void init();
@@ -32,6 +25,7 @@ namespace DBNS {
 
         private:
             sqlite3 *db;
+            sqlite3_stmt *dbquery;
             File file;
             const char *dbNames[100] = {"/sd/bancoA.db", "/sd/bancoB.db"};
             const char *timestampfiles[100] = {"/TSA.TXT", "/TSB.TXT"};
@@ -53,10 +47,8 @@ namespace DBNS {
             void generateLog(unsigned long int id);
             int openDB();
             void closeDB();
-            int exec(const char *sql, CBAction);
             void insert(char *element);
     };
-
 
     bool downloading = false; // Is there an ongoing DB update?
 
@@ -69,6 +61,7 @@ namespace DBNS {
     // This should be called from setup()
     void DBManager::init(){
         db = NULL; // check the comment near DBManager::close()
+        dbquery = NULL;
 
         if (!SD.begin()){
             Serial.println("Card Mount Failed, aborting");
@@ -267,31 +260,27 @@ namespace DBNS {
         if (db != NULL) return 0;
 
         int rc = sqlite3_open(dbNames[currentDB], &db);
-        if (rc) {
+        if (rc != SQLITE_OK) {
             Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
         } else {
             Serial.printf("Opened database successfully\n");
+
+            rc = sqlite3_prepare_v2(db,
+                    "SELECT EXISTS(SELECT * FROM ? WHERE cartao='?')",
+                    -1, &dbquery, NULL);
+
+            if (rc != SQLITE_OK) {
+                Serial.printf("Can't generate prepared statement: %s\n",
+                              sqlite3_errmsg(db));
+            } else {
+                Serial.printf("Prepared statement created\n");
+            }
         }
 
         return rc;
     }
 
-    static int callback(void *action, int argc, char **argv, char **azColName) {
-        switch (*((CBAction*) action)) {
-            case CHECK_CARD:
-                if (atoi(argv[0]) >= 1) authorized = true;
-                break;
-            case IGNORE:
-                break;
-            default:
-                ;
-        }
-
-        return 0;
-    }
-
     // search element through current database
-    // TODO: there is some problem with the wiegand reader and open DB files
     bool DBManager::userAuthorized(int readerID, unsigned long cardID) {
         if (db == NULL) return false;
 
@@ -301,12 +290,19 @@ namespace DBNS {
         Serial.print("We received -> ");
         Serial.println(cardID);
 
-        // Make query and execute it
-        char searchDB[300];
-        sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')",
-                "bancoA", cardID);
+        sqlite3_reset(dbquery);
+        sqlite3_bind_text(dbquery, 1, "bancoA", -1, SQLITE_STATIC);
+        sqlite3_bind_int(dbquery, 2, cardID);
 
-        exec(searchDB, CHECK_CARD);
+        int rc = sqlite3_step(dbquery);
+        while (rc == SQLITE_ROW) {
+            authorized = true;
+            rc = sqlite3_step(dbquery);
+        }
+
+        if (rc != SQLITE_DONE) {
+            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(db));
+        }
 
         //generateLog(cardID);
 
@@ -352,41 +348,23 @@ namespace DBNS {
         Serial.println("finished log....");
     }
 
-    // receive sql query and execute it
-    int DBManager::exec(const char *sql, CBAction action){
-        Serial.println(sql);
-        char *zErrMsg;
-        long start = micros();
-        int rc = sqlite3_exec(db, sql, callback, (void *) (&action), &zErrMsg);
-        if (rc != SQLITE_OK)
-        {
-            Serial.printf("SQL error: %s\n", zErrMsg);
-            sqlite3_free(zErrMsg);
-        }
-        else
-        {
-            Serial.printf("Operation done successfully\n");
-        }
-        Serial.print(F("Time taken:"));
-        Serial.println(micros() - start);
-        return rc;
-    }
-
     // insert element on current db
     void DBManager::insert(char* element){
         if (db == NULL) return;
 
-        int rc;
         char insertMsg[100];
         sprintf(insertMsg, "INSERT INTO %s (cartao) VALUES ('%s')",
-                dbNames[0], element);
+                "bancoA", element);
 
-        rc = exec(insertMsg, IGNORE);
-        if (rc != SQLITE_OK)
-        {
-            sqlite3_close(db);
-            db = NULL;
+        int rc;
+        char *zErrMsg;
+        rc = sqlite3_exec(db, insertMsg, NULL, NULL, &zErrMsg);
+        if (rc != SQLITE_OK) {
+            Serial.printf("SQL error: %s\n", zErrMsg);
+            sqlite3_free(zErrMsg);
             return;
+        } else {
+            Serial.printf("Operation done successfully\n");
         }
     }
 
@@ -397,6 +375,8 @@ namespace DBNS {
     // pointer [...] and not previously closed". So, we explicitly make it NULL
     // here and in DBManager::init() just in case.
     void DBManager::closeDB(){
+        sqlite3_finalize(dbquery);
+        dbquery = NULL;
         sqlite3_close(db);
         db = NULL;
     }
