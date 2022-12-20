@@ -33,7 +33,7 @@ namespace DBNS {
         private:
             sqlite3 *db;
             File file;
-            const char *dbNames[100] = {"/bancoA.db", "/bancoB.db"};
+            const char *dbNames[100] = {"/sd/bancoA.db", "/sd/bancoB.db"};
             const char *timestampfiles[100] = {"/TSA.TXT", "/TSB.TXT"};
             int currentDB = -1; // invalid
             int newDB = -1;
@@ -101,7 +101,8 @@ namespace DBNS {
             // I believe the nodeMCU RTC might also have this feature
 
             if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL)
-                startDownload();
+                //startDownload();
+                return;
             return;
         }
 
