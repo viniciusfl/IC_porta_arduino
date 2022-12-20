@@ -178,26 +178,31 @@ namespace ReaderNS {
     unsigned long lastFlush = 0;
 
     bool checkCardReaders(int& returnReaderID, unsigned long int& returnCardID){
+
+#       ifdef USE_INTERRUPTS
+
         // We could run this on every loop, but since we
         // disable interrupts it might be better not to.
-        //if (currentMillis - lastFlush < 20) return false;
+        if (currentMillis - lastFlush < 20) return false;
 
         lastFlush = currentMillis;
 
-#       ifdef USE_INTERRUPTS
         // Only very recent versions of the arduino framework
         // for ESP32 support interrupts()/noInterrupts()
         portDISABLE_INTERRUPTS();
         wiegand2.flush();
         wiegand1.flush();
         portENABLE_INTERRUPTS();
+
 #       else
+
         wiegand2.flush();
         wiegand1.flush();
         wiegand1.setPin0State(digitalRead(READER1_D0));
         wiegand1.setPin1State(digitalRead(READER1_D1));
         wiegand2.setPin0State(digitalRead(READER2_D0));
         wiegand2.setPin1State(digitalRead(READER2_D1));
+
 #       endif
 
         if (!newAccess) return false;
@@ -205,7 +210,8 @@ namespace ReaderNS {
         returnReaderID = atoi(readerID);
         returnCardID = bitsToNumber(cardIDRaw, cardIDBits);
 
-        // No idea why, but this almost eliminates some spurious errors
+        // No idea why, but this almost eliminates some
+        // spurious errors with the ControlID reader
         wiegand1.reset();
         wiegand2.reset();
 
@@ -231,7 +237,7 @@ bool checkCardReaders(int& readerID, unsigned long int& cardID) {
 
 // TODO: implement this :)
 void blinkOk(int reader) {
-    
+
 };
 
 void blinkFail(int reader) {};
