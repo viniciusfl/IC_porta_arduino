@@ -296,7 +296,8 @@ namespace DBNS {
 
         int rc = sqlite3_step(dbquery);
         while (rc == SQLITE_ROW) {
-            authorized = true;
+            if (1 == sqlite3_column_int(dbquery, 0))
+                authorized = true;
             rc = sqlite3_step(dbquery);
         }
 
