@@ -304,7 +304,7 @@ namespace DBNS {
         // Make query and execute it
         char searchDB[300];
         sprintf(searchDB, "SELECT EXISTS(SELECT * FROM %s WHERE cartao='%lu')",
-                dbNames[0], cardID);
+                "bancoA", cardID);
 
         exec(searchDB, CHECK_CARD);
 
