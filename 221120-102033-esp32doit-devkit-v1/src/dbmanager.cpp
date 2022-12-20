@@ -134,7 +134,7 @@ namespace DBNS {
         downloading = true;
         headerDone = false;
         beginningOfLine = true;
-        netLineBuffer[0] = 0;
+        netLineBuffer = "";
         position = 0;
         previous = 0;
 
@@ -164,6 +164,7 @@ namespace DBNS {
 
         client.flush();
         client.stop();
+        file.print(netLineBuffer);
         downloading = false;
 
         file.close();
@@ -198,9 +199,10 @@ namespace DBNS {
 
         if (headerDone) {
             netLineBuffer = netLineBuffer + c;
-            if(netLineBuffer.length() == netLineBufferSize || !client.available()){
-                Serial.println((String) "Writing " + netLineBuffer + " to db....");
+            if(netLineBuffer.length() >= netLineBufferSize){
+                Serial.println((String) "Writing " + netLineBuffer.length() + " bytes to db....");
                 file.print(netLineBuffer);
+                netLineBuffer = "";
                 return;
             }
             return;
