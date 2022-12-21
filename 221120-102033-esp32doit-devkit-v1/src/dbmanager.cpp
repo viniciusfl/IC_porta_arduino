@@ -93,8 +93,7 @@ namespace DBNS {
             // I believe the nodeMCU RTC might also have this feature
 
             if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL)
-                //startDownload();
-                return;
+                startDownload();
             return;
         }
 
