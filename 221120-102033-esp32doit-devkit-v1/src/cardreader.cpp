@@ -23,8 +23,8 @@ namespace ReaderNS {
 
     void captureIncomingData(uint8_t* data, uint8_t bits, const char* reader);
 
-    unsigned long bitsToNumber(volatile const uint8_t* data,
-                               volatile const uint8_t bits);
+    inline unsigned long bitsToNumber(volatile const uint8_t* data,
+                                      volatile const uint8_t bits);
 
     void stateChanged(bool plugged, const char* message);
 
@@ -55,8 +55,8 @@ namespace ReaderNS {
 
     // This reads the bitstream provided by the wiegand reader and converts
     // it to a single number.
-    unsigned long bitsToNumber(volatile const uint8_t* data,
-                               volatile const uint8_t bits) {
+    inline unsigned long bitsToNumber(volatile const uint8_t* data,
+                                      volatile const uint8_t bits) {
 
         String number = "";
 
@@ -177,7 +177,8 @@ namespace ReaderNS {
 
     unsigned long lastFlush = 0;
 
-    bool checkCardReaders(int& returnReaderID, unsigned long int& returnCardID) {
+    inline bool checkCardReaders(int& returnReaderID,
+                                 unsigned long int& returnCardID) {
 
 #       ifdef USE_INTERRUPTS
 
