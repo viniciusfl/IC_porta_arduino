@@ -106,7 +106,8 @@ namespace DBNS {
         }
 
         // If we did not disconnect above, we are connected
-        processDownload();
+        if (client.available())
+            processDownload();
     }
 
     void DBManager::startDownload() {
@@ -194,7 +195,6 @@ namespace DBNS {
     }
 
     void DBManager::processDownload() {
-        if (!client.available()) return;
         char c = client.read();
 
         if (headerDone) {
