@@ -56,14 +56,14 @@ namespace ReaderNS {
     // This reads the bitstream provided by the wiegand reader and converts
     // it to a single number.
     unsigned long bitsToNumber(volatile const uint8_t* data,
-                               volatile const uint8_t bits){
+                               volatile const uint8_t bits) {
 
         String number = "";
 
         uint8_t bytes = (bits+7)/8;
 
         // concatenate each byte from hex
-        for (int i = 0; i < bytes; ++i){
+        for (int i = 0; i < bytes; ++i) {
           number += String(data[i] >> 4, HEX);
           number += String(data[i] & 0xF, HEX);
         }
@@ -82,7 +82,7 @@ namespace ReaderNS {
         // It would be possible to avoid copying, but that could break
         // if something changes in the wiegand lib implementation.
         uint8_t bytes = (bits+7)/8;
-        for (int i = 0; i < bytes; ++i){
+        for (int i = 0; i < bytes; ++i) {
             cardIDRaw[i] = data[i];
         }
     }
@@ -114,7 +114,7 @@ namespace ReaderNS {
     }
 
     // This should be called from setup()
-    void initCardReaders(){
+    void initCardReaders() {
 
         // Install listeners and initialize first Wiegand reader
         wiegand1.onReceive(captureIncomingData, "1");
@@ -177,7 +177,7 @@ namespace ReaderNS {
 
     unsigned long lastFlush = 0;
 
-    bool checkCardReaders(int& returnReaderID, unsigned long int& returnCardID){
+    bool checkCardReaders(int& returnReaderID, unsigned long int& returnCardID) {
 
 #       ifdef USE_INTERRUPTS
 

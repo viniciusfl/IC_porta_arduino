@@ -59,16 +59,15 @@ namespace DBNS {
     char SERVER[] = {"10.0.2.106"};
 
     // This should be called from setup()
-    void DBManager::init(){
+    void DBManager::init() {
         db = NULL; // check the comment near DBManager::close()
         dbquery = NULL;
 
-        if (!SD.begin()){
+        if (!SD.begin()) {
             Serial.println("Card Mount Failed, aborting");
             Serial.flush();
             while (true) delay(10);
-        }
-        else{
+        } else {
             Serial.println("SD connected.");
         }
 
@@ -81,7 +80,7 @@ namespace DBNS {
     // At each call, we determine the current state we are in, perform
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
-    void DBManager::update(){
+    void DBManager::update() {
         // We start a download only if we are not already downloading
         if (!downloading) {
             // millis() wraps every ~49 days, but
@@ -109,7 +108,7 @@ namespace DBNS {
         processDownload();
     }
 
-    void DBManager::startDownload(){
+    void DBManager::startDownload() {
         client.connect(SERVER, 80);
         if (client.connected()) {
             Serial.println(F("Connected to server."));
@@ -119,7 +118,7 @@ namespace DBNS {
 
         // If connection failed, pretend nothing
         // ever happened and try again later
-        if (!client.connected()){
+        if (!client.connected()) {
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             client.stop();
             return;
@@ -154,7 +153,7 @@ namespace DBNS {
     #endif
     }
 
-    void DBManager::finishDownload(){
+    void DBManager::finishDownload() {
 
         client.flush();
         client.stop();
@@ -187,13 +186,13 @@ namespace DBNS {
         openDB();
     }
 
-    void DBManager::processDownload(){
+    void DBManager::processDownload() {
         if (!client.available()) return;
         char c = client.read();
 
         if (headerDone) {
             netLineBuffer = netLineBuffer + c;
-            if(netLineBuffer.length() >= netLineBufferSize){
+            if(netLineBuffer.length() >= netLineBufferSize) {
                 Serial.println((String) "Writing " + netLineBuffer.length() + " bytes to db....");
                 file.print(netLineBuffer);
                 netLineBuffer = "";
@@ -202,14 +201,12 @@ namespace DBNS {
             return;
         } else {
             if (c == '\n') {
-                if (beginningOfLine && previous == '\r')
-                {
+                if (beginningOfLine && previous == '\r') {
                     headerDone = true;
                 #ifdef DEBUG
                     Serial.println(F("Header done!"));
                 #endif
-                }
-                else {
+                } else {
                     previous = 0;
                 }
                 beginningOfLine = true;
@@ -221,24 +218,22 @@ namespace DBNS {
         }
     }
 
-    void DBManager::chooseInitialDB(){
+    void DBManager::chooseInitialDB() {
         currentDB = -1; // invalid
         int max = -1;
-        for (char i = 0; i < 2; ++i){ // 2 is the number of DBs
+        for (char i = 0; i < 2; ++i) { // 2 is the number of DBs
             File f = SD.open(timestampfiles[i]);
-            if (!f){
+            if (!f) {
                 Serial.print(dbNames[i]);
                 Serial.println(" not available");
-            }
-            else{
+            } else {
                 int t = f.parseInt(); // If reading fails, this returns 0
 
                 Serial.print(dbNames[i]);
                 Serial.print(" timestamp: ");
                 Serial.println(t);
 
-                if (t > max)
-                {
+                if (t > max) {
                     max = t;
                     currentDB = i;
                 }
@@ -315,7 +310,7 @@ namespace DBNS {
         }
     }
 
-    void DBManager::generateLog(unsigned long int id){
+    void DBManager::generateLog(unsigned long int id) {
         // TODO: we should generate log with name/RA
 
         DateTime moment = DateTime(time(NULL));
@@ -323,7 +318,7 @@ namespace DBNS {
         Serial.println("generating log");
         SD.remove("/log.txt");
         File log = SD.open("/log.txt", FILE_APPEND);
-        if (!log){
+        if (!log) {
                 Serial.println(" couldnt open log file...");
         }
         char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça",
@@ -350,7 +345,7 @@ namespace DBNS {
     }
 
     // insert element on current db
-    void DBManager::insert(char* element){
+    void DBManager::insert(char* element) {
         if (db == NULL) return;
 
         char insertMsg[100];
@@ -375,7 +370,7 @@ namespace DBNS {
     // sqlite3_close_v2(C) must be either a NULL pointer or an sqlite3 object
     // pointer [...] and not previously closed". So, we explicitly make it NULL
     // here and in DBManager::init() just in case.
-    void DBManager::closeDB(){
+    void DBManager::closeDB() {
         sqlite3_finalize(dbquery);
         dbquery = NULL;
         sqlite3_close(db);
