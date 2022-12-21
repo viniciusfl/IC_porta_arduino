@@ -206,7 +206,6 @@ namespace DBNS {
 #               endif
                 file.print(netLineBuffer);
                 netLineBuffer = "";
-                return;
             }
             return;
         } else {
