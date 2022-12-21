@@ -141,8 +141,8 @@ namespace DBNS {
         newDB = 0;
         if (currentDB == 0) newDB = 1;
 
-        client.println((String) "GET /banco.db HTTP/1.1");
-        client.println("Host: 10.0.2.106");
+        client.println("GET /banco.db HTTP/1.1");
+        client.println(((String) "Host: ") + SERVER);
         client.println("Connection: close");
         client.println();
 
