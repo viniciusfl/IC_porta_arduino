@@ -111,6 +111,7 @@ namespace DBNS {
     }
 
     void DBManager::startDownload() {
+        // TODO: use HTTPS, check certificates etc.
         client.connect(SERVER, 80);
 
 #       ifdef DEBUG
