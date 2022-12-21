@@ -13,7 +13,7 @@ void setup() {
     while (!Serial) { ; }
 
 #   ifdef DEBUG
-    Serial.println(F("Start program"));
+    Serial.println("Start program");
 #   endif
 
     currentMillis = millis();

@@ -116,9 +116,9 @@ namespace DBNS {
 
 #       ifdef DEBUG
         if (client.connected()) {
-            Serial.println(F("Connected to server."));
+            Serial.println("Connected to server.");
         } else {
-            Serial.println(F("Connection to server failed."));
+            Serial.println("Connection to server failed.");
         }
 #       endif
 
@@ -154,7 +154,7 @@ namespace DBNS {
         file = SD.open(dbNames[newDB], FILE_WRITE);
 
 #       ifdef DEBUG
-        Serial.print(F("Writing to "));
+        Serial.print("Writing to ");
         Serial.println(dbNames[newDB]);
 #       endif
     }
@@ -185,7 +185,7 @@ namespace DBNS {
         lastDownloadTime = currentMillis;
 
 #       ifdef DEBUG
-        Serial.println(F("Disconnecting from server and finishing db update."));
+        Serial.println("Disconnecting from server and finishing db update.");
 #       endif
 
         currentDB = newDB;
@@ -213,7 +213,7 @@ namespace DBNS {
                 if (beginningOfLine && previous == '\r') {
                     headerDone = true;
 #                   ifdef DEBUG
-                    Serial.println(F("Header done!"));
+                    Serial.println("Header done!");
 #                   endif
                 } else {
                     previous = 0;

@@ -43,7 +43,7 @@ namespace NetNS {
     void printNetStatus() {
         byte macBuffer[6];  // create a buffer to hold the MAC address
         WiFi.macAddress(macBuffer); // fill the buffer
-        Serial.print(F("The MAC address is: "));
+        Serial.print("The MAC address is: ");
         for (byte octet = 0; octet < 6; ++octet) {
             Serial.print(macBuffer[octet], HEX);
             if (octet < 5) {
@@ -53,14 +53,14 @@ namespace NetNS {
         Serial.println("");
 
         if ((WiFi.status() != WL_CONNECTED)) {
-            Serial.println(F("Not connected to WiFi."));
+            Serial.println("Not connected to WiFi.");
             return;
         }
 
         Serial.println("");
-        Serial.print(F("The IP address is: "));
+        Serial.print("The IP address is: ");
         Serial.println(WiFi.localIP());
-        Serial.print(F("The wifi network is: "));
+        Serial.print("The wifi network is: ");
         Serial.println(WiFi.SSID());
     }
 
@@ -103,23 +103,23 @@ namespace NetNS {
 
     // This should be called from setup()
     inline void initNetwork() {
-        Serial.println(F("Initializing network..."));
+        Serial.println("Initializing network...");
         Ethernet.init(10); // This is the default
 
 #       ifdef DEBUG
         if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-            Serial.println(F("Ethernet shield was not found."));
+            Serial.println("Ethernet shield was not found.");
             return;
         }
 
         if (Ethernet.hardwareStatus() == EthernetW5100) {
-            Serial.println(F("W5100 Ethernet controller detected."));
+            Serial.println("W5100 Ethernet controller detected.");
         }
         else if (Ethernet.hardwareStatus() == EthernetW5200) {
-            Serial.println(F("W5200 Ethernet controller detected."));
+            Serial.println("W5200 Ethernet controller detected.");
         }
         else if (Ethernet.hardwareStatus() == EthernetW5500) {
-            Serial.println(F("W5500 Ethernet controller detected."));
+            Serial.println("W5500 Ethernet controller detected.");
         }
 #       endif
 
@@ -128,9 +128,9 @@ namespace NetNS {
         int status = Ethernet.begin(mac);
 
         if (status == 0) {
-            Serial.println(F("Failed to configure Ethernet using DHCP"));
+            Serial.println("Failed to configure Ethernet using DHCP");
         } else {
-            Serial.println(F("Connected to network."));
+            Serial.println("Connected to network.");
         }
 
         lastNetCheck = currentMillis;
@@ -145,7 +145,7 @@ namespace NetNS {
     void printNetStatus() {
         byte macBuffer[6];  // create a buffer to hold the MAC address
         Ethernet.MACAddress(macBuffer); // fill the buffer
-        Serial.print(F("The MAC address is: "));
+        Serial.print("The MAC address is: ");
         for (byte octet = 0; octet < 6; ++octet) {
             Serial.print(macBuffer[octet], HEX);
             if (octet < 5) {
@@ -154,14 +154,14 @@ namespace NetNS {
         }
 
         if (Ethernet.linkStatus() == LinkOFF) {
-            Serial.println(F("Ethernet cable is not connected."));
+            Serial.println("Ethernet cable is not connected.");
             return;
         }
 
         Serial.println("");
-        Serial.print(F("The IP address is: "));
+        Serial.print("The IP address is: ");
         Serial.println(Ethernet.localIP());
-        Serial.print(F("The DNS server is: "));
+        Serial.print("The DNS server is: ");
         Serial.println(Ethernet.dnsServerIP());
     }
 #   endif
