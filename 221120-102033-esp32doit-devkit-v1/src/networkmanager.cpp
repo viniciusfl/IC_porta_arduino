@@ -35,7 +35,9 @@ namespace NetNS {
         //WiFi.begin(ssid, password);
         WiFi.begin(ssid);
 
+#       ifdef DEBUG
         Serial.println("Waiting for WiFi... ");
+#       endif
     }
 
     void printNetStatus() {

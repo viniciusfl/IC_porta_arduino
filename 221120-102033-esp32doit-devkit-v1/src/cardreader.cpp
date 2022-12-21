@@ -215,11 +215,13 @@ namespace ReaderNS {
         wiegand1.reset();
         wiegand2.reset();
 
+#       ifdef DEBUG
         Serial.print("Card reader ");
         Serial.print(returnReaderID);
         Serial.println(" was used.");
         Serial.print("We received -> ");
         Serial.println(returnCardID);
+#       endif
 
         newAccess = false;
 

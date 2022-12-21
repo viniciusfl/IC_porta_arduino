@@ -11,7 +11,11 @@ void setup() {
     Serial.begin(115200);
     // wait for serial port to connect. Needed for native USB port only
     while (!Serial) { ; }
+
+#   ifdef DEBUG
     Serial.println(F("Start program"));
+#   endif
+
     currentMillis = millis();
     initWiFi();
     initTime();

@@ -67,8 +67,10 @@ namespace DBNS {
             Serial.println("Card Mount Failed, aborting");
             Serial.flush();
             while (true) delay(10);
+#       ifdef DEBUG
         } else {
             Serial.println("SD connected.");
+#       endif
         }
 
         sqlite3_initialize();
@@ -109,11 +111,14 @@ namespace DBNS {
 
     void DBManager::startDownload() {
         client.connect(SERVER, 80);
+
+#       ifdef DEBUG
         if (client.connected()) {
             Serial.println(F("Connected to server."));
         } else {
             Serial.println(F("Connection to server failed."));
         }
+#       endif
 
         // If connection failed, pretend nothing
         // ever happened and try again later
@@ -146,10 +151,10 @@ namespace DBNS {
 
         file = SD.open(dbNames[newDB], FILE_WRITE);
 
-    #ifdef DEBUG
-        Serial.print("Writing to ");
+#       ifdef DEBUG
+        Serial.print(F("Writing to "));
         Serial.println(dbNames[newDB]);
-    #endif
+#       endif
     }
 
     void DBManager::finishDownload() {
@@ -176,7 +181,10 @@ namespace DBNS {
         file.close();
 
         lastDownloadTime = currentMillis;
-        Serial.println("Disconnecting from server and finishing db update.");
+
+#       ifdef DEBUG
+        Serial.println(F("Disconnecting from server and finishing db update."));
+#       endif
 
         currentDB = newDB;
         newDB = -1; // invalid
@@ -192,7 +200,9 @@ namespace DBNS {
         if (headerDone) {
             netLineBuffer = netLineBuffer + c;
             if(netLineBuffer.length() >= netLineBufferSize) {
+#               ifdef DEBUG
                 Serial.println((String) "Writing " + netLineBuffer.length() + " bytes to db....");
+#               endif
                 file.print(netLineBuffer);
                 netLineBuffer = "";
                 return;
@@ -202,9 +212,9 @@ namespace DBNS {
             if (c == '\n') {
                 if (beginningOfLine && previous == '\r') {
                     headerDone = true;
-                #ifdef DEBUG
+#                   ifdef DEBUG
                     Serial.println(F("Header done!"));
-                #endif
+#                   endif
                 } else {
                     previous = 0;
                 }
@@ -223,14 +233,18 @@ namespace DBNS {
         for (char i = 0; i < 2; ++i) { // 2 is the number of DBs
             File f = SD.open(timestampfiles[i]);
             if (!f) {
+#               ifdef DEBUG
                 Serial.print(dbNames[i]);
                 Serial.println(" not available");
+#               endif
             } else {
                 int t = f.parseInt(); // If reading fails, this returns 0
 
+#               ifdef DEBUG
                 Serial.print(dbNames[i]);
                 Serial.print(" timestamp: ");
                 Serial.println(t);
+#               endif
 
                 if (t > max) {
                     max = t;
@@ -243,9 +257,13 @@ namespace DBNS {
         if (currentDB < 0) {
             currentDB = 0;
             startDownload();
+#           ifdef DEBUG
             Serial.printf("Downloading DB for the first time...");
+#           endif
         } else {
+#           ifdef DEBUG
             Serial.printf("Choosing %s as current DB.\n", dbNames[currentDB]);
+#           endif
             openDB();
         }
     }
@@ -257,7 +275,9 @@ namespace DBNS {
         if (rc != SQLITE_OK) {
             Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
         } else {
+#           ifdef DEBUG
             Serial.printf("Opened database successfully\n");
+#           endif
 
             rc = sqlite3_prepare_v2(db,
                     "SELECT EXISTS(SELECT * FROM ? WHERE cartao='?')",
@@ -266,8 +286,10 @@ namespace DBNS {
             if (rc != SQLITE_OK) {
                 Serial.printf("Can't generate prepared statement: %s\n",
                               sqlite3_errmsg(db));
+#           ifdef DEBUG
             } else {
                 Serial.printf("Prepared statement created\n");
+#           endif
             }
         }
 
@@ -278,11 +300,13 @@ namespace DBNS {
     bool DBManager::userAuthorized(int readerID, unsigned long cardID) {
         if (db == NULL) return false;
 
+#       ifdef DEBUG
         Serial.print("Card reader ");
         Serial.print(readerID);
         Serial.println(" was used.");
         Serial.print("We received -> ");
         Serial.println(cardID);
+#       endif
 
         sqlite3_reset(dbquery);
         sqlite3_bind_text(dbquery, 1, "bancoA", -1, SQLITE_STATIC);

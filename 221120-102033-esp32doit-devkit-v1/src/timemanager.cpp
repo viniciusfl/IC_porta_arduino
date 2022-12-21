@@ -75,7 +75,9 @@ namespace TimeNS {
             // everything up to perform a query on the next poll...)
             configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
         } else {
+#           ifdef DEBUG
             Serial.println("Hardware clock NOT running, waiting for NTP to set the date");
+#           endif
 
             // Initialize esp32 sntp client
             configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -99,7 +101,9 @@ namespace TimeNS {
             update();
         }
 
+#       ifdef DEBUG
         Serial.println("Date/time are set!");
+#       endif
     }
 
 
@@ -158,8 +162,10 @@ namespace TimeNS {
 #       endif
 
         if (systemtime - hwclocktime >= 10) {
+#           ifdef DEBUG
             Serial.println("Updating hardware clock time");
             rtc.adjust(DateTime(systemtime));
+#           endif
         }
     }
 
