@@ -35,19 +35,18 @@ namespace DBNS {
             void init(Authorizer*);
             void update();
         private:
-            const char *dbNames[2] = {"/sd/bancoA.db", "/sd/bancoB.db"};
-            const char *timestampfiles[2] = {"/TSA.TXT", "/TSB.TXT"};
+            const char* currentFile;
+            const char* otherFile;
+            const char* currentTimestampFile;
+            const char* otherTimestampFile;
+            void chooseInitialFile();
+
             const char *SERVER = "10.0.2.106";
-
-            int currentDB = -1; // invalid
-            int newDB = -1;
-
             unsigned long lastDownloadTime = 0;
             bool downloading = false; // Is there an ongoing DB update?
             void startDownload();
             void processDownload();
             void finishDownload();
-            void chooseInitialDB();
 
             Authorizer* authorizer;
             WiFiClient client;
@@ -59,6 +58,9 @@ namespace DBNS {
             char previous;
             bool headerDone = false;
             bool beginningOfLine = true;
+
+            void swapFiles();
+            bool checkFileFreshness(const char*);
     };
 
 
@@ -74,7 +76,8 @@ namespace DBNS {
 #       endif
         }
         this->authorizer = authorizer;
-        chooseInitialDB();
+
+        chooseInitialFile();
     }
 
     // This should be called from loop()
@@ -136,35 +139,30 @@ namespace DBNS {
         position = 0;
         previous = 0;
 
-        // Hack alert! This is a dirty way of saying "not the current DB"
-        newDB = 0;
-        if (currentDB == 0) newDB = 1;
-
         client.println("GET /banco.db HTTP/1.1");
         client.println(((String) "Host: ") + SERVER);
         client.println("Connection: close");
         client.println();
 
         // remove old DB files
-        SD.remove(timestampfiles[newDB]);
-        SD.remove(dbNames[newDB]);
+        SD.remove(otherTimestampFile);
+        SD.remove(otherFile);
 
-        file = SD.open(dbNames[newDB], FILE_WRITE);
+        file = SD.open(otherFile, FILE_WRITE);
 
 #       ifdef DEBUG
         Serial.print("Writing to ");
-        Serial.println(dbNames[newDB]);
+        Serial.println(otherFile);
 #       endif
     }
 
     void FileManager::finishDownload() {
-
         client.flush();
         client.stop();
         file.print(netLineBuffer);
-        downloading = false;
-
         file.close();
+        downloading = false;
+        lastDownloadTime = currentMillis;
 
         // Out with the old, in with the new
 
@@ -172,25 +170,21 @@ namespace DBNS {
         //        if the download was successful
         // QUESTION: how can i know that?
 
-        file = SD.open(timestampfiles[newDB], FILE_WRITE);
-        file.println(1);
-        file.close();
-
-        file = SD.open(timestampfiles[currentDB], FILE_WRITE);
-        file.println(0);
-        file.close();
-
-        lastDownloadTime = currentMillis;
+        swapFiles();
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
 #       endif
 
-        currentDB = newDB;
-        newDB = -1; // invalid
-
         authorizer->closeDB();
-        authorizer->openDB(dbNames[currentDB]);
+        if (! authorizer->openDB(currentFile)) {
+#           ifdef DEBUG
+            Serial.println("Error opening the updated DB, reverting to old one");
+#           endif
+            swapFiles();
+            // FIXME: in the unlikely event that this fails too, we are doomed
+            authorizer->openDB(currentFile);
+        }
     }
 
     void FileManager::processDownload() {
@@ -225,45 +219,59 @@ namespace DBNS {
         }
     }
 
-    void FileManager::chooseInitialDB() {
-        currentDB = -1; // invalid
-        int max = -1;
-        for (char i = 0; i < 2; ++i) { // 2 is the number of DBs
-            File f = SD.open(timestampfiles[i]);
-            if (!f) {
+    void FileManager::swapFiles() {
+        const char* tmp = currentFile;
+        currentFile = otherFile;
+        otherFile = tmp;
+        tmp = currentTimestampFile;
+        currentTimestampFile = otherTimestampFile;
+        otherTimestampFile = tmp;
+
+        // If we crash before these 5 lines, on restart we will continue
+        // using the old version of the DB; if we crash after, we will
+        // use the new version of the DB. If we crash in the middle (with
+        // both files containing "1"), on restart we will use "bancoA.db",
+        // which may be either.
+        file = SD.open(currentTimestampFile, FILE_WRITE);
+        file.print(1);
+        file.close();
+
+        SD.remove(otherTimestampFile);
+    }
+
+    bool FileManager::checkFileFreshness(const char* tsfile) {
+        // In some exceptional circumstances, we might end up writing
+        // "1" to the file more than once; that's ok, 11 > 0 too :) .
+        File f = SD.open(tsfile);
+        int t = 0;
+        if (f) {
+            int t = f.parseInt(); // If reading fails, this returns 0
+        }
+        f.close();
+        return t > 0;
+    }
+
+    void FileManager::chooseInitialFile() {
+        currentFile = "/sd/bancoA.db";
+        otherFile = "/sd/bancoB.db";
+        currentTimestampFile = "/TSA.TXT";
+        otherTimestampFile = "/TSB.TXT";
+
+        if (!checkFileFreshness(currentTimestampFile)) {
+            if(!checkFileFreshness(otherTimestampFile)) {
+                startDownload();
 #               ifdef DEBUG
-                Serial.print(dbNames[i]);
-                Serial.println(" not available");
+                Serial.printf("Downloading DB for the first time...");
 #               endif
             } else {
-                int t = f.parseInt(); // If reading fails, this returns 0
-
-#               ifdef DEBUG
-                Serial.print(dbNames[i]);
-                Serial.print(" timestamp: ");
-                Serial.println(t);
-#               endif
-
-                if (t > max) {
-                    max = t;
-                    currentDB = i;
-                }
+                swapFiles();
             }
-            f.close();
         }
 
-        if (currentDB < 0) {
-            currentDB = 0;
-            startDownload();
-#           ifdef DEBUG
-            Serial.printf("Downloading DB for the first time...");
-#           endif
-        } else {
-#           ifdef DEBUG
-            Serial.printf("Choosing %s as current DB.\n", dbNames[currentDB]);
-#           endif
-            authorizer->openDB(dbNames[currentDB]);
-        }
+#       ifdef DEBUG
+        Serial.printf("Choosing %s as current DB.\n", currentFile);
+#       endif
+        authorizer->openDB(currentFile);
     }
 
 
