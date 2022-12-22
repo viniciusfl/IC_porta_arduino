@@ -199,7 +199,6 @@ namespace DBNS {
                 file.print(netLineBuffer);
                 netLineBuffer = "";
             }
-            return;
         } else {
             if (c == '\n') {
                 if (beginningOfLine && previous == '\r') {
