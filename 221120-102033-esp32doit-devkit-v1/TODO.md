@@ -158,8 +158,6 @@
 
  * Update the DB using alarms instead of time intervals?
 
- * Separate DB stuff in two parts: downloads etc vs queries etc
-
  * Add some sort of timeout for the download
 
  * What to do if `openDB()` fails?
