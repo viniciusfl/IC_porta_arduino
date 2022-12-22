@@ -32,8 +32,8 @@ namespace DBNS {
             void insert(char *element);
     };
 
-    // This is an auxiliary class to FileManager. It receives one byte at
-    // a time to prevent blocking and writes what is received to disk,
+    // This is an auxiliary class to UpdateDBManager. It receives one byte
+    // at a time to prevent blocking and writes what is received to disk,
     // minus the HTTP headers.
     class FileWriter {
         public:
@@ -55,7 +55,7 @@ namespace DBNS {
     // when downloading is successful. It alternates between two filenames
     // to do its thing and, during startup, identifies which of them is
     // the current one by means of the "timestamp" file.
-    class FileManager {
+    class UpdateDBManager {
         public:
             void init(Authorizer*);
             void update();
@@ -81,7 +81,7 @@ namespace DBNS {
     };
 
     // This should be called from setup()
-    void FileManager::init(Authorizer* authorizer) {
+    void UpdateDBManager::init(Authorizer* authorizer) {
         if (!SD.begin()) {
             Serial.println("Card Mount Failed, aborting");
             Serial.flush();
@@ -101,7 +101,7 @@ namespace DBNS {
     // At each call, we determine the current state we are in, perform
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
-    void FileManager::update() {
+    void UpdateDBManager::update() {
         // We start a download only if we are not already downloading
         if (!downloading) {
             // millis() wraps every ~49 days, but
@@ -131,7 +131,7 @@ namespace DBNS {
         }
     }
 
-    void FileManager::startDownload() {
+    void UpdateDBManager::startDownload() {
         // TODO: use HTTPS, check certificates etc.
         client.connect(SERVER, 80);
 
@@ -165,7 +165,7 @@ namespace DBNS {
         writer.open(otherFile);
     }
 
-    void FileManager::finishDownload() {
+    void UpdateDBManager::finishDownload() {
         client.flush();
         client.stop();
         writer.close();
@@ -195,7 +195,7 @@ namespace DBNS {
         }
     }
 
-    void FileManager::swapFiles() {
+    void UpdateDBManager::swapFiles() {
         const char* tmp = currentFile;
         currentFile = otherFile;
         otherFile = tmp;
@@ -215,7 +215,7 @@ namespace DBNS {
         SD.remove(otherTimestampFile);
     }
 
-    bool FileManager::checkFileFreshness(const char* tsfile) {
+    bool UpdateDBManager::checkFileFreshness(const char* tsfile) {
         // In some exceptional circumstances, we might end up writing
         // "1" to the file more than once; that's ok, 11 > 0 too :) .
         File f = SD.open(tsfile);
@@ -227,7 +227,7 @@ namespace DBNS {
         return t > 0;
     }
 
-    void FileManager::chooseInitialFile() {
+    void UpdateDBManager::chooseInitialFile() {
         currentFile = "/sd/bancoA.db";
         otherFile = "/sd/bancoB.db";
         currentTimestampFile = "/TSA.TXT";
@@ -441,16 +441,16 @@ namespace DBNS {
     }
 
     Authorizer authorizer;
-    FileManager fileManager;
+    UpdateDBManager updateDBManager;
 }
 
 void initDB() {
     DBNS::authorizer.init();
-    DBNS::fileManager.init(&DBNS::authorizer);
+    DBNS::updateDBManager.init(&DBNS::authorizer);
 }
 
 void updateDB() {
-    DBNS::fileManager.update();
+    DBNS::updateDBManager.update();
 }
 
 bool userAuthorized(int readerID, unsigned long cardID) {
