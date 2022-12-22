@@ -17,52 +17,53 @@
 
 namespace DBNS {
 
-    class DBManager{
+    class Authorizer {
         public:
             void init();
-            void update();
-            bool userAuthorized(int readerID, unsigned long cardID);
-
-        private:
-            sqlite3 *db;
-            sqlite3_stmt *dbquery;
-            File file;
-            const char *dbNames[100] = {"/sd/bancoA.db", "/sd/bancoB.db"};
-            const char *timestampfiles[100] = {"/TSA.TXT", "/TSB.TXT"};
-            int currentDB = -1; // invalid
-            int newDB = -1;
-            unsigned long lastDownloadTime = 0;
-            bool headerDone = false;
-            bool beginningOfLine = true;
-
-            String netLineBuffer;
-            char previous;
-            int position = 0;
-            int netLineBufferSize = 40;
-
-            void startDownload();
-            void finishDownload();
-            void processDownload();
-            void chooseInitialDB();
-            void generateLog(unsigned long int id);
-            int openDB();
+            int openDB(const char* filename);
             void closeDB();
+            bool userAuthorized(int readerID, unsigned long cardID);
+        private:
+            sqlite3 *sqlitedb;
+            sqlite3_stmt *dbquery;
+            void generateLog(unsigned long int id);
             void insert(char *element);
     };
 
-    bool downloading = false; // Is there an ongoing DB update?
+    class FileManager {
+        public:
+            void init(Authorizer*);
+            void update();
+        private:
+            const char *dbNames[2] = {"/sd/bancoA.db", "/sd/bancoB.db"};
+            const char *timestampfiles[2] = {"/TSA.TXT", "/TSB.TXT"};
+            const char *SERVER = "10.0.2.106";
 
-    bool authorized = false;
+            int currentDB = -1; // invalid
+            int newDB = -1;
 
-    WiFiClient client;
+            unsigned long lastDownloadTime = 0;
+            bool downloading = false; // Is there an ongoing DB update?
+            void startDownload();
+            void processDownload();
+            void finishDownload();
+            void chooseInitialDB();
 
-    char SERVER[] = {"10.0.2.106"};
+            Authorizer* authorizer;
+            WiFiClient client;
+            File file;
+
+            String netLineBuffer;
+            int netLineBufferSize = 40;
+            int position = 0;
+            char previous;
+            bool headerDone = false;
+            bool beginningOfLine = true;
+    };
+
 
     // This should be called from setup()
-    void DBManager::init() {
-        db = NULL; // check the comment near DBManager::close()
-        dbquery = NULL;
-
+    void FileManager::init(Authorizer* authorizer) {
         if (!SD.begin()) {
             Serial.println("Card Mount Failed, aborting");
             Serial.flush();
@@ -72,9 +73,7 @@ namespace DBNS {
             Serial.println("SD connected.");
 #       endif
         }
-
-        sqlite3_initialize();
-
+        this->authorizer = authorizer;
         chooseInitialDB();
     }
 
@@ -82,7 +81,7 @@ namespace DBNS {
     // At each call, we determine the current state we are in, perform
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
-    void DBManager::update() {
+    void FileManager::update() {
         // We start a download only if we are not already downloading
         if (!downloading) {
             // millis() wraps every ~49 days, but
@@ -110,7 +109,7 @@ namespace DBNS {
             processDownload();
     }
 
-    void DBManager::startDownload() {
+    void FileManager::startDownload() {
         // TODO: use HTTPS, check certificates etc.
         client.connect(SERVER, 80);
 
@@ -146,7 +145,6 @@ namespace DBNS {
         client.println("Connection: close");
         client.println();
 
-
         // remove old DB files
         SD.remove(timestampfiles[newDB]);
         SD.remove(dbNames[newDB]);
@@ -159,7 +157,7 @@ namespace DBNS {
 #       endif
     }
 
-    void DBManager::finishDownload() {
+    void FileManager::finishDownload() {
 
         client.flush();
         client.stop();
@@ -191,11 +189,11 @@ namespace DBNS {
         currentDB = newDB;
         newDB = -1; // invalid
 
-        closeDB();
-        openDB();
+        authorizer->closeDB();
+        authorizer->openDB(dbNames[currentDB]);
     }
 
-    void DBManager::processDownload() {
+    void FileManager::processDownload() {
         char c = client.read();
 
         if (headerDone) {
@@ -227,7 +225,7 @@ namespace DBNS {
         }
     }
 
-    void DBManager::chooseInitialDB() {
+    void FileManager::chooseInitialDB() {
         currentDB = -1; // invalid
         int max = -1;
         for (char i = 0; i < 2; ++i) { // 2 is the number of DBs
@@ -264,28 +262,36 @@ namespace DBNS {
 #           ifdef DEBUG
             Serial.printf("Choosing %s as current DB.\n", dbNames[currentDB]);
 #           endif
-            openDB();
+            authorizer->openDB(dbNames[currentDB]);
         }
     }
 
-    int DBManager::openDB() {
-        if (db != NULL) return 0;
 
-        int rc = sqlite3_open(dbNames[currentDB], &db);
+    // This should be called from setup()
+    void Authorizer::init() {
+        sqlitedb = NULL; // check the comment near Authorizer::closeDB()
+        dbquery = NULL;
+        sqlite3_initialize();
+    }
+
+    int Authorizer::openDB(const char* filename) {
+        closeDB();
+
+        int rc = sqlite3_open(filename, &sqlitedb);
         if (rc != SQLITE_OK) {
-            Serial.printf("Can't open database: %s\n", sqlite3_errmsg(db));
+            Serial.printf("Can't open database: %s\n", sqlite3_errmsg(sqlitedb));
         } else {
 #           ifdef DEBUG
             Serial.printf("Opened database successfully\n");
 #           endif
 
-            rc = sqlite3_prepare_v2(db,
+            rc = sqlite3_prepare_v2(sqlitedb,
                     "SELECT EXISTS(SELECT * FROM ? WHERE cartao='?')",
                     -1, &dbquery, NULL);
 
             if (rc != SQLITE_OK) {
                 Serial.printf("Can't generate prepared statement: %s\n",
-                              sqlite3_errmsg(db));
+                              sqlite3_errmsg(sqlitedb));
 #           ifdef DEBUG
             } else {
                 Serial.printf("Prepared statement created\n");
@@ -297,8 +303,8 @@ namespace DBNS {
     }
 
     // search element through current database
-    bool DBManager::userAuthorized(int readerID, unsigned long cardID) {
-        if (db == NULL) return false;
+    bool Authorizer::userAuthorized(int readerID, unsigned long cardID) {
+        if (sqlitedb == NULL) return false;
 
 #       ifdef DEBUG
         Serial.print("Card reader ");
@@ -312,6 +318,7 @@ namespace DBNS {
         sqlite3_bind_text(dbquery, 1, "bancoA", -1, SQLITE_STATIC);
         sqlite3_bind_int(dbquery, 2, cardID);
 
+        bool authorized = false;
         int rc = sqlite3_step(dbquery);
         while (rc == SQLITE_ROW) {
             if (1 == sqlite3_column_int(dbquery, 0))
@@ -320,7 +327,7 @@ namespace DBNS {
         }
 
         if (rc != SQLITE_DONE) {
-            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(db));
+            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitedb));
         }
 
         //generateLog(cardID);
@@ -333,7 +340,7 @@ namespace DBNS {
         }
     }
 
-    void DBManager::generateLog(unsigned long int id) {
+    void Authorizer::generateLog(unsigned long int id) {
         // TODO: we should generate log with name/RA
 
         DateTime moment = DateTime(time(NULL));
@@ -368,8 +375,8 @@ namespace DBNS {
     }
 
     // insert element on current db
-    void DBManager::insert(char* element) {
-        if (db == NULL) return;
+    void Authorizer::insert(char* element) {
+        if (sqlitedb == NULL) return;
 
         char insertMsg[100];
         sprintf(insertMsg, "INSERT INTO %s (cartao) VALUES ('%s')",
@@ -377,7 +384,7 @@ namespace DBNS {
 
         int rc;
         char *zErrMsg;
-        rc = sqlite3_exec(db, insertMsg, NULL, NULL, &zErrMsg);
+        rc = sqlite3_exec(sqlitedb, insertMsg, NULL, NULL, &zErrMsg);
         if (rc != SQLITE_OK) {
             Serial.printf("SQL error: %s\n", zErrMsg);
             sqlite3_free(zErrMsg);
@@ -387,30 +394,30 @@ namespace DBNS {
         }
     }
 
-    // In some rare situations, we might call this twice or call this before we
-    // ever initialize the db first (which means the pointer is in an undefined
-    // state). The sqlite3 docs say "The C parameter to sqlite3_close(C) and
-    // sqlite3_close_v2(C) must be either a NULL pointer or an sqlite3 object
-    // pointer [...] and not previously closed". So, we explicitly make it NULL
-    // here and in DBManager::init() just in case.
-    void DBManager::closeDB() {
+    // The sqlite3 docs say "The C parameter to sqlite3_close(C) and
+    // sqlite3_close_v2(C) must be either a NULL pointer or an sqlite3
+    // object pointer [...] and not previously closed". So, we always
+    // make it NULL here to avoid closing a pointer previously closed.
+    void Authorizer::closeDB() {
         sqlite3_finalize(dbquery);
         dbquery = NULL;
-        sqlite3_close(db);
-        db = NULL;
+        sqlite3_close_v2(sqlitedb);
+        sqlitedb = NULL;
     }
 
-    DBManager db;
+    Authorizer authorizer;
+    FileManager fileManager;
 }
 
 void initDB() {
-    DBNS::db.init();
+    DBNS::authorizer.init();
+    DBNS::fileManager.init(&DBNS::authorizer);
 }
 
 void updateDB() {
-    DBNS::db.update();
+    DBNS::fileManager.update();
 }
 
 bool userAuthorized(int readerID, unsigned long cardID) {
-    return DBNS::db.userAuthorized(readerID, cardID);
+    return DBNS::authorizer.userAuthorized(readerID, cardID);
 }
