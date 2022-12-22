@@ -17,6 +17,8 @@
 
 namespace DBNS {
 
+    // This is a wrapper around SQLite which allows us
+    // to query whether a user is authorized to enter.
     class Authorizer {
         public:
             void init();
@@ -30,6 +32,29 @@ namespace DBNS {
             void insert(char *element);
     };
 
+    // This is an auxiliary class to FileManager. It receives one byte at
+    // a time to prevent blocking and writes what is received to disk,
+    // minus the HTTP headers.
+    class FileWriter {
+        public:
+            void open(const char*);
+            void write(const char);
+            void close();
+        private:
+            File file;
+            String netLineBuffer;
+            int netLineBufferSize = 40;
+            int position = 0;
+            char previous;
+            bool headerDone = false;
+            bool beginningOfLine = true;
+    };
+
+    // This class periodically downloads a new version of the database
+    // and sets this new version as the "active" db file in the Authorizer
+    // when downloading is successful. It alternates between two filenames
+    // to do its thing and, during startup, identifies which of them is
+    // the current one by means of the "timestamp" file.
     class FileManager {
         public:
             void init(Authorizer*);
@@ -39,30 +64,21 @@ namespace DBNS {
             const char* otherFile;
             const char* currentTimestampFile;
             const char* otherTimestampFile;
+
             void chooseInitialFile();
+            void swapFiles();
+            bool checkFileFreshness(const char*);
 
             const char *SERVER = "10.0.2.106";
             unsigned long lastDownloadTime = 0;
             bool downloading = false; // Is there an ongoing DB update?
             void startDownload();
-            void processDownload();
             void finishDownload();
 
             Authorizer* authorizer;
             WiFiClient client;
-            File file;
-
-            String netLineBuffer;
-            int netLineBufferSize = 40;
-            int position = 0;
-            char previous;
-            bool headerDone = false;
-            bool beginningOfLine = true;
-
-            void swapFiles();
-            bool checkFileFreshness(const char*);
+            FileWriter writer;
     };
-
 
     // This should be called from setup()
     void FileManager::init(Authorizer* authorizer) {
@@ -75,6 +91,7 @@ namespace DBNS {
             Serial.println("SD connected.");
 #       endif
         }
+
         this->authorizer = authorizer;
 
         chooseInitialFile();
@@ -108,8 +125,10 @@ namespace DBNS {
         }
 
         // If we did not disconnect above, we are connected
-        if (client.available())
-            processDownload();
+        if (client.available()) {
+            char c = client.read();
+            writer.write(c);
+        }
     }
 
     void FileManager::startDownload() {
@@ -133,11 +152,6 @@ namespace DBNS {
         }
 
         downloading = true;
-        headerDone = false;
-        beginningOfLine = true;
-        netLineBuffer = "";
-        position = 0;
-        previous = 0;
 
         client.println("GET /banco.db HTTP/1.1");
         client.println(((String) "Host: ") + SERVER);
@@ -148,19 +162,13 @@ namespace DBNS {
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
 
-        file = SD.open(otherFile, FILE_WRITE);
-
-#       ifdef DEBUG
-        Serial.print("Writing to ");
-        Serial.println(otherFile);
-#       endif
+        writer.open(otherFile);
     }
 
     void FileManager::finishDownload() {
         client.flush();
         client.stop();
-        file.print(netLineBuffer);
-        file.close();
+        writer.close();
         downloading = false;
         lastDownloadTime = currentMillis;
 
@@ -187,9 +195,79 @@ namespace DBNS {
         }
     }
 
-    void FileManager::processDownload() {
-        char c = client.read();
+    void FileManager::swapFiles() {
+        const char* tmp = currentFile;
+        currentFile = otherFile;
+        otherFile = tmp;
+        tmp = currentTimestampFile;
+        currentTimestampFile = otherTimestampFile;
+        otherTimestampFile = tmp;
 
+        // If we crash before these 5 lines, on restart we will continue
+        // using the old version of the DB; if we crash after, we will
+        // use the new version of the DB. If we crash in the middle (with
+        // both files containing "1"), on restart we will use "bancoA.db",
+        // which may be either.
+        File f = SD.open(currentTimestampFile, FILE_WRITE);
+        f.print(1);
+        f.close();
+
+        SD.remove(otherTimestampFile);
+    }
+
+    bool FileManager::checkFileFreshness(const char* tsfile) {
+        // In some exceptional circumstances, we might end up writing
+        // "1" to the file more than once; that's ok, 11 > 0 too :) .
+        File f = SD.open(tsfile);
+        int t = 0;
+        if (f) {
+            int t = f.parseInt(); // If reading fails, this returns 0
+        }
+        f.close();
+        return t > 0;
+    }
+
+    void FileManager::chooseInitialFile() {
+        currentFile = "/sd/bancoA.db";
+        otherFile = "/sd/bancoB.db";
+        currentTimestampFile = "/TSA.TXT";
+        otherTimestampFile = "/TSB.TXT";
+
+        if (!checkFileFreshness(currentTimestampFile)) {
+            if(!checkFileFreshness(otherTimestampFile)) {
+#               ifdef DEBUG
+                Serial.printf("Downloading DB for the first time...");
+#               endif
+                startDownload();
+            } else {
+                swapFiles();
+            }
+        }
+
+#       ifdef DEBUG
+        Serial.printf("Choosing %s as current DB.\n", currentFile);
+#       endif
+        authorizer->openDB(currentFile);
+    }
+
+
+    void FileWriter::open(const char* filename) {
+        file = SD.open(filename, FILE_WRITE);
+        headerDone = false;
+        beginningOfLine = true;
+        netLineBuffer = "";
+        position = 0;
+        previous = 0;
+
+#       ifdef DEBUG
+        Serial.print("Writing to ");
+        Serial.println(filename);
+#       endif
+    }
+
+    // TODO: String is probably slow and might cause problems
+    //       with binary data; we should use a ring buffer.
+    void FileWriter::write(const char c) {
         if (headerDone) {
             netLineBuffer = netLineBuffer + c;
             if(netLineBuffer.length() >= netLineBufferSize) {
@@ -218,59 +296,9 @@ namespace DBNS {
         }
     }
 
-    void FileManager::swapFiles() {
-        const char* tmp = currentFile;
-        currentFile = otherFile;
-        otherFile = tmp;
-        tmp = currentTimestampFile;
-        currentTimestampFile = otherTimestampFile;
-        otherTimestampFile = tmp;
-
-        // If we crash before these 5 lines, on restart we will continue
-        // using the old version of the DB; if we crash after, we will
-        // use the new version of the DB. If we crash in the middle (with
-        // both files containing "1"), on restart we will use "bancoA.db",
-        // which may be either.
-        file = SD.open(currentTimestampFile, FILE_WRITE);
-        file.print(1);
+    void FileWriter::close() {
+        file.print(netLineBuffer);
         file.close();
-
-        SD.remove(otherTimestampFile);
-    }
-
-    bool FileManager::checkFileFreshness(const char* tsfile) {
-        // In some exceptional circumstances, we might end up writing
-        // "1" to the file more than once; that's ok, 11 > 0 too :) .
-        File f = SD.open(tsfile);
-        int t = 0;
-        if (f) {
-            int t = f.parseInt(); // If reading fails, this returns 0
-        }
-        f.close();
-        return t > 0;
-    }
-
-    void FileManager::chooseInitialFile() {
-        currentFile = "/sd/bancoA.db";
-        otherFile = "/sd/bancoB.db";
-        currentTimestampFile = "/TSA.TXT";
-        otherTimestampFile = "/TSB.TXT";
-
-        if (!checkFileFreshness(currentTimestampFile)) {
-            if(!checkFileFreshness(otherTimestampFile)) {
-                startDownload();
-#               ifdef DEBUG
-                Serial.printf("Downloading DB for the first time...");
-#               endif
-            } else {
-                swapFiles();
-            }
-        }
-
-#       ifdef DEBUG
-        Serial.printf("Choosing %s as current DB.\n", currentFile);
-#       endif
-        authorizer->openDB(currentFile);
     }
 
 
