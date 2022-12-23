@@ -7,6 +7,8 @@
 
 unsigned long currentMillis;
 
+int doorID;
+
 void setup() {
     Serial.begin(115200);
     // wait for serial port to connect. Needed for native USB port only
@@ -29,7 +31,7 @@ void loop() {
     //checkTimeSync();
     int lastReaderID;
     unsigned long int lastCardID;
-    if (checkCardReaders(lastReaderID, lastCardID)) {
+    /*if (checkCardReaders(lastReaderID, lastCardID)) {
         if (userAuthorized(lastReaderID, lastCardID)) {
             blinkOk(lastReaderID);
             Serial.println("Exists in db.");
@@ -38,4 +40,5 @@ void loop() {
             Serial.println("Doesn't exist in db.");
         }
     }
+    */
 }

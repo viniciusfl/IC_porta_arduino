@@ -8,4 +8,6 @@
 // changes within a single iteration.
 extern unsigned long currentMillis;
 
+extern int doorID;
+
 #endif

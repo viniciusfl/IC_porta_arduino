@@ -4,9 +4,9 @@
 
 namespace NetNS {
 
-    char ssid[] = "Rede IME";
-    //char ssid[] = "Familia Ferraz 2.4G";
-    //char password[] = "dogtor1966";
+    //char ssid[] = "Rede IME";
+    char ssid[] = "Familia Ferraz 2.4G";
+    char password[] = "dogtor1966";
 
     void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
 
@@ -32,8 +32,8 @@ namespace NetNS {
         WiFi.onEvent(WiFiStationDisconnected,
                      WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
-        //WiFi.begin(ssid, password);
-        WiFi.begin(ssid);
+        WiFi.begin(ssid, password);
+        //WiFi.begin(ssid);
 
 #       ifdef DEBUG
         Serial.println("Waiting for WiFi... ");
@@ -85,8 +85,8 @@ namespace NetNS {
 
       // TODO: This blocks! We should continue functioning normally
       //       even without network conectivity
-      //while(!WiFi.begin(ssid, password))
-      while(!WiFi.begin(ssid))
+      while(!WiFi.begin(ssid, password))
+      //while(!WiFi.begin(ssid))
         Serial.println("Trying to Reconnect... ");
     }
 
