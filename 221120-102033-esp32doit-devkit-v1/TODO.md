@@ -127,6 +127,15 @@
 
 # Non-critical TODOs
 
+ * "Timestamp" is not a good word for the files with the metadata
+   about the DB files (but check the next item)
+
+ * Instead of the timestamp files, we might record the status of the
+   latest downloaded DB file in a second sqlite DB; this gives us
+   consistency guarantees
+
+ * Names "1" and "2" for the wiegand readers is not very inspired
+
  * Should we use `sntp_set_time_sync_notification_cb()` to synchronize
    the HW clock?
 
