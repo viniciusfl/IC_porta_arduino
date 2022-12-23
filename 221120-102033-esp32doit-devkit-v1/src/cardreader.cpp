@@ -7,13 +7,13 @@
 // so let's use polling instead.
 //#define USE_INTERRUPTS
 
-// pins for card reader 1
-#define READER1_D0 26
-#define READER1_D1 27
+// pins for card reader 1 (external)
+#define EXTERNAL_D0 26
+#define EXTERNAL_D1 27
 
-// pins for card reader 2
-#define READER2_D0 33
-#define READER2_D1 25
+// pins for card reader 2 (internal)
+#define INTERNAL_D0 33
+#define INTERNAL_D1 25
 
 // Note that, with more than one reader, trying to read two cards at
 // exactly the same time will probably fail (we use a single data buffer
@@ -31,9 +31,9 @@ namespace ReaderNS {
     void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
                            uint8_t rawBits, const char* message);
 
-    Wiegand wiegand1;
+    Wiegand external;
 
-    Wiegand wiegand2;
+    Wiegand internal;
 
     // We read the Wiegand data in a callback with interrupts disabled; to make
     // this callback as short as possible and pass this data to the "normal"
@@ -117,24 +117,24 @@ namespace ReaderNS {
     void initCardReaders() {
 
         // Install listeners and initialize first Wiegand reader
-        wiegand1.onReceive(captureIncomingData, "1");
-        wiegand1.onReceiveError(receivedDataError, "Card reader 1 error: ");
-        wiegand1.onStateChange(stateChanged, "Card reader 1 state changed: ");
-        wiegand1.begin(Wiegand::LENGTH_ANY, true);
+        external.onReceive(captureIncomingData, "1");
+        external.onReceiveError(receivedDataError, "External card reader error: ");
+        external.onStateChange(stateChanged, "External card reader state changed: ");
+        external.begin(Wiegand::LENGTH_ANY, true);
 
         // Install listeners and initialize second Wiegand reader
-        wiegand2.onReceive(captureIncomingData, "2");
-        wiegand2.onReceiveError(receivedDataError, "Card reader 2 error: ");
-        wiegand2.onStateChange(stateChanged, "Card reader 2 state changed: ");
-        wiegand2.begin(Wiegand::LENGTH_ANY, true);
+        internal.onReceive(captureIncomingData, "2");
+        internal.onReceiveError(receivedDataError, "Internal card reader error: ");
+        internal.onStateChange(stateChanged, "Internal card reader state changed: ");
+        internal.begin(Wiegand::LENGTH_ANY, true);
 
-        // Initialize pins for first Wiegand reader as INPUT
-        pinMode(READER1_D0, INPUT);
-        pinMode(READER1_D1, INPUT);
+        // Initialize pins for first Wiegand reader (external) as INPUT
+        pinMode(EXTERNAL_D0, INPUT);
+        pinMode(EXTERNAL_D1, INPUT);
 
-        // Initialize pins for second Wiegand reader as INPUT
-        pinMode(READER2_D0, INPUT);
-        pinMode(READER2_D1, INPUT);
+        // Initialize pins for second Wiegand reader (internal) as INPUT
+        pinMode(INTERNAL_D0, INPUT);
+        pinMode(INTERNAL_D1, INPUT);
 
         // Ideally, we should define the interrupt handlers with
         // ESP_INTR_FLAG_IRAM and IRAM_ATTR (or at least with only IRAM_ATTR):
@@ -148,31 +148,31 @@ namespace ReaderNS {
 
 #       ifdef USE_INTERRUPTS
         // Initialize interrupt handler for first Wiegand reader pins
-        attachInterrupt(digitalPinToInterrupt(READER1_D0),
-                        [](){wiegand1.setPin0State(digitalRead(READER1_D0));},
+        attachInterrupt(digitalPinToInterrupt(EXTERNAL_D0),
+                        [](){external.setPin0State(digitalRead(EXTERNAL_D0));},
                         CHANGE);
 
-        attachInterrupt(digitalPinToInterrupt(READER1_D1),
-                        [](){wiegand1.setPin1State(digitalRead(READER1_D1));},
+        attachInterrupt(digitalPinToInterrupt(EXTERNAL_D1),
+                        [](){external.setPin1State(digitalRead(EXTERNAL_D1));},
                         CHANGE);
 
         // Initialize interrupt handler for second Wiegand reader pins
-        attachInterrupt(digitalPinToInterrupt(READER2_D0),
-                        [](){wiegand2.setPin0State(digitalRead(READER2_D0));},
+        attachInterrupt(digitalPinToInterrupt(INTERNAL_D0),
+                        [](){internal.setPin0State(digitalRead(INTERNAL_D0));},
                         CHANGE);
 
-        attachInterrupt(digitalPinToInterrupt(READER2_D1),
-                        [](){wiegand2.setPin1State(digitalRead(READER2_D1));},
+        attachInterrupt(digitalPinToInterrupt(INTERNAL_D1),
+                        [](){internal.setPin1State(digitalRead(INTERNAL_D1));},
                         CHANGE);
 #       endif
 
         // Register the initial pin state for first Wiegand reader pins
-        wiegand1.setPin0State(digitalRead(READER1_D0));
-        wiegand1.setPin1State(digitalRead(READER1_D1));
+        external.setPin0State(digitalRead(EXTERNAL_D0));
+        external.setPin1State(digitalRead(EXTERNAL_D1));
 
         // Register the initial pin state for second Wiegand reader pins
-        wiegand2.setPin0State(digitalRead(READER2_D0));
-        wiegand2.setPin1State(digitalRead(READER2_D1));
+        internal.setPin0State(digitalRead(INTERNAL_D0));
+        internal.setPin1State(digitalRead(INTERNAL_D1));
     }
 
     unsigned long lastFlush = 0;
@@ -191,18 +191,18 @@ namespace ReaderNS {
         // Only very recent versions of the arduino framework
         // for ESP32 support interrupts()/noInterrupts()
         portDISABLE_INTERRUPTS();
-        wiegand2.flush();
-        wiegand1.flush();
+        internal.flush();
+        external.flush();
         portENABLE_INTERRUPTS();
 
 #       else
 
-        wiegand2.flush();
-        wiegand1.flush();
-        wiegand1.setPin0State(digitalRead(READER1_D0));
-        wiegand1.setPin1State(digitalRead(READER1_D1));
-        wiegand2.setPin0State(digitalRead(READER2_D0));
-        wiegand2.setPin1State(digitalRead(READER2_D1));
+        internal.flush();
+        external.flush();
+        external.setPin0State(digitalRead(EXTERNAL_D0));
+        external.setPin1State(digitalRead(EXTERNAL_D1));
+        internal.setPin0State(digitalRead(INTERNAL_D0));
+        internal.setPin1State(digitalRead(INTERNAL_D1));
 
 #       endif
 
@@ -213,14 +213,17 @@ namespace ReaderNS {
 
         // No idea why, but this almost eliminates some
         // spurious errors with the ControlID reader
-        wiegand1.reset();
-        wiegand2.reset();
+        external.reset();
+        internal.reset();
 
 #       ifdef DEBUG
-        Serial.print("Card reader ");
-        Serial.print(returnReaderID);
-        Serial.println(" was used.");
-        Serial.print("We received -> ");
+        if (returnReaderID == 1) {
+            Serial.print("External ");
+        } else {
+            Serial.print("Internal ");
+        }
+        Serial.print("card reader was used.");
+        Serial.print("We received card ID -> ");
         Serial.println(returnCardID);
 #       endif
 
