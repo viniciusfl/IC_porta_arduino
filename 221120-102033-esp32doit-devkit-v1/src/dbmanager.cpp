@@ -9,7 +9,7 @@
 
 #define RETRY_DOWNLOAD_TIME 60000
 
-#define DOWNLOAD_INTERVAL 20000
+#define DOWNLOAD_INTERVAL 1200000
 
 #define DEBUG
 
@@ -17,7 +17,6 @@
 
 namespace DBNS
 {
-
     // This is a wrapper around SQLite which allows us
     // to query whether a user is authorized to enter.
     class Authorizer
@@ -31,8 +30,7 @@ namespace DBNS
     private:
         sqlite3 *sqlitedb;
         sqlite3_stmt *dbquery;
-        void generateLog(unsigned long int id);
-        void insert(char *element);
+        void generateLog(unsigned long cardID, int readerID, bool authorized);
     };
 
     // This is an auxiliary class to UpdateDBManager. It receives one byte
@@ -208,7 +206,7 @@ namespace DBNS
 #endif
 
         authorizer->closeDB();
-        if (!authorizer->openDB(currentFile))
+        if (authorizer->openDB(currentFile) != SQLITE_OK)
         {
 #ifdef DEBUG
             Serial.println("Error opening the updated DB, reverting to old one");
@@ -285,6 +283,11 @@ namespace DBNS
     void FileWriter::open(const char *filename)
     {
         file = SD.open(filename, FILE_WRITE);
+        if(!file)
+        { 
+        Serial.println("Error openning DB file.");
+        }
+  
         headerDone = false;
         beginningOfLine = true;
         netLineBuffer[0] = 0;
@@ -369,11 +372,10 @@ namespace DBNS
     {
         closeDB();
         String name = (String) "/sd" + filename; // FIXME: this is bad
-        // when openDB is called, filename must begin with /sd
-        // but when we open file to write binary, filename must not have /sd
-        // thats why i insert /sd here.
+
         char buff[sizeof(name)];
         name.toCharArray(buff, sizeof(name));
+
         int rc = sqlite3_open(buff, &sqlitedb);
         if (rc != SQLITE_OK)
         {
@@ -381,18 +383,19 @@ namespace DBNS
         }
         else
         {
-#ifdef DEBUG
-            Serial.printf("Opened database successfully\n");
-#endif
 
+ 
+#ifdef DEBUG
+            Serial.printf("Opened database successfully %s\n", filename);
+#endif
             rc = sqlite3_prepare_v2(sqlitedb,
-                                    "SELECT EXISTS(SELECT * FROM ? WHERE cartao='?')",
+                                    "SELECT EXISTS(SELECT * FROM auth WHERE userID=? AND doorID=?)",
                                     -1, &dbquery, NULL);
 
             if (rc != SQLITE_OK)
             {
-                Serial.printf("Can't generate prepared statement: %s\n",
-                              sqlite3_errmsg(sqlitedb));
+                Serial.printf("Can't generate prepared statement: \n");
+                Serial.printf("%s: %s\n", sqlite3_errstr(sqlite3_extended_errcode(sqlitedb)), sqlite3_errmsg(sqlitedb));
 #ifdef DEBUG
             }
             else
@@ -408,6 +411,8 @@ namespace DBNS
     // search element through current database
     bool Authorizer::userAuthorized(int readerID, unsigned long cardID)
     {
+        //FIXME: reading card during DB download breaks program 
+        // download stops and card reader returns error: unsopported message format
         if (sqlitedb == NULL)
             return false;
 
@@ -418,10 +423,11 @@ namespace DBNS
         Serial.print("We received -> ");
         Serial.println(cardID);
 #endif
-
+        sqlite3_int64 card = cardID;
         sqlite3_reset(dbquery);
-        sqlite3_bind_text(dbquery, 1, "bancoB", -1, SQLITE_STATIC);
-        sqlite3_bind_int(dbquery, 2, cardID);
+        sqlite3_bind_int64(dbquery, 1, card);
+        sqlite3_bind_int(dbquery, 2, doorID); //FIXME
+        // should i verify errors while binding?
 
         bool authorized = false;
         int rc = sqlite3_step(dbquery);
@@ -437,7 +443,7 @@ namespace DBNS
             Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitedb));
         }
 
-        // generateLog(cardID);
+        //generateLog(cardID, readerID, authorized);
 
         if (authorized)
         {
@@ -450,65 +456,74 @@ namespace DBNS
         }
     }
 
-    void Authorizer::generateLog(unsigned long int id)
+    void Authorizer::generateLog(unsigned long cardID, int readerID, bool authorized)
     {
-        // TODO: we should generate log with name/RA
+        //FIXME: organize
 
-        DateTime moment = DateTime(time(NULL));
-        // TODO: generate log for both people allowed and not allowed
+        // get unix time
+        time_t now;
+        time(&now);
+        unsigned long systemtime = now;
+
+        const char* filename = "/sd/log"; // FIXME: this is bad
+        int rc = sqlite3_open(filename, &sqlitedb);
+        if (rc != SQLITE_OK)
+        {
+            Serial.printf("Can't open database: %s\n", sqlite3_errmsg(sqlitedb));
+        }
+        else
+        {
+#ifdef DEBUG
+            Serial.printf("Opened database successfully\n");
+#endif
+
+            rc = sqlite3_prepare_v2(sqlitedb,
+                                    "INSERT INTO log(cardID, doorID, readerID, unixTimestamp, authorized) VALUES(?, ?, ?, ?, ?)",
+                                    -1, &dbquery, NULL);
+
+            if (rc != SQLITE_OK)
+            {
+                Serial.printf("Can't generate prepared statement: %s\n",
+                              sqlite3_errmsg(sqlitedb));
+#ifdef DEBUG
+            }
+            else
+            {
+                Serial.printf("Prepared statement created\n");
+#endif
+            }
+        }
+
+        // should i verify errors while binding?
+        sqlite3_reset(dbquery);
+        sqlite3_bind_int(dbquery, 1, cardID);
+        sqlite3_bind_int(dbquery, 2, doorID); 
+        sqlite3_bind_int(dbquery, 3, readerID); 
+        sqlite3_bind_int(dbquery, 4, systemtime); 
+        sqlite3_bind_int(dbquery, 5, authorized); 
+
+        while (rc == SQLITE_ROW)
+        {
+            rc = sqlite3_step(dbquery);
+        }
+
+        if (rc != SQLITE_DONE)
+        {
+            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitedb));
+        }
+
+
+#ifdef  DEBUG
         Serial.println("generating log");
-        SD.remove("/log.txt");
+#endif
+
         File log = SD.open("/log.txt", FILE_APPEND);
         if (!log)
         {
             Serial.println(" couldnt open log file...");
         }
-        char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça",
-                                      "quarta", "quinta", "sexta", "sabado"};
 
-        log.print(id);
-        log.print(" entered ");
-        log.print(moment.year(), DEC);
-        log.print('/');
-        log.print(moment.month(), DEC);
-        log.print('/');
-        log.print(moment.day(), DEC);
-        log.print(" (");
-        log.print(daysOfTheWeek[moment.dayOfTheWeek()]);
-        log.print(") ");
-        log.print(moment.hour(), DEC);
-        log.print(':');
-        log.print(moment.minute(), DEC);
-        log.print(':');
-        log.print(moment.second(), DEC);
-        log.println();
-        log.close();
-        Serial.println("finished log....");
-    }
-
-    // insert element on current db
-    void Authorizer::insert(char *element)
-    {
-        if (sqlitedb == NULL)
-            return;
-
-        char insertMsg[100];
-        sprintf(insertMsg, "INSERT INTO %s (cartao) VALUES ('%s')",
-                "bancoA", element);
-
-        int rc;
-        char *zErrMsg;
-        rc = sqlite3_exec(sqlitedb, insertMsg, NULL, NULL, &zErrMsg);
-        if (rc != SQLITE_OK)
-        {
-            Serial.printf("SQL error: %s\n", zErrMsg);
-            sqlite3_free(zErrMsg);
-            return;
-        }
-        else
-        {
-            Serial.printf("Operation done successfully\n");
-        }
+        closeDB();
     }
 
     // The sqlite3 docs say "The C parameter to sqlite3_close(C) and

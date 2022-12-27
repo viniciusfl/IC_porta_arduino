@@ -31,7 +31,7 @@ void loop() {
     //checkTimeSync();
     int lastReaderID;
     unsigned long int lastCardID;
-    /*if (checkCardReaders(lastReaderID, lastCardID)) {
+    if (checkCardReaders(lastReaderID, lastCardID)) {
         if (userAuthorized(lastReaderID, lastCardID)) {
             blinkOk(lastReaderID);
             Serial.println("Exists in db.");
@@ -40,5 +40,4 @@ void loop() {
             Serial.println("Doesn't exist in db.");
         }
     }
-    */
 }

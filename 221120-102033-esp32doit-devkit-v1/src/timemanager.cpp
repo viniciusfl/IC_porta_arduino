@@ -23,8 +23,7 @@ namespace TimeNS {
             void checkSync();
         private:
             RTC_DS1307 rtc;
-            // variable that holds the last time we adjusted the clock
-            unsigned long lastClockAdjustment;
+            unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
             void update();
     };
 
