@@ -3,4 +3,6 @@
 
 void initWiFi();
 
+void checkNetConnection();
+
 #endif

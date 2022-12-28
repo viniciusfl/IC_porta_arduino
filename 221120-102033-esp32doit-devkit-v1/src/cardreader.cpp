@@ -7,13 +7,17 @@
 // so let's use polling instead.
 //#define USE_INTERRUPTS
 
+#define BEEP_TIME 150
+#define BEEP_INTERVAL 200
+
 // pins for card reader 1 (external)
-#define EXTERNAL_D0 26
-#define EXTERNAL_D1 27
+#define EXTERNAL_D0  26
+#define EXTERNAL_D1  27
 
 // pins for card reader 2 (internal)
-#define INTERNAL_D0 33
-#define INTERNAL_D1 25
+#define INTERNAL_D0  33
+#define INTERNAL_D1  25
+#define INTERNAL_BEEP 32
 
 // Note that, with more than one reader, trying to read two cards at
 // exactly the same time will probably fail (we use a single data buffer
@@ -132,11 +136,15 @@ namespace ReaderNS {
         // Initialize pins for first Wiegand reader (external) as INPUT
         pinMode(EXTERNAL_D0, INPUT);
         pinMode(EXTERNAL_D1, INPUT);
+        pinMode(INTERNAL_BEEP, OUTPUT);
+        digitalWrite(INTERNAL_BEEP, HIGH);
+
 
         // Initialize pins for second Wiegand reader (internal) as INPUT
         pinMode(INTERNAL_D0, INPUT);
         pinMode(INTERNAL_D1, INPUT);
 
+        
         // Ideally, we should define the interrupt handlers with
         // ESP_INTR_FLAG_IRAM and IRAM_ATTR (or at least with only IRAM_ATTR):
         // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/intr_alloc.html
@@ -242,9 +250,27 @@ bool checkCardReaders(int& readerID, unsigned long int& cardID) {
     return ReaderNS::checkCardReaders(readerID, cardID);
 }
 
-// TODO: implement this :)
+// still need to change to the card reader that was used
+// just test
 void blinkOk(int reader) {
+    // first beep
+    digitalWrite(INTERNAL_BEEP, LOW);
+    delay(BEEP_TIME);
 
+    // pause
+    digitalWrite(INTERNAL_BEEP, HIGH);
+    delay(BEEP_INTERVAL);
+
+    // second beep
+    digitalWrite(INTERNAL_BEEP, LOW);
+    delay(BEEP_TIME);
+
+    // stop beeping
+    digitalWrite(INTERNAL_BEEP, HIGH);
 };
 
-void blinkFail(int reader) {};
+void blinkFail(int reader) {
+    digitalWrite(INTERNAL_BEEP, LOW);
+    delay(1500);
+    digitalWrite(INTERNAL_BEEP, HIGH);
+};

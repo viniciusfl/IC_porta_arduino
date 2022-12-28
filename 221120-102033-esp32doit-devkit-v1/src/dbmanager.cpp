@@ -11,8 +11,6 @@
 
 #define DOWNLOAD_INTERVAL 1200000
 
-#define DEBUG
-
 #include <sqlite3.h>
 
 namespace DBNS
@@ -113,6 +111,8 @@ namespace DBNS
     // processor and can pursue other tasks while updating the DB.
     void UpdateDBManager::update()
     {
+        //FIXME: what if download stops working in the middle and never ends?
+
         // We start a download only if we are not already downloading
         if (!downloading)
         {
@@ -148,6 +148,15 @@ namespace DBNS
 
     void UpdateDBManager::startDownload()
     {
+        Serial.println("started download...");
+        // If WiFI is disconnected, pretend nothing
+        // ever happened and try again later
+/*         if (WiFi.status() != WL_CONNECTION_LOST){
+            Serial.println("No internet available, canceling db update.");
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+            return;
+        }  */
+
         // TODO: use HTTPS, check certificates etc.
         client.connect(SERVER, 80);
 
@@ -192,8 +201,6 @@ namespace DBNS
         writer.close();
         downloading = false;
         lastDownloadTime = currentMillis;
-
-        // Out with the old, in with the new
 
         // FIXME: we should only save the timestamp etc.
         //        if the download was successful
@@ -312,10 +319,13 @@ namespace DBNS
             {
 #ifdef DEBUG
                 Serial.println((String) "Writing " + position + " bytes to db....");
-#endif
                 for (int i = 0; i < netLineBufferSize; i++)
                 {
                     Serial.print((char) netLineBuffer[i]);
+                    file.print((char) netLineBuffer[i]);
+                }
+#endif
+                for (int i = 0; i < netLineBufferSize; i++){
                     file.print((char) netLineBuffer[i]);
                 }
                 position = 0;
@@ -351,7 +361,6 @@ namespace DBNS
     {
         for (int i = 0; i < position; i++)
         {
-            Serial.print((char) netLineBuffer[i]);
             file.print((char) netLineBuffer[i]);
         }
 #ifdef DEBUG
@@ -458,7 +467,7 @@ namespace DBNS
 
     void Authorizer::generateLog(unsigned long cardID, int readerID, bool authorized)
     {
-        //FIXME: organize
+        //FIXME: organize and optmize
 
         // get unix time
         time_t now;

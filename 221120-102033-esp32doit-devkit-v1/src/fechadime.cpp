@@ -27,17 +27,18 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
+    //checkNetConnection();
     updateDB();
     //checkTimeSync();
     int lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
         if (userAuthorized(lastReaderID, lastCardID)) {
-            blinkOk(lastReaderID);
             Serial.println("Exists in db.");
+            blinkOk(lastReaderID);
         } else {
-            blinkFail(lastReaderID);
             Serial.println("Doesn't exist in db.");
+            blinkFail(lastReaderID);
         }
     }
 }

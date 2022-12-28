@@ -1,16 +1,16 @@
 # Short-term TODOs
 
- * Check whether DB downloading is working as expected
+ * Check whether DB downloading is working as expected 
 
    - Download happens periodically and things continue to work during and
      after downloads
 
    - If no DB is available, the first DB is downloaded during init
 
- * Add `extern int doorID` to `common.h` and define it in `fechadime.cpp`,
-   like `currentMillis`.
+ * Add `extern int doorID` to `common.h` and define it in `fechadime.cpp`, -> `OK`
+   like `currentMillis`. 
 
- * Change DB schema so that it has three tables:
+ * Change DB schema so that it has three tables: -> `OK`
 
    - "users" with only one column, "ID", which is the primary key (we may
      want to add more columns later, such as name etc.)
@@ -37,7 +37,7 @@
      select exists(select * from auth where userID=? and doorID=?);
      ```
 
- * Create a second sqlite DB for logs and log data to it
+ * Create a second sqlite DB for logs and log data to it 
 
    - register the card ID, door ID, reader ID, unix timestamp, and whether
      access was authorized, unauthorized, or failed (some error ocurred)
