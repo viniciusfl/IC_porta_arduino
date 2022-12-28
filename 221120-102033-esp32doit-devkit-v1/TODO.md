@@ -127,12 +127,32 @@
 
 # Non-critical TODOs
 
- * "Timestamp" is not a good word for the files with the metadata
+ * `*TimestampFile` is not a good name for the files with the metadata
    about the DB files (but check the next item)
 
- * Instead of the timestamp files, we might record the status of the
-   latest downloaded DB file in a second sqlite DB; this gives us
-   consistency guarantees
+ * The two `*TimestampFile` files are not really necessary; a single file
+   with the name (or number) of the correct DB is enough (if the file does
+   not exist or is corrupted, the code already has a default). Another
+   option is to use a second sqlite DB file instead of a plain text file
+   for this, which gives us consistency guarantees. If there is a problem
+   with multiple "things" writing to the SD card at the same time, we
+   can use the preferences library instead.
+
+ * We should record things such as the doorID and net credentials in the
+   NVS (non-volatile storage) with the preferences library or in the SPIFFS:
+   https://randomnerdtutorials.com/esp32-vs-code-platformio-spiffs/
+   https://blog.espressif.com/building-products-creating-unique-factory-data-images-3f642832a7a3
+
+ * The minimum size of an SQLite database is one page for each table and
+   each index, and the minimum page size is 512 bytes.
+   https://www.sqlite.org/pgszchng2016.html . If we change the page size
+   to 512 bytes:
+   https://www.oreilly.com/library/view/using-sqlite/9781449394592/re194.html
+   a DB with a small number of entries will probably be 2-4KB and fit
+   the NVS. We could use that to store everything we need.
+
+ * It is probably safe to use up to 5KB of NVS space:
+   https://stackoverflow.com/a/58562855/15695987
 
  * Names "1" and "2" for the wiegand readers is not very inspired
 
