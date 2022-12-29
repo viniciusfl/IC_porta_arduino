@@ -7,10 +7,10 @@
 
    - If no DB is available, the first DB is downloaded during init
 
- * Add `extern int doorID` to `common.h` and define it in `fechadime.cpp`, -> `OK`
-   like `currentMillis`. 
+ * Add `extern int doorID` to `common.h` and define it in `fechadime.cpp`, 
+   like `currentMillis`. :heavy_check_mark:
 
- * Change DB schema so that it has three tables: -> `OK`
+ * Change DB schema so that it has three tables: :heavy_check_mark:
 
    - "users" with only one column, "ID", which is the primary key (we may
      want to add more columns later, such as name etc.)
@@ -37,7 +37,7 @@
      select exists(select * from auth where userID=? and doorID=?);
      ```
 
- * Create a second sqlite DB for logs and log data to it 
+ * Create a second sqlite DB for logs and log data to it  :heavy_check_mark:
 
    - register the card ID, door ID, reader ID, unix timestamp, and whether
      access was authorized, unauthorized, or failed (some error ocurred)
