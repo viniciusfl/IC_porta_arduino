@@ -82,7 +82,9 @@ namespace ReaderNS {
         newAccess = true;
         readerID = reader;
         cardIDBits = bits;
-        doorID = 1;
+        doorID = 1; //FIXME:
+
+        Serial.println("incoming data reader...");
 
         // It would be possible to avoid copying, but that could break
         // if something changes in the wiegand lib implementation.
@@ -206,8 +208,8 @@ namespace ReaderNS {
 
 #       else
 
-        internal.flush();
         external.flush();
+        internal.flush();
         external.setPin0State(digitalRead(EXTERNAL_D0));
         external.setPin1State(digitalRead(EXTERNAL_D1));
         internal.setPin0State(digitalRead(INTERNAL_D0));

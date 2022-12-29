@@ -13,6 +13,8 @@
 
 #include <sqlite3.h>
 
+#define DEBUG
+
 namespace DBNS
 {
     // This is a wrapper around SQLite which allows us
@@ -28,7 +30,11 @@ namespace DBNS
     private:
         sqlite3 *sqlitedb;
         sqlite3_stmt *dbquery;
+        sqlite3 *sqlitelog;
+        sqlite3_stmt *logquery;
         void generateLog(unsigned long cardID, int readerID, bool authorized);
+        int openlogDB();
+        void closelogDB();
     };
 
     // This is an auxiliary class to UpdateDBManager. It receives one byte
@@ -148,7 +154,9 @@ namespace DBNS
 
     void UpdateDBManager::startDownload()
     {
-        Serial.println("started download...");
+#ifdef  DEBUG
+        Serial.println("Started DB download.");
+#endif
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
 /*         if (WiFi.status() != WL_CONNECTION_LOST){
@@ -317,14 +325,6 @@ namespace DBNS
             position++;
             if (position >= netLineBufferSize)
             {
-#ifdef DEBUG
-                Serial.println((String) "Writing " + position + " bytes to db....");
-                for (int i = 0; i < netLineBufferSize; i++)
-                {
-                    Serial.print((char) netLineBuffer[i]);
-                    file.print((char) netLineBuffer[i]);
-                }
-#endif
                 for (int i = 0; i < netLineBufferSize; i++){
                     file.print((char) netLineBuffer[i]);
                 }
@@ -374,6 +374,8 @@ namespace DBNS
     {
         sqlitedb = NULL; // check the comment near Authorizer::closeDB()
         dbquery = NULL;
+        sqlitelog = NULL;
+        logquery = NULL;
         sqlite3_initialize();
     }
 
@@ -417,6 +419,40 @@ namespace DBNS
         return rc;
     }
 
+    int Authorizer::openlogDB()
+    {
+        const char* filename = "/sd/log.db"; // FIXME: this is bad
+        int rc = sqlite3_open(filename, &sqlitelog);
+
+        if (rc != SQLITE_OK)
+        {
+            Serial.printf("Can't open database: %s\n", sqlite3_errmsg(sqlitelog));
+        }
+        else
+        {
+            Serial.printf("Opened database successfully\n");
+
+            // prepare query
+            rc = sqlite3_prepare_v2(sqlitelog,
+                                    "INSERT INTO log(cardID, doorID, readerID, unixTimestamp, authorized) VALUES(?, ?, ?, ?, ?)",
+                                    -1, &logquery, NULL);
+
+            if (rc != SQLITE_OK)
+            {
+                Serial.printf("Can't generate prepared statement for log DB: %s\n",
+                              sqlite3_errmsg(sqlitelog));
+#ifdef DEBUG
+            }
+            else
+            {
+                Serial.printf("Prepared statement created for log DB\n");
+#endif
+            }
+        }
+        return rc;
+    }
+
+
     // search element through current database
     bool Authorizer::userAuthorized(int readerID, unsigned long cardID)
     {
@@ -434,7 +470,8 @@ namespace DBNS
         sqlite3_int64 card = cardID;
         sqlite3_reset(dbquery);
         sqlite3_bind_int64(dbquery, 1, card);
-        sqlite3_bind_int(dbquery, 2, doorID); //FIXME
+        sqlite3_bind_int(dbquery, 2, doorID); 
+        //FIXME:
         // should i verify errors while binding?
 
         bool authorized = false;
@@ -451,7 +488,7 @@ namespace DBNS
             Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitedb));
         }
 
-        //generateLog(cardID, readerID, authorized);
+        generateLog(cardID, readerID, authorized);
 
         if (authorized)
         {
@@ -466,72 +503,37 @@ namespace DBNS
 
     void Authorizer::generateLog(unsigned long cardID, int readerID, bool authorized)
     {
-        //FIXME: organize and optmize
 
         // get unix time
         time_t now;
         time(&now);
         unsigned long systemtime = now;
 
-        const char* filename = "/sd/log"; // FIXME: this is bad
-        int rc = sqlite3_open(filename, &sqlitedb);
-        if (rc != SQLITE_OK)
-        {
-            Serial.printf("Can't open database: %s\n", sqlite3_errmsg(sqlitedb));
-        }
-        else
-        {
-#ifdef DEBUG
-            Serial.printf("Opened database successfully\n");
-#endif
-
-            rc = sqlite3_prepare_v2(sqlitedb,
-                                    "INSERT INTO log(cardID, doorID, readerID, unixTimestamp, authorized) VALUES(?, ?, ?, ?, ?)",
-                                    -1, &dbquery, NULL);
-
-            if (rc != SQLITE_OK)
-            {
-                Serial.printf("Can't generate prepared statement: %s\n",
-                              sqlite3_errmsg(sqlitedb));
-#ifdef DEBUG
-            }
-            else
-            {
-                Serial.printf("Prepared statement created\n");
-#endif
-            }
-        }
+        openlogDB();
 
         // should i verify errors while binding?
-        sqlite3_reset(dbquery);
-        sqlite3_bind_int(dbquery, 1, cardID);
-        sqlite3_bind_int(dbquery, 2, doorID); 
-        sqlite3_bind_int(dbquery, 3, readerID); 
-        sqlite3_bind_int(dbquery, 4, systemtime); 
-        sqlite3_bind_int(dbquery, 5, authorized); 
 
+        sqlite3_int64 card = cardID;
+        sqlite3_int64 unixTime = systemtime;
+
+        sqlite3_reset(logquery);
+        sqlite3_bind_int64(logquery, 1, card);
+        sqlite3_bind_int(logquery, 2, doorID); 
+        sqlite3_bind_int(logquery, 3, readerID); 
+        sqlite3_bind_int64(logquery, 4, unixTime); 
+        sqlite3_bind_int(logquery, 5, authorized); 
+        
+        int rc = sqlite3_step(dbquery);
         while (rc == SQLITE_ROW)
         {
-            rc = sqlite3_step(dbquery);
+            rc = sqlite3_step(logquery);
         }
 
         if (rc != SQLITE_DONE)
         {
-            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitedb));
+            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitelog));
         }
-
-
-#ifdef  DEBUG
-        Serial.println("generating log");
-#endif
-
-        File log = SD.open("/log.txt", FILE_APPEND);
-        if (!log)
-        {
-            Serial.println(" couldnt open log file...");
-        }
-
-        closeDB();
+        closelogDB();
     }
 
     // The sqlite3 docs say "The C parameter to sqlite3_close(C) and
@@ -545,6 +547,14 @@ namespace DBNS
         sqlite3_close_v2(sqlitedb);
         sqlitedb = NULL;
     }
+
+    void Authorizer::closelogDB(){
+        sqlite3_finalize(logquery);
+        logquery = NULL;
+        sqlite3_close_v2(sqlitelog);
+        sqlitelog = NULL;
+    }
+
 
     Authorizer authorizer;
     UpdateDBManager updateDBManager;
