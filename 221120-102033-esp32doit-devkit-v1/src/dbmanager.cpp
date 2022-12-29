@@ -420,8 +420,7 @@ namespace DBNS
     // search element through current database
     bool Authorizer::userAuthorized(int readerID, unsigned long cardID)
     {
-        //FIXME: reading card during DB download breaks program 
-        // download stops and card reader returns error: unsopported message format
+        //FIXME: reading card during DB arrises error: unsopported message format
         if (sqlitedb == NULL)
             return false;
 
