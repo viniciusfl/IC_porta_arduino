@@ -38,6 +38,8 @@ namespace TimeNS {
     void TimeManager::init() {
         lastClockAdjustment = 0; // when we last adjusted the HW clock
 
+        // TODO: we might work without a HW clock; to do that, we just
+        //       have to delay startup until we get the time from NTP
         if (!rtc.begin()) {
             Serial.println("Couldn't find HW clock, aborting");
             Serial.flush();
