@@ -69,9 +69,7 @@ namespace TimeNS {
             // initialize esp32 sntp client, which calls settimeofday
             // periodically; this performs a DNS lookup and an NTP
             // request, so it takes some time. If the network is not
-            // already up when this is called, I do not know what happens
-            // (maybe it aborts, maybe it retries later, maybe it sets
-            // everything up to perform a query on the next poll...)
+            // already up when this is called, the system retries later.
             configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
         } else {
 #           ifdef DEBUG
