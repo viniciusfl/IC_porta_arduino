@@ -122,20 +122,20 @@ namespace ReaderNS {
         Serial.println();
     }
 
-void IRAM_ATTR setExternal0PinState(){
+void IRAM_ATTR setExternal0PinState() {
     external.setPin0State(digitalRead(EXTERNAL_D0));
 }
 
-void IRAM_ATTR setExternal1PinState(){
+void IRAM_ATTR setExternal1PinState() {
     external.setPin1State(digitalRead(EXTERNAL_D1));
 }
 
-void IRAM_ATTR setInternal0PinState(){
-    external.setPin0State(digitalRead(INTERNAL_D0));
+void IRAM_ATTR setInternal0PinState() {
+    internal.setPin0State(digitalRead(INTERNAL_D0));
 }
 
-void IRAM_ATTR setInternal1PinState(){
-    external.setPin1State(digitalRead(INTERNAL_D1));
+void IRAM_ATTR setInternal1PinState() {
+    internal.setPin1State(digitalRead(INTERNAL_D1));
 }
 
 
