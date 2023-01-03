@@ -19,6 +19,8 @@
 #define INTERNAL_D1  25
 #define INTERNAL_BEEP 32
 
+#define USE_INTERRUPTS
+
 // Note that, with more than one reader, trying to read two cards at
 // exactly the same time will probably fail (we use a single data buffer
 // for all readers). For our use case at least, that is irrelevant.
@@ -120,6 +122,33 @@ namespace ReaderNS {
         Serial.println();
     }
 
+void IRAM_ATTR setExternal0PinState(){
+    external.setPin0State(digitalRead(EXTERNAL_D0));
+}
+
+void IRAM_ATTR setExternal1PinState(){
+    external.setPin1State(digitalRead(EXTERNAL_D1));
+}
+
+void IRAM_ATTR setInternal0PinState(){
+    external.setPin0State(digitalRead(INTERNAL_D0));
+}
+
+void IRAM_ATTR setInternal1PinState(){
+    external.setPin1State(digitalRead(INTERNAL_D1));
+}
+
+
+/*
+external.setPin0State(digitalRead(EXTERNAL_D0));
+
+external.setPin1State(digitalRead(EXTERNAL_D1));
+
+internal.setPin0State(digitalRead(INTERNAL_D0));
+
+internal.setPin1State(digitalRead(INTERNAL_D1));
+*/
+
     // This should be called from setup()
     void initCardReaders() {
 
@@ -159,21 +188,22 @@ namespace ReaderNS {
 
 #       ifdef USE_INTERRUPTS
         // Initialize interrupt handler for first Wiegand reader pins
+
         attachInterrupt(digitalPinToInterrupt(EXTERNAL_D0),
-                        [](){external.setPin0State(digitalRead(EXTERNAL_D0));},
+                        &setExternal0PinState,
                         CHANGE);
 
         attachInterrupt(digitalPinToInterrupt(EXTERNAL_D1),
-                        [](){external.setPin1State(digitalRead(EXTERNAL_D1));},
+                        &setExternal1PinState,
                         CHANGE);
 
         // Initialize interrupt handler for second Wiegand reader pins
         attachInterrupt(digitalPinToInterrupt(INTERNAL_D0),
-                        [](){internal.setPin0State(digitalRead(INTERNAL_D0));},
+                        &setInternal0PinState,
                         CHANGE);
 
         attachInterrupt(digitalPinToInterrupt(INTERNAL_D1),
-                        [](){internal.setPin1State(digitalRead(INTERNAL_D1));},
+                        &setInternal1PinState,
                         CHANGE);
 #       endif
 

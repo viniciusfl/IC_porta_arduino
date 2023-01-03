@@ -363,9 +363,6 @@ namespace DBNS
         {
             file.print((char) netLineBuffer[i]);
         }
-#ifdef DEBUG
-        Serial.println((String) "Writing " + position + " bytes to db....");
-#endif
         file.close();
     }
 
