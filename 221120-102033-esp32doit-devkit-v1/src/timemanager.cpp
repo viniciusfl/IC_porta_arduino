@@ -163,8 +163,8 @@ namespace TimeNS {
         if (systemtime - hwclocktime >= 10) {
 #           ifdef DEBUG
             Serial.println("Updating hardware clock time");
-            rtc.adjust(DateTime(systemtime));
 #           endif
+            rtc.adjust(DateTime(systemtime));
         }
     }
 

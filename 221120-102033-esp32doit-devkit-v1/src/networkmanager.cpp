@@ -38,6 +38,10 @@ namespace NetNS {
 
         if(!WiFi.begin(ssid, password)){
             Serial.println("Initial WiFi Connection Failed!");
+            if(WiFi.status() == WL_NO_SSID_AVAIL){
+                Serial.println("WiFi AP is too far away or SSID is incorrect");
+            }
+
         }
         //WiFi.begin(ssid);
 
@@ -47,7 +51,7 @@ namespace NetNS {
     // TODO: these could be more useful
     // https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/#10 
     // how?
-    
+
     void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
         Serial.println("Connected to WiFi successfully!");
     }
@@ -75,7 +79,7 @@ namespace NetNS {
     #       ifdef DEBUG
             printNetStatus();
     #       endif
-            if (WiFi.status() != WL_CONNECTED){
+            if (WiFi.status() != WL_CONNECTED){ 
                 WiFi.begin(ssid, password);
                 Serial.println("Trying to Reconnect... ");
             }
