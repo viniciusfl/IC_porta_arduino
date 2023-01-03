@@ -73,13 +73,13 @@ private:
     /**
      * Adds a new bit to the payload
      */
-    void addBitInternal(bool value);
+    void IRAM_ATTR addBitInternal(bool value);
 
     /**
      * Verifies if the current buffer is valid and sends it to the data / error callbacks.
      * If the buffer is invalid, it is discarded
      */
-    void flushData();
+    void IRAM_ATTR flushData();
 
 public:
     /**
@@ -109,7 +109,7 @@ public:
      * If the data pins aren't high, it sets the `ERROR_TRANSMISSION` flag
      * to signal it is probably in the middle of a truncated message or something.
      */
-    void reset();
+    void IRAM_ATTR reset();
 
     /**
      * Returns if this device is initialized (with `begin()`) and a reader has been connected.
@@ -124,12 +124,12 @@ public:
      *
      * This means sending out any pending message and calling `reset()`
      */
-    void flush();
+    void IRAM_ATTR flush();
 
     /**
     * Immediately cleans up state, sending out pending messages and calling `reset()`
     */
-    void flushNow();
+    void IRAM_ATTR flushNow();
 
 
     /**
@@ -175,14 +175,14 @@ public:
     /**
      * Notifies the library that the pin Data0 has changed to `pin_state`
      */
-    void IRAM_ATTR setPin0State(bool state) {
+    inline void setPin0State(bool state) {
       setPinState(0, state);
     }
 
     /**
      * Notifies the library that the pin Data1 has changed to `pin_state`
      */
-    void IRAM_ATTR setPin1State(bool state) {
+    inline void setPin1State(bool state) {
       setPinState(1, state);
     }
 

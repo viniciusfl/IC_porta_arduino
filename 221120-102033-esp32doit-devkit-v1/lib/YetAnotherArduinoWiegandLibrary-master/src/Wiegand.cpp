@@ -94,7 +94,7 @@ void Wiegand::end() {
  * If the data pins aren't high, it sets the `ERROR_TRANSMISSION` flag
  * to signal it is probably in the middle of a truncated message or something.
  */
-void Wiegand::reset() {
+void IRAM_ATTR Wiegand::reset() {
     bits=0;
     state &= MASK_STATE;
     //A transmission must start with D0=1, D1=1
@@ -119,7 +119,7 @@ Wiegand::operator bool() {
  * Verifies if the current buffer is valid and sends it to the data / error callbacks.
  * If the buffer is invalid, it is discarded
  */
-void Wiegand::flushData() {
+void IRAM_ATTR Wiegand::flushData() {
     //Ignore empty messages
     if ((bits == 0) || (expected_bits == 0)) {
         return;
@@ -216,7 +216,7 @@ void Wiegand::flushData() {
  *
  * This means sending out any pending message and calling `reset()`
  */
-void Wiegand::flush() {
+void IRAM_ATTR Wiegand::flush() {
     unsigned long elapsed = millis() - timestamp;
     // Resets state if nothing happened in a few milliseconds
     if (elapsed > TIMEOUT) {
@@ -229,7 +229,7 @@ void Wiegand::flush() {
 /**
  * Immediately cleans up state, sending out pending messages and calling `reset()`
  */
-void Wiegand::flushNow() {
+void IRAM_ATTR Wiegand::flushNow() {
     flushData();
     reset();
 }
@@ -237,7 +237,7 @@ void Wiegand::flushNow() {
 /**
  * Adds a new bit to the payload
  */
-void Wiegand::addBitInternal(bool value) {
+void IRAM_ATTR Wiegand::addBitInternal(bool value) {
     //Skip if we have too much data
     if (bits >= MAX_BITS) {
         state |= ERROR_TOO_BIG;
