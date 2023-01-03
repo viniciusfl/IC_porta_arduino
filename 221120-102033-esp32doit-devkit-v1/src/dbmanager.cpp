@@ -500,6 +500,7 @@ namespace DBNS
 
     void Authorizer::generateLog(unsigned long cardID, int readerID, bool authorized)
     {
+        //TODO: create error column in db 
 
         // get unix time
         time_t now;
@@ -508,7 +509,7 @@ namespace DBNS
 
         openlogDB();
 
-        // should i verify errors while binding?
+        // should i verify errors while binding? 
 
         sqlite3_int64 card = cardID;
         sqlite3_int64 unixTime = systemtime;
