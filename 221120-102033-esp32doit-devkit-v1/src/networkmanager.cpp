@@ -36,13 +36,54 @@ namespace NetNS {
         WiFi.onEvent(WiFiStationDisconnected,
                      WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
-        while(!WiFi.begin(ssid, password)){};
+        if(!WiFi.begin(ssid, password)){
+            Serial.println("Initial WiFi Connection Failed!");
+        }
         //WiFi.begin(ssid);
 
-#       ifdef DEBUG
-        Serial.println("Waiting for WiFi... ");
-#       endif
     }
+
+    /* events handling */
+    // TODO: these could be more useful
+    // https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/#10 
+    // how?
+    
+    void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+        Serial.println("Connected to WiFi successfully!");
+    }
+
+    void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
+        Serial.println("IP address: ");
+        Serial.println(WiFi.localIP());
+    }
+
+    // events handler if wifi disconnects
+    void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+        Serial.println("Disconnected from WiFi access point");
+        Serial.print("WiFi lost connection. Reason: ");
+        Serial.println(info.wifi_sta_disconnected.reason);
+        Serial.println("Trying to Reconnect");
+
+        WiFi.begin(ssid, password);
+        Serial.println("Trying to Reconnect... ");
+    }
+
+
+    // This should be called from loop()
+    inline void checkNetConnection() {
+        if (currentMillis - lastNetCheck > CHECK_NET_INTERVAL) {
+    #       ifdef DEBUG
+            printNetStatus();
+    #       endif
+            if (WiFi.status() != WL_CONNECTED){
+                WiFi.begin(ssid, password);
+                Serial.println("Trying to Reconnect... ");
+            }
+            lastNetCheck = currentMillis;
+        }
+    }
+
+}
 
     void printNetStatus() {
         byte macBuffer[6];  // create a buffer to hold the MAC address
@@ -67,50 +108,6 @@ namespace NetNS {
         Serial.print("The wifi network is: ");
         Serial.println(WiFi.SSID());
     }
-
-    /* events handling */
-    // TODO: these could be more useful
-
-    void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-        Serial.println("Connected to WiFi successfully!");
-    }
-
-    void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
-        Serial.println("IP address: ");
-        Serial.println(WiFi.localIP());
-    }
-
-    // events handler if wifi disconnects
-    void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-        Serial.println("Disconnected from WiFi access point");
-        Serial.print("WiFi lost connection. Reason: ");
-        Serial.println(info.wifi_sta_disconnected.reason);
-        Serial.println("Trying to Reconnect");
-
-        // TODO: This blocks! We should continue functioning normally
-        //       even without network conectivity
-        while(!WiFi.begin(ssid, password)){
-            Serial.println("Trying to Reconnect... ");
-        };
-        
-    }
-
-
-    // This should be called from loop()
-    inline void checkNetConnection() {
-        if (currentMillis - lastNetCheck > CHECK_NET_INTERVAL) {
-    #       ifdef DEBUG
-            printNetStatus();
-    #       endif
-            if (WiFi.status() != WL_CONNECTION_LOST){
-                WiFi.begin(ssid, password);
-                Serial.println("Trying to Reconnect... ");
-            }
-            lastNetCheck = currentMillis;
-        }
-    }
-
-}
 
 
 void initWiFi() {

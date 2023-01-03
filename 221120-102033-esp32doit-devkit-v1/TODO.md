@@ -37,15 +37,15 @@
      select exists(select * from auth where userID=? and doorID=?);
      ```
 
- * Create a second sqlite DB for logs and log data to it  :heavy_check_mark:
+ * Create a second sqlite DB for logs and log data to it :heavy_check_mark:
 
    - register the card ID, door ID, reader ID, unix timestamp, and whether
-     access was authorized, unauthorized, or failed (some error ocurred)
+     access was authorized, unauthorized, or failed (some error ocurred) 
 
    - In the future, `receivedDataError()` might log data here too
 
  * `WiFiStationDisconnected()` should not loop, just call `WiFi.begin()`
-    once (this call does not block).
+    once (this call does not block). :heavy_check_mark:
 
     - If the connection is not restablished with this, I think we will not
       be notified (we were already disconnected, so the callback will not

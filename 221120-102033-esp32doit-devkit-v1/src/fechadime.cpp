@@ -27,7 +27,7 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    //checkNetConnection();
+    checkNetConnection();
     updateDB();
     //checkTimeSync();
     int lastReaderID;
