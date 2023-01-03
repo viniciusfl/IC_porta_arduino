@@ -27,15 +27,17 @@
 
 namespace ReaderNS {
 
-    void captureIncomingData(uint8_t* data, uint8_t bits, const char* reader);
+    void IRAM_ATTR captureIncomingData(uint8_t* data, uint8_t bits,
+                                       const char* reader);
 
     inline unsigned long bitsToNumber(volatile const uint8_t* data,
                                       volatile const uint8_t bits);
 
-    void stateChanged(bool plugged, const char* message);
+    void IRAM_ATTR stateChanged(bool plugged, const char* message);
 
-    void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
-                           uint8_t rawBits, const char* message);
+    void IRAM_ATTR receivedDataError(Wiegand::DataError error,
+                                     uint8_t* rawData, uint8_t rawBits,
+                                     const char* message);
 
     Wiegand external;
 
@@ -80,7 +82,8 @@ namespace ReaderNS {
     // Function that is called when card is read; we do not call
     // bitsToNumber() here to make it as fast as possible (this
     // is called with interrupts disabled).
-    void captureIncomingData(uint8_t* data, uint8_t bits, const char* reader) {
+    void IRAM_ATTR captureIncomingData(uint8_t* data, uint8_t bits,
+                                       const char* reader) {
         newAccess = true;
         readerID = reader;
         cardIDBits = bits;
@@ -99,13 +102,14 @@ namespace ReaderNS {
     // Notifies when a reader has been connected or disconnected.
     // Instead of a message, the seconds parameter can be anything you want --
     // Whatever you specify on `wiegand.onStateChange()`
-    void stateChanged(bool plugged, const char* message) {
+    void IRAM_ATTR stateChanged(bool plugged, const char* message) {
         Serial.print(message);
         Serial.println(plugged ? "CONNECTED" : "DISCONNECTED");
     }
 
-    void receivedDataError(Wiegand::DataError error, uint8_t* rawData,
-                           uint8_t rawBits, const char* message) {
+    void IRAM_ATTR receivedDataError(Wiegand::DataError error,
+                                     uint8_t* rawData, uint8_t rawBits,
+                                     const char* message) {
 
         Serial.print(message);
         Serial.print(Wiegand::DataErrorStr(error));
