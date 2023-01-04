@@ -37,22 +37,6 @@
      select exists(select * from auth where userID=? and doorID=?);
      ```
 
- * Create a second sqlite DB for logs and log data to it :heavy_check_mark:
-
-   - register the card ID, door ID, reader ID, unix timestamp, and whether
-     access was authorized, unauthorized, or failed (some error ocurred) 
-
-   - In the future, `receivedDataError()` might log data here too
-
- * `WiFiStationDisconnected()` should not loop, just call `WiFi.begin()`
-    once (this call does not block). :heavy_check_mark:
-
-    - If the connection is not restablished with this, I think we will not
-      be notified (we were already disconnected, so the callback will not
-      be called again). So, we need to retry. On the main loop, add a call
-      to `checkNetwork()` which, every few minutes, checks whether we are
-      connected; if not, call `WiFi.begin()`.
-
  * Check whether time management is working as expected
 
    - Time is set from the HW clock on initialization
