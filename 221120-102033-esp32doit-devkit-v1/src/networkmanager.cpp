@@ -12,11 +12,8 @@ namespace NetNS {
     char ssid[] = "Familia Ferraz 2.4G";
     char password[] = "dogtor1966";
 
-    void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
-
+    // callback
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
-
-    void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
 
     void printNetStatus();
 
@@ -28,21 +25,9 @@ namespace NetNS {
         WiFi.disconnect(true);
 
         // register WiFi event handlers
-        WiFi.onEvent(WiFiStationConnected,
-                     WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
-
         WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
 
-        WiFi.onEvent(WiFiStationDisconnected,
-                     WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
-
-        if(!WiFi.begin(ssid, password)){
-            Serial.println("Initial WiFi Connection Failed!");
-            if(WiFi.status() == WL_NO_SSID_AVAIL){
-                Serial.println("WiFi AP is too far away or SSID is incorrect");
-            }
-
-        }
+        WiFi.begin(ssid, password);
         //WiFi.begin(ssid);
 
     }
