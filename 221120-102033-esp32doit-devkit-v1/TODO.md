@@ -70,14 +70,7 @@
 
  * Network initialization and callbacks:
 
-   - Should we define net callbacks first and then initialize (this is
-     what we do now), should we initialize and then define callbacks,
-     or should we define callbacks and then call "disconnect" to have
-     the callback perform initialization?
-
-   - How to integrate net initialization with HW clock initialization
-     and `configTime()`? What happens if DNS is not available when we
-     call `configTime()`? Can we check if this is ok?
+   - How to better integrate net initialization and HW clock initialization?
 
 # Non-critical TODOs
 
