@@ -29,7 +29,7 @@ void loop() {
     currentMillis = millis();
     checkNetConnection();
     updateDB();
-    //checkTimeSync();
+    checkTimeSync();
     int lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {

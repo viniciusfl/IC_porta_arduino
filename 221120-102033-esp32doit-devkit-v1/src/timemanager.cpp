@@ -74,7 +74,7 @@ namespace TimeNS {
             // already up when this is called, the system retries later.
             configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
         } else {
-#           ifdef DEBUG
+#           ifdef DEBUGTIMEMAN
             Serial.println("Hardware clock NOT running, waiting for NTP to set the date");
 #           endif
 
@@ -100,7 +100,7 @@ namespace TimeNS {
             update();
         }
 
-#       ifdef DEBUG
+#       ifdef DEBUGTIMEMAN
         Serial.println("Date/time are set!");
 #       endif
     }
@@ -161,7 +161,7 @@ namespace TimeNS {
 #       endif
 
         if (systemtime - hwclocktime >= 10) {
-#           ifdef DEBUG
+#           ifdef DEBUGTIMEMAN
             Serial.println("Updating hardware clock time");
 #           endif
             rtc.adjust(DateTime(systemtime));
