@@ -3,10 +3,12 @@
 #include <networkmanager.h>
 
 # define CHECK_NET_INTERVAL 5000 // 5s
+# define NET_TIMEOUT 30000 // 30s
 
 namespace NetNS {
 
     unsigned long lastNetCheck;
+    unsigned long lastNetOK;
 
     //char ssid[] = "Rede IME";
     char ssid[] = "Familia Ferraz 2.4G";
@@ -37,42 +39,41 @@ namespace NetNS {
     // https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/#10 
     // how?
 
-    void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-        Serial.println("Connected to WiFi successfully!");
-    }
-
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
-        Serial.println("IP address: ");
+        Serial.print("Connected to WiFi successfully!");
+        Serial.print(" IP address: ");
         Serial.println(WiFi.localIP());
     }
 
-    // events handler if wifi disconnects
-    void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-        Serial.println("Disconnected from WiFi access point");
-        Serial.print("WiFi lost connection. Reason: ");
-        Serial.println(info.wifi_sta_disconnected.reason);
-        Serial.println("Trying to Reconnect");
-
-        WiFi.begin(ssid, password);
-        Serial.println("Trying to Reconnect... ");
-    }
-
-
     // This should be called from loop()
+    // Normally, the ESP32 WiFi lib will try to reconnect automatically
+    // if the connection is lost for some reason. However, in the unlikely
+    // event that such reconnection fails, we will probably be stuck
+    // offline. This code handles this rare case.
     inline void checkNetConnection() {
-        if (currentMillis - lastNetCheck > CHECK_NET_INTERVAL) {
-    #       ifdef DEBUG
-            printNetStatus();
-    #       endif
-            if (WiFi.status() != WL_CONNECTED){ 
-                WiFi.begin(ssid, password);
-                Serial.println("Trying to Reconnect... ");
-            }
-            lastNetCheck = currentMillis;
-        }
-    }
+        if (currentMillis - lastNetCheck <= CHECK_NET_INTERVAL) return;
 
-}
+        lastNetCheck = currentMillis;
+
+#       ifdef DEBUG
+        printNetStatus();
+#       endif
+
+        if (WiFi.status() == WL_CONNECTED) {
+            // All is good!
+            lastNetOK = currentMillis;
+        } else if (currentMillis - lastNetOK > NET_TIMEOUT) {
+            // We are offline, but maybe we are in a transient
+            // state during a reconnection attempt. So, we only
+            // force a reconnection if we have been offline for
+            // a "long" time.
+            WiFi.disconnect();
+            WiFi.begin(ssid, password);
+            //WiFi.begin(ssid);
+            lastNetOK = currentMillis;
+        }
+        // If both conditions fail, lastNetOK is not updated
+    }
 
     void printNetStatus() {
         byte macBuffer[6];  // create a buffer to hold the MAC address
