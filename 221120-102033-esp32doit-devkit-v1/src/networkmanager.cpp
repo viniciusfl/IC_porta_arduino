@@ -113,6 +113,10 @@ namespace NetNS {
         Serial.println(WiFi.SSID());
     }
 
+    bool connected() {
+        return WiFi.status() == WL_CONNECTED;
+    }
+}
 
 void initWiFi() {
     NetNS::initWiFi();
@@ -120,4 +124,8 @@ void initWiFi() {
 
 void checkNetConnection(){
     NetNS::checkNetConnection();
+}
+
+bool connected() {
+    return NetNS::connected();
 }

@@ -5,4 +5,6 @@ void initWiFi();
 
 void checkNetConnection();
 
+bool connected();
+
 #endif
