@@ -83,6 +83,7 @@ namespace DBNS
         bool downloading = false; // Is there an ongoing DB update?
         void startDownload();
         void finishDownload();
+        unsigned long downloadStartTime;
 
         Authorizer *authorizer;
         WiFiClient client;
@@ -144,7 +145,8 @@ namespace DBNS
         }
 
         // If we did not disconnect above, we are connected
-        if (client.available())
+        int i = 0;
+        while (i++ < 5 && client.available())
         {
             char c = client.read();
             writer.write(c);
@@ -154,6 +156,7 @@ namespace DBNS
 
     void UpdateDBManager::startDownload()
     {
+        downloadStartTime = millis();
 #ifdef  DEBUG
         Serial.println("Started DB download.");
 #endif
@@ -204,6 +207,7 @@ namespace DBNS
 
     void UpdateDBManager::finishDownload()
     {
+        unsigned int long downloadFinishTime = millis() - downloadStartTime;
         client.flush();
         client.stop();
         writer.close();
@@ -215,9 +219,9 @@ namespace DBNS
         // QUESTION: how can i know that?
 
         swapFiles();
-
 #ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
+        Serial.printf("Download took %lu ms\n",  downloadFinishTime);
 #endif
 
         authorizer->closeDB();
@@ -315,8 +319,6 @@ namespace DBNS
 #endif
     }
 
-    // TODO: String is probably slow and might cause problems
-    //       with binary data; we should use a ring buffer.
     void FileWriter::write(const byte c)
     {
         if (headerDone)
@@ -325,9 +327,7 @@ namespace DBNS
             position++;
             if (position >= netLineBufferSize)
             {
-                for (int i = 0; i < netLineBufferSize; i++){
-                    file.print((char) netLineBuffer[i]);
-                }
+                file.write(netLineBuffer, position);
                 position = 0;
             }
         }
@@ -359,10 +359,7 @@ namespace DBNS
 
     void FileWriter::close()
     {
-        for (int i = 0; i < position; i++)
-        {
-            file.print((char) netLineBuffer[i]);
-        }
+        file.write(netLineBuffer, position);
         file.close();
     }
 
