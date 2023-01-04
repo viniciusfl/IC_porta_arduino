@@ -5,14 +5,11 @@
 
 // Interrupts sometimes fail with the ControlID reader,
 // so let's use polling instead.
-//#define USE_INTERRUPTS
-
-#define BEEP_TIME 150
-#define BEEP_INTERVAL 200
 
 // pins for card reader 1 (external)
 #define EXTERNAL_D0  26
 #define EXTERNAL_D1  27
+#define EXTERNAL_BEEP 16
 
 // pins for card reader 2 (internal)
 #define INTERNAL_D0  33
@@ -174,12 +171,12 @@ internal.setPin1State(digitalRead(INTERNAL_D1));
         pinMode(INTERNAL_BEEP, OUTPUT);
         digitalWrite(INTERNAL_BEEP, HIGH);
 
-
         // Initialize pins for second Wiegand reader (internal) as INPUT
         pinMode(INTERNAL_D0, INPUT);
         pinMode(INTERNAL_D1, INPUT);
+        pinMode(EXTERNAL_BEEP, OUTPUT);
+        digitalWrite(EXTERNAL_BEEP, HIGH);
 
-        
         // Ideally, we should define the interrupt handlers with
         // ESP_INTR_FLAG_IRAM and IRAM_ATTR (or at least with only IRAM_ATTR):
         // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/intr_alloc.html
@@ -286,27 +283,47 @@ bool checkCardReaders(int& readerID, unsigned long int& cardID) {
     return ReaderNS::checkCardReaders(readerID, cardID);
 }
 
-// still need to change to the card reader that was used
-// just test
+//FIXME: intelbras card reader has one cable for beep 
+// and other for activating led. 
+// controlid should have these two as well, but beep cable
+// activate both sound and led, while led pin doesnt do nothing
+
+// another "problem" i found is that intelbras beep fails a little if 
+// turned on for 200 ms <
 void blinkOk(int reader) {
+
+    int pin;
+    if (reader == 1) {
+        pin = INTERNAL_BEEP;
+    } else {
+        pin = EXTERNAL_BEEP;
+    }
+
     // first beep
-    digitalWrite(INTERNAL_BEEP, LOW);
-    delay(BEEP_TIME);
+    digitalWrite(pin, LOW);
+    delay(150);
 
     // pause
-    digitalWrite(INTERNAL_BEEP, HIGH);
-    delay(BEEP_INTERVAL);
+    digitalWrite(pin, HIGH);
+    delay(150);
 
     // second beep
-    digitalWrite(INTERNAL_BEEP, LOW);
-    delay(BEEP_TIME);
+    digitalWrite(pin, LOW);
+    delay(150);
 
     // stop beeping
-    digitalWrite(INTERNAL_BEEP, HIGH);
+    digitalWrite(pin, HIGH);
 };
 
 void blinkFail(int reader) {
-    digitalWrite(INTERNAL_BEEP, LOW);
-    delay(1500);
-    digitalWrite(INTERNAL_BEEP, HIGH);
+    int pin;
+    if (reader == 1) {
+        pin = INTERNAL_BEEP;
+    } else {
+        pin = EXTERNAL_BEEP;
+    }
+
+    digitalWrite(pin, LOW);
+    delay(600);
+    digitalWrite(pin, HIGH);
 };
