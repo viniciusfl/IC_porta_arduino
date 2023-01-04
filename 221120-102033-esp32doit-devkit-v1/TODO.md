@@ -1,41 +1,11 @@
 # Short-term TODOs
 
- * Check whether DB downloading is working as expected 
+ * Check whether DB downloading is working as expected
 
    - Download happens periodically and things continue to work during and
      after downloads
 
    - If no DB is available, the first DB is downloaded during init
-
- * Add `extern int doorID` to `common.h` and define it in `fechadime.cpp`, 
-   like `currentMillis`. :heavy_check_mark:
-
- * Change DB schema so that it has three tables: :heavy_check_mark:
-
-   - "users" with only one column, "ID", which is the primary key (we may
-     want to add more columns later, such as name etc.)
-
-   - "doors" with only one column, "ID", which is the primary key (we may
-     want to add more columns later, such as office name, building, floor
-     etc.). In particular, we might add a boolean column "anybody" which
-     means "any valid user can enter", so that we do not need to add one
-     line for each user to the "auth" table in this case
-
-   - "auth" with two columns: "userID" and "doorID", which are foreign keys
-     (we may want to add more columns later, such as allowed hours etc)
-
-   - to create:
-     ```
-     create table users(ID int primary key);
-     create table doors(ID int primary key);
-     create table auth(userID int not null, doorID int not null, foreign key (userID) references users(ID), foreign key (doorID) references doors(ID));
-     create index useridx on auth(userID, doorID);
-     ```
-
-   - to query:
-     ```
-     select exists(select * from auth where userID=? and doorID=?);
-     ```
 
  * Check whether time management is working as expected
 
