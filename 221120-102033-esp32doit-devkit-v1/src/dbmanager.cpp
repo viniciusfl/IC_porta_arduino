@@ -46,7 +46,7 @@ namespace DBNS {
 
     private:
         File file;
-        const static int netLineBufferSize = 40;
+        const static int netLineBufferSize = 512;
         byte netLineBuffer[netLineBufferSize];
         int position = 0;
         char previous;
@@ -135,7 +135,7 @@ namespace DBNS {
 
         // If we did not disconnect above, we are connected
         int i = 0;
-        while (i++ < 5 && client.available()) {
+        while (i++ < 512 && client.available()) {
             char c = client.read();
             writer.write(c);
         }
@@ -234,7 +234,9 @@ namespace DBNS {
         f.print(1);
         f.close();
 
-        SD.remove(otherTimestampFile);
+        File f = SD.open(otherTimestampFile, FILE_WRITE);
+        f.print(0);
+        f.close();
     }
 
     bool UpdateDBManager::checkFileFreshness(const char *tsfile) {
