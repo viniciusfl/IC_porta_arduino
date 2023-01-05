@@ -4,6 +4,7 @@
 #include <RTClib.h>
 
 void initTime ();
+void configNTP();
 void checkTimeSync();
 
 #endif

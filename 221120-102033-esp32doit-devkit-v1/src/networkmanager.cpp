@@ -1,6 +1,7 @@
 #include <common.h>
 #include <WiFi.h>
 #include <networkmanager.h>
+#include <timemanager.h>
 
 # define CHECK_NET_INTERVAL 5000 // 5s
 # define NET_TIMEOUT 30000 // 30s
@@ -35,14 +36,13 @@ namespace NetNS {
     }
 
     /* events handling */
-    // TODO: these could be more useful
     // https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/#10 
-    // how?
-
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
         Serial.print("Connected to WiFi successfully!");
         Serial.print(" IP address: ");
         Serial.println(WiFi.localIP());
+
+        configNTP();
     }
 
     // This should be called from loop()

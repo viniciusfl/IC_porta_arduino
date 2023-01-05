@@ -17,6 +17,20 @@
 
 namespace TimeNS {
 
+    const char* ntpServer = "a.ntp.br";
+    const long  gmtOffset_sec = -3600*3;
+    const int   daylightOffset_sec = 0;
+
+    void configNTP() {
+        // initialize esp32 sntp client, which calls settimeofday
+        // periodically; this performs a DNS lookup and an NTP
+        // request, so it takes some time. If the network is not
+        // already up when this is called, the system retries later.
+        // I suppose there is no harm in calling this every time the
+        // network connects, even if it is unnecessary.
+        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    }
+
     class TimeManager {
         public:
             void init();
@@ -25,86 +39,74 @@ namespace TimeNS {
             RTC_DS1307 rtc;
             unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
             void update();
+            bool HWClockExists;
     };
 
-    const char* ntpServer = "a.ntp.br";
-    const long  gmtOffset_sec = -3600*3;
-    const int   daylightOffset_sec = 0;
-
-    // This should be called from setup()
-    //
-    // TODO: This needs to be called after the network is up; It would
-    //       be better to use network event handlers or something.
+    // This should be called from setup(), after NTP has been configured
+    // (it's ok if the network is not up and/or NTP is not synchronized yet)
     void TimeManager::init() {
         lastClockAdjustment = 0; // when we last adjusted the HW clock
 
-        // TODO: we might work without a HW clock; to do that, we just
-        //       have to delay startup until we get the time from NTP
         if (!rtc.begin()) {
-            Serial.println("Couldn't find HW clock, aborting");
-            Serial.flush();
-            while (true) delay(10);
-        }
-
-        // If I understand things correctly, the hardware RTC starts life in
-        // state "stopped", because it has no idea what the time is. After
-        // you set the time for the first time, it enters state "started"
-        // and keeps time. This start/stop operation is controlled by bit 7
-        // of register 0 (if the bit is zero, the clock is started), which
-        // is what "isrunning()" checks. Since register 0 is the seconds
-        // register, we set it to zero when we call adjust() with a valid
-        // time for the first time (if bit 7 were on, the number of seconds
-        // would be >= 64).
-        // https://forum.arduino.cc/t/ds1307-real-time-clock-halts-on-power-off/206537/2
-
-        // If we ever set the hardware RTC time before, we may set the
-        // system time from it and adjust with NTP later. If not, we need
-        // to make sure the NTP date has been set before starting.
-        if (rtc.isrunning()) {
-            struct timeval tv;
-
-            tv.tv_sec = rtc.now().unixtime();
-            tv.tv_usec = 0;
-
-            settimeofday(&tv, NULL);
-
-            // initialize esp32 sntp client, which calls settimeofday
-            // periodically; this performs a DNS lookup and an NTP
-            // request, so it takes some time. If the network is not
-            // already up when this is called, the system retries later.
-            configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-        } else {
+            HWClockExists = false;
 #           ifdef DEBUGTIMEMAN
-            Serial.println("Hardware clock NOT running, waiting for NTP to set the date");
+            Serial.println("Couldn't find HW clock, continuing with NTP only");
 #           endif
+        } else {
+            HWClockExists = true;
 
-            // Initialize esp32 sntp client
-            configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+            // If I understand things correctly, the hardware RTC starts life in
+            // state "stopped", because it has no idea what the time is. After
+            // you set the time for the first time, it enters state "started"
+            // and keeps time. This start/stop operation is controlled by bit 7
+            // of register 0 (if the bit is zero, the clock is started), which
+            // is what "isrunning()" checks. Since register 0 is the seconds
+            // register, we set it to zero when we call adjust() with a valid
+            // time for the first time (if bit 7 were on, the number of seconds
+            // would be >= 64).
+            // https://forum.arduino.cc/t/ds1307-real-time-clock-halts-on-power-off/206537/2
 
-            // getLocalTime calls localtime_r() to convert the current system
-            // timestamp into "struct tm" (days, hours etc.). If the current
-            // system timestamp is bogus (i.e., we did not set the clock yet),
-            // this fails and it tries again, until a timeout is reached. The
-            // idea is that we might have just started to run and the SNTP
-            // client may have not yet received the first answer from the
-            // server, so we wait a little for that.
-            struct tm timeinfo;
-            if (!getLocalTime(&timeinfo, 30000)) { // 30s timeout
-                Serial.println("Failed to obtain time from both HW clock and network, aborting");
-                Serial.flush();
-                while (true) delay(10);
+            // If we ever set the hardware RTC time before, we may set the
+            // system time from it and adjust with NTP later. If not, we need
+            // to make sure the NTP date has been set before starting.
+            if (rtc.isrunning()) {
+                struct timeval tv;
+
+                tv.tv_sec = rtc.now().unixtime();
+                tv.tv_usec = 0;
+
+                settimeofday(&tv, NULL);
             }
-
-            // System time is set from NTP, now set
-            // the HW clock for the first time
-            update();
         }
+
+        // getLocalTime calls localtime_r() to convert the current system
+        // timestamp into "struct tm" (days, hours etc.). If the current
+        // system timestamp is bogus (i.e., we did not set the clock yet),
+        // this fails and it tries again, until a timeout is reached. The
+        // idea is that we might have just started to run and the SNTP
+        // client may have not yet received the first answer from the
+        // server, so we wait a little for that.
+        struct tm timeinfo;
+        bool timeOK = false;
+
+        while (!timeOK) {
+            if (getLocalTime(&timeinfo, 30000)) { // 30s timeout
+                timeOK = true;
+            } else {
+                Serial.print("Failed to obtain time from both HW clock ");
+                Serial.println("and network, waiting for NTP to sync up");
+                delay(1000);
+            }
+        }
+
+        // System time is set, now set the
+        // HW clock for the first time
+        update();
 
 #       ifdef DEBUGTIMEMAN
         Serial.println("Date/time are set!");
 #       endif
     }
-
 
     // This should be called from loop()
     void TimeManager::checkSync() {
@@ -144,6 +146,8 @@ namespace TimeNS {
     }
 
     void TimeManager::update() {
+        if (!HWClockExists) return;
+
         time_t now;
         time(&now);
 
@@ -173,6 +177,10 @@ namespace TimeNS {
 
 void initTime() {
     TimeNS::hwclock.init();
+}
+
+void configNTP() {
+    TimeNS::configNTP();
 }
 
 void checkTimeSync() {
