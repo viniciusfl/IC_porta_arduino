@@ -50,6 +50,8 @@ namespace NetNS {
     // if the connection is lost for some reason. However, in the unlikely
     // event that such reconnection fails, we will probably be stuck
     // offline. This code handles this rare case.
+    // TODO: detect and log if we stay offline for a really long time
+    //       (several hours)
     inline void checkNetConnection() {
         if (currentMillis - lastNetCheck <= CHECK_NET_INTERVAL) return;
 
