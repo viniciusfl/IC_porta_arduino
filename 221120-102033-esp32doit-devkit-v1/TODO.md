@@ -74,6 +74,9 @@
 
 # Non-critical TODOs
 
+ * Substitute the debugging messages with a call to "log()", which
+   does print to serial but also save events to the sqlite log DB.
+
  * `*TimestampFile` is not a good name for the files with the metadata
    about the DB files (but check the next item)
 
