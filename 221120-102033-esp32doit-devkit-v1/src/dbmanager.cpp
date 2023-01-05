@@ -234,7 +234,7 @@ namespace DBNS {
         f.print(1);
         f.close();
 
-        File f = SD.open(otherTimestampFile, FILE_WRITE);
+        f = SD.open(otherTimestampFile, FILE_WRITE);
         f.print(0);
         f.close();
     }
