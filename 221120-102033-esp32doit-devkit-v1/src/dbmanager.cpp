@@ -43,7 +43,7 @@ namespace DBNS {
     class FileWriter {
     public:
         void open(const char *);
-        void write(const byte);
+        void write(WiFiClient&);
         void close();
 
     private:
@@ -180,12 +180,7 @@ namespace DBNS {
             return;
         }
         // If we did not disconnect above, we are connected
-        int i = 0;
-        while (i++ < 512 && client.available()) {
-            char c = client.read();
-            writer.write(c);
-        }
-        return;
+        writer.write(client);
     }
 
     void UpdateDBManager::startDBDownload() {
@@ -471,15 +466,30 @@ namespace DBNS {
 #       endif
     }
 
-    void FileWriter::write(const byte c) {
+    void FileWriter::write(WiFiClient& client) {
+        int avail = client.available();
+        if (avail <= 0) return;
+
         if (headerDone) {
-            netLineBuffer[position] = c;
-            position++;
+            int length;
+            if (avail <= netLineBufferSize - position) {
+                length = avail;
+            } else {
+                length = netLineBufferSize - position;
+            }
+
+            int check = client.read(netLineBuffer + position, length);
+            if (! check == length) {
+                Serial.println("Something bad happened reading from network");
+            }
+            position += length;
+
             if (position >= netLineBufferSize) {
                 file.write(netLineBuffer, position);
                 position = 0;
             }
         } else {
+            char c = client.read();
             if (c == '\n') {
                 if (beginningOfLine && previous == '\r') {
                     headerDone = true;
