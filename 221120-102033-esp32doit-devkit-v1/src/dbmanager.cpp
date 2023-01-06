@@ -6,6 +6,8 @@
 #include <common.h>
 #include <RTClib.h>
 #include <dbmanager.h>
+#include "mbedtls/md.h"
+
 
 #define RETRY_DOWNLOAD_TIME 60000
 
@@ -54,6 +56,19 @@ namespace DBNS {
         bool beginningOfLine = true;
     };
 
+    class checksumVefifier {
+    public:
+        void start();
+        void write(char c);
+        char hash_servidor[64];
+        unsigned char hash_local_hex[32];
+    private:
+        bool headerChecksumDone = false;
+        bool beginningOfLine = true;
+        unsigned char previous;
+        int position = 0;
+    };
+
     // This class periodically downloads a new version of the database
     // and sets this new version as the "active" db file in the Authorizer
     // when downloading is successful. It alternates between two filenames
@@ -77,13 +92,23 @@ namespace DBNS {
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
         bool downloading = false; // Is there an ongoing DB update?
-        void startDownload();
-        void finishDownload();
+        void startDBDownload();
+        void verifyDBIntegrity();
+        void finishDBDownload();
         unsigned long downloadStartTime;
 
         Authorizer *authorizer;
         WiFiClient client;
         FileWriter writer;
+
+        void startChecksumDownload();
+        void verifyChecksum();
+        bool verifiedChecksum = false; // are the checksum from local and server file equal?
+        bool startedDownloadChecksum = false;
+        bool downloadingChecksum = false;
+
+        checksumVefifier checksum;
+        WiFiClient clientChecksum;
     };
 
     // This should be called from setup()
@@ -123,16 +148,37 @@ namespace DBNS {
             // I believe the nodeMCU RTC might also have this feature
 
             if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL)
-                startDownload();
+                startDBDownload();
             return;
         }
 
-        // If we did not return above, we are downloading
+        if (downloadingChecksum) { 
+            if(!startedDownloadChecksum) { // FIXME: maybe put a retry download interval?
+                startChecksumDownload();
+            }
+
+            // If we finished downloading checksum, procede to verify checksum
+            // and finish db update
+            if (!clientChecksum.connected() && !clientChecksum.available()) {
+                verifyDBIntegrity();
+                return;
+            }
+
+            // If we did not disconnect above, we are connected
+            int i = 0;
+            while (i++ < 283 || clientChecksum.available()) {
+                char c = clientChecksum.read();
+                checksum.write(c);
+            }
+            return;
+        }
+
         if (!client.available() && !client.connected()) {
-            finishDownload();
+            downloadingChecksum = true;
+            finishDBDownload();
+            startChecksumDownload();
             return;
         }
-
         // If we did not disconnect above, we are connected
         int i = 0;
         while (i++ < 512 && client.available()) {
@@ -142,11 +188,12 @@ namespace DBNS {
         return;
     }
 
-    void UpdateDBManager::startDownload() {
+    void UpdateDBManager::startDBDownload() {
         downloadStartTime = millis();
-#       ifdef  DEBUG
-        Serial.println("Started DB download.");
-#       endif
+        startedDownloadChecksum = false;
+        verifiedChecksum = false;
+        downloadingChecksum = false;
+
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
 /*         if (WiFi.status() != WL_CONNECTION_LOST){
@@ -181,6 +228,10 @@ namespace DBNS {
         client.println("Connection: close");
         client.println();
 
+#       ifdef DEBUG
+        Serial.println("---> Started DB upgrade...");
+#       endif
+
         // remove old DB files
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
@@ -188,25 +239,29 @@ namespace DBNS {
         writer.open(otherFile);
     }
 
-    void UpdateDBManager::finishDownload() {
+    void UpdateDBManager::finishDBDownload() {
         unsigned int long downloadFinishTime = millis() - downloadStartTime;
         client.flush();
         client.stop();
         writer.close();
-        downloading = false;
         lastDownloadTime = currentMillis;
 
-        // FIXME: we should only save the timestamp etc.
-        //        if the download was successful
-        // QUESTION: how can i know that?
-
-        swapFiles();
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
         Serial.printf("Download took %lu ms\n",  downloadFinishTime);
+        Serial.println("Started checksum download.");
 #       endif
+    }
 
+
+    void UpdateDBManager::verifyDBIntegrity() {
+        downloading = false;
+        verifyChecksum();
+        swapFiles();
         authorizer->closeDB();
+        clientChecksum.flush();
+        clientChecksum.stop();
+
         if (authorizer->openDB(currentFile) != SQLITE_OK) {
 #           ifdef DEBUG
             Serial.println("Error opening the updated DB, reverting to old one");
@@ -214,8 +269,132 @@ namespace DBNS {
             swapFiles();
             // FIXME: in the unlikely event that this fails too, we are doomed
             authorizer->openDB(currentFile);
+            return;
+        }
+
+        if (!verifiedChecksum) {
+#           ifdef DEBUG
+            Serial.println("Hash from server db and local db are not equal, reverting to old one");
+#           endif
+            swapFiles();
+            authorizer->openDB(currentFile);
+            return;
+        }
+
+    }
+
+    void UpdateDBManager::startChecksumDownload() {
+        clientChecksum.connect(SERVER, 80);
+
+#       ifdef DEBUG
+        if (clientChecksum.connected()) {
+            Serial.println("Connected to server.");
+        } else {
+            Serial.println("Connection to server failed.");
+        }
+#       endif
+
+
+        // If connection failed, pretend nothing
+        // ever happened and try again later
+        if (!clientChecksum.connected()) {
+            Serial.println("Client checksum disconnected... trying again later");
+            clientChecksum.stop();
+            return;
+        }
+
+        startedDownloadChecksum = true;
+        checksum.start(); // reset aux variables
+
+        // http request to get hash of db from server
+        clientChecksum.println("GET /checksum HTTP/1.1");
+        clientChecksum.println(((String) "Host: ") + SERVER);
+        clientChecksum.println("Connection: close");
+        clientChecksum.println();
+    }
+
+    void checksumVefifier::start() {
+        beginningOfLine = true;
+        headerChecksumDone = false;
+        position = 0;
+    }
+
+    void UpdateDBManager::verifyChecksum() {
+        // calculates hash from local recent downloaded db
+#       ifdef DEBUG
+        Serial.println("Finished downloading hash... now comparing both");
+#       endif
+
+        String name = (String) "/sd" + otherFile; // FIXME:
+
+        char buff[sizeof(name)];
+        name.toCharArray(buff, sizeof(name));
+
+        int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buff, checksum.hash_local_hex);
+
+        if (rc == 1) Serial.printf("Failed to open: %s\n", buff );
+
+        if (rc == 2) Serial.printf("Failed to read: %s\n", buff );
+
+        char hash_local[64];
+        char buffer[3];
+        for (int i = 0; i < 32; i++){
+            //Serial.printf("%02hhx", (unsigned char) hash_local_hex[i]);
+            snprintf(buffer, 3, "%02hhx", (unsigned char) checksum.hash_local_hex[i]);
+            for (int j = 0; j < 2; j++) {
+                hash_local[2*i+j] = buffer[j];
+            }
+        }
+
+#       ifdef DEBUG
+        Serial.println("Hash from local file:");
+        for (int i = 0; i < 64; i++) {
+            Serial.print(hash_local[i]);
+        }
+        Serial.println();
+
+
+        Serial.println("Hash from server file: ");
+        for (int i = 0; i < 64; i++) {
+            Serial.printf("%c", checksum.hash_servidor[i]);
+        }
+        Serial.println();
+#       endif
+
+        // Compare hashs
+        for (int i = 0; i < 64; i++) {
+            if (checksum.hash_servidor[i] != hash_local[i]) {
+                verifiedChecksum = false;
+                return;
+            }
+        }
+        verifiedChecksum = true;
+
+    }
+
+
+    void checksumVefifier::write(char c) {
+            if (headerChecksumDone) {
+                hash_servidor[position++] = c;
+            } else {
+            if (c == '\n') {
+                if (beginningOfLine && previous == '\r') {
+                        headerChecksumDone = true;
+    #                   ifdef DEBUG
+                        Serial.println("Header done!");
+    #                   endif
+                    } else {
+                        previous = 0;
+                    }
+                    beginningOfLine = true;
+            } else {
+                previous = c;
+                if (c != '\r')
+                    beginningOfLine = false;
+            }
         }
     }
+
 
     void UpdateDBManager::swapFiles() {
         const char *tmp = currentFile;
@@ -262,7 +441,7 @@ namespace DBNS {
 #               ifdef DEBUG
                 Serial.printf("Downloading DB for the first time...");
 #               endif
-                startDownload();
+                startDBDownload();
             } else {
                 swapFiles();
             }
@@ -277,7 +456,7 @@ namespace DBNS {
     void FileWriter::open(const char *filename) {
         file = SD.open(filename, FILE_WRITE);
         if(!file) { 
-        Serial.println("Error openning DB file.");
+            Serial.println("Error openning DB file.");
         }
   
         headerDone = false;
