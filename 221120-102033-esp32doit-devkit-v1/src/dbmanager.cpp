@@ -466,6 +466,7 @@ namespace DBNS {
 #       endif
     }
 
+    // TODO: receiving WiFiClient as a parameter here feels very hackish...
     void FileWriter::write(WiFiClient& client) {
         int avail = client.available();
         if (avail <= 0) return;

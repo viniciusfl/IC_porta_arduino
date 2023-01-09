@@ -74,6 +74,9 @@
 
 # Non-critical TODOs
 
+ * When downloading from the network, we should check the response
+   code (200) and the record the expected file size to verify later
+
  * Substitute the debugging messages with a call to "log()", which
    does print to serial but also save events to the sqlite log DB.
 
