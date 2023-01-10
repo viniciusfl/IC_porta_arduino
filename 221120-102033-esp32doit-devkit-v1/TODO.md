@@ -25,6 +25,8 @@
 
 # Medium-term TODOs
 
+ * Remove card reader code that does not use interrupts
+
  * Add mechanism to download/upload and rotate logs:
 
    - Periodically use the backup API (https://www.sqlite.org/backup.html)
@@ -61,7 +63,13 @@
    5. Adding the fake CA certificate, the test webserver certificate and
       the private key for the webserver certificate to the web server
 
-   6. Replacing WiFiClient with WiFiClientSecure.
+   6. Replacing WiFiClient with WiFiClientSecure. NOPE! We should use
+      this: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/protocols/esp_http_client.html
+      To download the checksum, we should use `esp_http_client_perform()`
+      with `is_async`. For the DB, we should follow the "HTTP Stream"
+      section. This allows us to check the status code (200) and the
+      expected size of the file (content-length) while also ditching
+      our code to skip the HTTP headers.
 
    I believe this is enough to make the nodeMCU check whether the server
    it connects to is correct. I do not really know how to make the server
@@ -146,3 +154,9 @@
 
  * What to do if `userAuthorized()` fails?
 
+ * `configNTP()` should check when was the last time it was called
+   and only call `configTime` if it is the first time or the previous
+   call was at least 1 hour before. This would prevent us from hammering
+   the NTP serve if the network connection is erratic.
+
+ * Rewrite bitsToNumber without `String` (see `verifyChecksum()`)
