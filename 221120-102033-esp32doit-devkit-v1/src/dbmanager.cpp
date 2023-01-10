@@ -314,13 +314,11 @@ namespace DBNS {
 
         String name = (String) "/sd" + otherFile; // FIXME:
 
-        char buff[sizeof(name)];
-        name.toCharArray(buff, sizeof(name));
-
-        int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buff, checksum.hash_local_hex);
+        int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+                                 name.c_str(), checksum.hash_local_hex);
 
         if (rc != 0) {
-            Serial.printf("Failed to access file %s\n", buff);
+            Serial.printf("Failed to access file %s\n", name.c_str());
             return false;
         }
 
@@ -517,10 +515,7 @@ namespace DBNS {
         closeDB();
         String name = (String) "/sd" + filename; // FIXME: 
 
-        char buff[sizeof(name)];
-        name.toCharArray(buff, sizeof(name));
-
-        int rc = sqlite3_open(buff, &sqlitedb);
+        int rc = sqlite3_open(name.c_str(), &sqlitedb);
         if (rc != SQLITE_OK)
         {
             Serial.printf("Can't open database: %s\n", sqlite3_errmsg(sqlitedb));
