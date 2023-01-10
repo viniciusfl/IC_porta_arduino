@@ -8,12 +8,9 @@
 #include <dbmanager.h>
 #include "mbedtls/md.h"
 
-
 #define RETRY_DOWNLOAD_TIME 60000
 
 #define DOWNLOAD_INTERVAL 1200000
-
-#include <sqlite3.h>
 
 #define DEBUG
 
