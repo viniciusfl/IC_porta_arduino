@@ -322,6 +322,9 @@ namespace DBNS {
             return false;
         }
 
+        // TODO: a versão que eu mandei por email é um pouquinho mais
+        //       "esperta" (e eficiente), mas é mais chatinha de entender.
+        //       Deu errado?
         char hash_local[64];
         char tmp[3];
         for (int i = 0; i < 32; i++){
