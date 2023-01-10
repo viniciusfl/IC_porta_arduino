@@ -45,8 +45,8 @@ namespace DBNS {
 
     private:
         File file;
-        const static int netLineBufferSize = 512;
-        byte netLineBuffer[netLineBufferSize];
+        const static int bufsize = 512;
+        byte buf[bufsize];
         int position = 0;
         char previous;
         bool headerDone = false;
@@ -323,12 +323,14 @@ namespace DBNS {
         }
 
         char hash_local[64];
-        char buffer[3];
+        char tmp[3];
         for (int i = 0; i < 32; i++){
             //Serial.printf("%02hhx", (unsigned char) hash_local_hex[i]);
-            snprintf(buffer, 3, "%02hhx", (unsigned char) checksum.hash_local_hex[i]);
+            snprintf(tmp, 3, "%02hhx",
+                     (unsigned char) checksum.hash_local_hex[i]);
+
             for (int j = 0; j < 2; j++) {
-                hash_local[2*i+j] = buffer[j];
+                hash_local[2*i+j] = tmp[j];
             }
         }
 
@@ -444,7 +446,7 @@ namespace DBNS {
   
         headerDone = false;
         beginningOfLine = true;
-        netLineBuffer[0] = 0;
+        buf[0] = 0;
         position = 0;
         previous = 0;
 
@@ -461,20 +463,20 @@ namespace DBNS {
 
         if (headerDone) {
             int length;
-            if (avail <= netLineBufferSize - position) {
+            if (avail <= bufsize - position) {
                 length = avail;
             } else {
-                length = netLineBufferSize - position;
+                length = bufsize - position;
             }
 
-            int check = client.read(netLineBuffer + position, length);
+            int check = client.read(buf + position, length);
             if (! check == length) {
                 Serial.println("Something bad happened reading from network");
             }
             position += length;
 
-            if (position >= netLineBufferSize) {
-                file.write(netLineBuffer, position);
+            if (position >= bufsize) {
+                file.write(buf, position);
                 position = 0;
             }
         } else {
@@ -498,7 +500,7 @@ namespace DBNS {
     }
 
     void FileWriter::close() {
-        file.write(netLineBuffer, position);
+        file.write(buf, position);
         file.close();
     }
 
