@@ -34,9 +34,9 @@ namespace DBNS {
         void closelogDB();
     };
 
-    // This is an auxiliary class to UpdateDBManager. It receives one byte
-    // at a time to prevent blocking and writes what is received to disk,
-    // minus the HTTP headers.
+    // This is an auxiliary class to UpdateDBManager. It processes small
+    // chunks of data at a time to prevent blocking and writes what is
+    // received to disk, minus the HTTP headers.
     class FileWriter {
     public:
         void open(const char *);
@@ -344,7 +344,6 @@ namespace DBNS {
             Serial.print(hash_local[i]);
         }
         Serial.println();
-
 
         Serial.println("Hash from server file: ");
         for (int i = 0; i < 64; i++) {
