@@ -99,8 +99,7 @@ namespace DBNS {
         FileWriter writer;
 
         void startChecksumDownload();
-        void verifyChecksum();
-        bool verifiedChecksum = false; // are the checksum from local and server file equal?
+        bool verifyChecksum();
         bool startedDownloadChecksum = false;
         bool downloadingChecksum = false;
 
@@ -183,7 +182,6 @@ namespace DBNS {
     void UpdateDBManager::startDBDownload() {
         downloadStartTime = millis();
         startedDownloadChecksum = false;
-        verifiedChecksum = false;
         downloadingChecksum = false;
 
         // If WiFI is disconnected, pretend nothing
@@ -247,12 +245,20 @@ namespace DBNS {
 
 
     void UpdateDBManager::verifyDBIntegrity() {
-        downloading = false;
-        verifyChecksum();
-        swapFiles();
-        authorizer->closeDB();
         clientChecksum.flush();
         clientChecksum.stop();
+        downloading = false;
+
+        if (!verifyChecksum()) {
+#           ifdef DEBUG
+            Serial.print("Downloaded DB file is corrupted, ignoring.");
+#           endif
+            SD.remove(otherFile);
+            return;
+        }
+
+        swapFiles();
+        authorizer->closeDB();
 
         if (authorizer->openDB(currentFile) != SQLITE_OK) {
 #           ifdef DEBUG
@@ -261,18 +267,7 @@ namespace DBNS {
             swapFiles();
             // FIXME: in the unlikely event that this fails too, we are doomed
             authorizer->openDB(currentFile);
-            return;
         }
-
-        if (!verifiedChecksum) {
-#           ifdef DEBUG
-            Serial.println("Hash from server db and local db are not equal, reverting to old one");
-#           endif
-            swapFiles();
-            authorizer->openDB(currentFile);
-            return;
-        }
-
     }
 
     void UpdateDBManager::startChecksumDownload() {
@@ -311,7 +306,7 @@ namespace DBNS {
         position = 0;
     }
 
-    void UpdateDBManager::verifyChecksum() {
+    bool UpdateDBManager::verifyChecksum() {
         // calculates hash from local recent downloaded db
 #       ifdef DEBUG
         Serial.println("Finished downloading hash... now comparing both");
@@ -324,9 +319,10 @@ namespace DBNS {
 
         int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buff, checksum.hash_local_hex);
 
-        if (rc == 1) Serial.printf("Failed to open: %s\n", buff );
-
-        if (rc == 2) Serial.printf("Failed to read: %s\n", buff );
+        if (rc != 0) {
+            Serial.printf("Failed to access file %s\n", buff);
+            return false;
+        }
 
         char hash_local[64];
         char buffer[3];
@@ -355,12 +351,10 @@ namespace DBNS {
         // Compare hashs
         for (int i = 0; i < 64; i++) {
             if (checksum.hash_servidor[i] != hash_local[i]) {
-                verifiedChecksum = false;
-                return;
+                return false;
             }
         }
-        verifiedChecksum = true;
-
+        return true;
     }
 
 
