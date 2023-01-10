@@ -255,6 +255,7 @@ internal.setPin1State(digitalRead(INTERNAL_D1));
 
         // No idea why, but this almost eliminates some
         // spurious errors with the ControlID reader
+        // TODO is this still necessary?
         external.reset();
         internal.reset();
 
