@@ -10,7 +10,7 @@
 
 #define RETRY_DOWNLOAD_TIME 60000
 
-#define DOWNLOAD_INTERVAL 1200000
+#define DOWNLOAD_INTERVAL 20000
 
 #define DEBUG
 
@@ -57,8 +57,8 @@ namespace DBNS {
     public:
         void start();
         void write(char c);
-        char hash_servidor[64];
-        unsigned char hash_local_hex[32];
+        char serverHash[65];
+        unsigned char localHashHex[32];
     private:
         bool headerChecksumDone = false;
         bool beginningOfLine = true;
@@ -315,47 +315,37 @@ namespace DBNS {
         String name = (String) "/sd" + otherFile; // FIXME:
 
         int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-                                 name.c_str(), checksum.hash_local_hex);
+                                 name.c_str(), checksum.localHashHex);
 
         if (rc != 0) {
             Serial.printf("Failed to access file %s\n", name.c_str());
             return false;
         }
 
-        // TODO: a versão que eu mandei por email é um pouquinho mais
-        //       "esperta" (e eficiente), mas é mais chatinha de entender.
-        //       Deu errado?
-        char hash_local[64];
-        char tmp[3];
-        for (int i = 0; i < 32; i++){
-            //Serial.printf("%02hhx", (unsigned char) hash_local_hex[i]);
-            snprintf(tmp, 3, "%02hhx",
-                     (unsigned char) checksum.hash_local_hex[i]);
-
-            for (int j = 0; j < 2; j++) {
-                hash_local[2*i+j] = tmp[j];
-            }
+        char hash[65];
+        for (int i = 0; i < 32; ++i) {
+            snprintf(hash + 2*i, 3,"%02hhx", (const char *) checksum.localHashHex[i]);
         }
+
+        checksum.serverHash[64] = '\0';
+
 
 #       ifdef DEBUG
         Serial.println("Hash from local file:");
         for (int i = 0; i < 64; i++) {
-            Serial.print(hash_local[i]);
+            Serial.print(hash[i]);
         }
         Serial.println();
 
         Serial.println("Hash from server file: ");
         for (int i = 0; i < 64; i++) {
-            Serial.printf("%c", checksum.hash_servidor[i]);
+            Serial.printf("%c", checksum.serverHash[i]);
         }
         Serial.println();
 #       endif
 
-        // Compare hashs
-        for (int i = 0; i < 64; i++) {
-            if (checksum.hash_servidor[i] != hash_local[i]) {
-                return false;
-            }
+        if(strcmp(hash, checksum.serverHash)){
+            return false;
         }
         return true;
     }
@@ -363,7 +353,7 @@ namespace DBNS {
 
     void checksumVefifier::write(char c) {
             if (headerChecksumDone) {
-                hash_servidor[position++] = c;
+                serverHash[position++] = c;
             } else {
             if (c == '\n') {
                 if (beginningOfLine && previous == '\r') {
