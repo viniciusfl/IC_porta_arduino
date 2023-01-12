@@ -200,6 +200,9 @@ namespace DBNS {
         // If connection failed, pretend nothing
         // ever happened and try again later
         if (!client.connected()) {
+#           ifdef DEBUG
+            Serial.println("Client is not connected... aborting DB update.");
+#           endif
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             client.stop();
             return;
@@ -417,7 +420,6 @@ namespace DBNS {
             if (!checkFileFreshness(currentTimestampFile)) {
                 if (!checkFileFreshness(otherTimestampFile)) {
                     if (!downloadingDB && !downloadingChecksum) {
-                        dbFileOK = false; // it didn't :(
     #                   ifdef DEBUG
                         Serial.printf("Downloading DB for the first time...");
     #                   endif
@@ -425,6 +427,7 @@ namespace DBNS {
                     } else {
                         update();
                     }
+                    dbFileOK = false; // it didn't :(
                 } else {
                     swapFiles();
                 }
