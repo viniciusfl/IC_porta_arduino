@@ -123,18 +123,8 @@
  * wiegand `stateChanged()` and `receivedDataError()` callbacks should
    be more useful
 
- * Should we modify the code so that, if there is no HW clock, we
-   stand by until we connect to the NTP server for the first time?
-
  * Should we check whether we are connected before trying to download
    updates to the DB?
-
- * When starting up for the very first time, we want to call `startDownload()`
-   during init; we should (1) check whether we are connected and (2)
-   check whether download succeeded
-
- * `chooseInitialDB()` should check whether the chosen DB exists and
-   is valid; if not, it should try to download
 
  * Hardcoded net credentials and URLs - maybe move to common.h ?
 
@@ -160,3 +150,6 @@
    the NTP serve if the network connection is erratic.
 
  * Rewrite bitsToNumber without `String` (see `verifyChecksum()`)
+
+ * Before downloading the DB, download the checksum to verify whether
+   it has changed; if not, skip downloading
