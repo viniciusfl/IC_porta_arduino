@@ -416,12 +416,15 @@ namespace DBNS {
             dbFileOK = true; // a little optimism might pay off :)
             if (!checkFileFreshness(currentTimestampFile)) {
                 if (!checkFileFreshness(otherTimestampFile)) {
-                    dbFileOK = false; // it didn't :(
-#                   ifdef DEBUG
-                    Serial.printf("Downloading DB for the first time...");
-#                   endif
-                    startDBDownload();
+                    if (!downloadingDB && !downloadingChecksum) {
+                        dbFileOK = false; // it didn't :(
+    #                   ifdef DEBUG
+                        Serial.printf("Downloading DB for the first time...");
+    #                   endif
+                        startDBDownload();
+                    } else {
                     update();
+                    }
                 } else {
                     swapFiles();
                 }
