@@ -76,10 +76,6 @@
    only accept connections from a valid client; should not be too hard to
    figure out.
 
- * Network initialization and callbacks:
-
-   - How to better integrate net initialization and HW clock initialization?
-
 # Non-critical TODOs
 
  * When downloading from the network, we should check the response
