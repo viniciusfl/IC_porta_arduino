@@ -423,7 +423,7 @@ namespace DBNS {
     #                   endif
                         startDBDownload();
                     } else {
-                    update();
+                        update();
                     }
                 } else {
                     swapFiles();
