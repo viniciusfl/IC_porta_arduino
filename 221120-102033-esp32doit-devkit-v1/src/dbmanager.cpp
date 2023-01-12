@@ -413,15 +413,21 @@ namespace DBNS {
         otherFile = "/bancoB.db";
         currentTimestampFile = "/TSA.TXT";
         otherTimestampFile = "/TSB.TXT";
+        bool dbFileOK = false;
 
-        if (!checkFileFreshness(currentTimestampFile)) {
-            if (!checkFileFreshness(otherTimestampFile)) {
-#               ifdef DEBUG
-                Serial.printf("Downloading DB for the first time...");
-#               endif
-                startDBDownload();
-            } else {
-                swapFiles();
+        while (!dbFileOK) {
+            dbFileOK = true; // a little optimism might pay off :)
+            if (!checkFileFreshness(currentTimestampFile)) {
+                if (!checkFileFreshness(otherTimestampFile)) {
+                    dbFileOK = false; // it didn't :(
+#                   ifdef DEBUG
+                    Serial.printf("Downloading DB for the first time...");
+#                   endif
+                    startDBDownload();
+                    update();
+                } else {
+                    swapFiles();
+                }
             }
         }
 
