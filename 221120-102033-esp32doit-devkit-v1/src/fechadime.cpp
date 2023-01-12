@@ -30,7 +30,7 @@ void loop() {
     checkNetConnection();
     updateDB();
     checkTimeSync();
-    int lastReaderID;
+    const char* lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
         if (userAuthorized(lastReaderID, lastCardID)) {

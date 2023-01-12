@@ -22,14 +22,15 @@ namespace DBNS {
         void init();
         int openDB(const char *filename);
         void closeDB();
-        bool userAuthorized(int readerID, unsigned long cardID);
+        bool userAuthorized(const char* readerID, unsigned long cardID);
 
     private:
         sqlite3 *sqlitedb;
         sqlite3_stmt *dbquery;
         sqlite3 *sqlitelog;
         sqlite3_stmt *logquery;
-        void generateLog(unsigned long cardID, int readerID, bool authorized);
+        void generateLog(unsigned long cardID, const char* readerID,
+                         bool authorized);
         int openlogDB();
         void closelogDB();
     };
@@ -573,7 +574,9 @@ namespace DBNS {
 
 
     // search element through current database
-    bool Authorizer::userAuthorized(int readerID, unsigned long cardID) {
+    bool Authorizer::userAuthorized(const char* readerID,
+                                    unsigned long cardID) {
+
         if (sqlitedb == NULL)
             return false;
 
@@ -613,7 +616,9 @@ namespace DBNS {
         }
     }
 
-    void Authorizer::generateLog(unsigned long cardID, int readerID, bool authorized) {
+    void Authorizer::generateLog(unsigned long cardID, const char* readerID,
+                                 bool authorized) {
+
         //TODO: create error column in db 
 
         // get unix time
@@ -631,7 +636,7 @@ namespace DBNS {
         sqlite3_reset(logquery);
         sqlite3_bind_int64(logquery, 1, card);
         sqlite3_bind_int(logquery, 2, doorID); 
-        sqlite3_bind_int(logquery, 3, readerID); 
+        sqlite3_bind_text(logquery, 3, readerID, -1, SQLITE_STATIC);
         sqlite3_bind_int64(logquery, 4, unixTime); 
         sqlite3_bind_int(logquery, 5, authorized); 
         
@@ -678,6 +683,6 @@ void updateDB() {
     DBNS::updateDBManager.update();
 }
 
-bool userAuthorized(int readerID, unsigned long cardID) {
+bool userAuthorized(const char* readerID, unsigned long cardID) {
     return DBNS::authorizer.userAuthorized(readerID, cardID);
 }

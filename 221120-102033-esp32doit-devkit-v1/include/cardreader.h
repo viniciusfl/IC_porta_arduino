@@ -3,10 +3,10 @@
 
 void initCardReaders();
 
-bool checkCardReaders(int& readerID, unsigned long int& cardID);
+bool checkCardReaders(const char*& readerID, unsigned long int& cardID);
 
-void blinkOk(int reader);
+void blinkOk(const char* reader);
 
-void blinkFail(int reader);
+void blinkFail(const char* reader);
 
 #endif

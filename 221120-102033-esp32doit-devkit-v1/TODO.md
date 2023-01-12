@@ -111,8 +111,6 @@
  * It is probably safe to use up to 5KB of NVS space:
    https://stackoverflow.com/a/58562855/15695987
 
- * Names "1" and "2" for the wiegand readers is not very inspired
-
  * Should we use `sntp_set_time_sync_notification_cb()` to synchronize
    the HW clock?
 

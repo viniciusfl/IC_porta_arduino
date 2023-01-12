@@ -154,13 +154,13 @@ internal.setPin1State(digitalRead(INTERNAL_D1));
     void initCardReaders() {
 
         // Install listeners and initialize first Wiegand reader
-        external.onReceive(captureIncomingData, "1");
+        external.onReceive(captureIncomingData, "external");
         external.onReceiveError(receivedDataError, "External card reader error: ");
         external.onStateChange(stateChanged, "External card reader state changed: ");
         external.begin(Wiegand::LENGTH_ANY, true);
 
         // Install listeners and initialize second Wiegand reader
-        internal.onReceive(captureIncomingData, "2");
+        internal.onReceive(captureIncomingData, "internal");
         internal.onReceiveError(receivedDataError, "Internal card reader error: ");
         internal.onStateChange(stateChanged, "Internal card reader state changed: ");
         internal.begin(Wiegand::LENGTH_ANY, true);
@@ -219,7 +219,7 @@ internal.setPin1State(digitalRead(INTERNAL_D1));
 
     unsigned long lastFlush = 0;
 
-    inline bool checkCardReaders(int& returnReaderID,
+    inline bool checkCardReaders(const char*& returnReaderID,
                                  unsigned long int& returnCardID) {
 
 #       ifdef USE_INTERRUPTS
@@ -250,7 +250,7 @@ internal.setPin1State(digitalRead(INTERNAL_D1));
 
         if (!newAccess) return false;
 
-        returnReaderID = atoi(readerID);
+        returnReaderID = readerID;
         returnCardID = bitsToNumber(cardIDRaw, cardIDBits);
 
         // No idea why, but this almost eliminates some
@@ -280,7 +280,7 @@ void initCardReaders() {
     ReaderNS::initCardReaders();
 }
 
-bool checkCardReaders(int& readerID, unsigned long int& cardID) {
+bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
     return ReaderNS::checkCardReaders(readerID, cardID);
 }
 
@@ -291,10 +291,10 @@ bool checkCardReaders(int& readerID, unsigned long int& cardID) {
 
 // another "problem" i found is that intelbras beep fails a little if 
 // turned on for 200 ms <
-void blinkOk(int reader) {
+void blinkOk(const char* reader) {
 
     int pin;
-    if (reader == 1) {
+    if (strcmp(reader, "internal")) {
         pin = INTERNAL_BEEP;
     } else {
         pin = EXTERNAL_BEEP;
@@ -316,9 +316,9 @@ void blinkOk(int reader) {
     digitalWrite(pin, HIGH);
 };
 
-void blinkFail(int reader) {
+void blinkFail(const char* reader) {
     int pin;
-    if (reader == 1) {
+    if (strcmp(reader, "internal")) {
         pin = INTERNAL_BEEP;
     } else {
         pin = EXTERNAL_BEEP;
