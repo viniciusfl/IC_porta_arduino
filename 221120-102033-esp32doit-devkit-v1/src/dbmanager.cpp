@@ -324,7 +324,7 @@ namespace DBNS {
 
         char hash[65];
         for (int i = 0; i < 32; ++i) {
-            snprintf(hash + 2*i, 3,"%02hhx", (const char *) checksum.localHashHex[i]);
+            snprintf(hash + 2*i, 3,"%02hhx", checksum.localHashHex[i]);
         }
 
         checksum.serverHash[64] = '\0';
