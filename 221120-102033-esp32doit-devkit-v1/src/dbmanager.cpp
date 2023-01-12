@@ -88,10 +88,11 @@ namespace DBNS {
 
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
-        bool downloading = false; // Is there an ongoing DB update?
+        bool downloadingDB = false; // Is there an ongoing DB update?
         void startDBDownload();
-        void verifyDBIntegrity();
+        void finishChecksumDownload();
         void finishDBDownload();
+        void activateNewDBFile();
         unsigned long downloadStartTime;
 
         Authorizer *authorizer;
@@ -100,7 +101,6 @@ namespace DBNS {
 
         void startChecksumDownload();
         bool verifyChecksum();
-        bool startedDownloadChecksum = false;
         bool downloadingChecksum = false;
 
         checksumVefifier checksum;
@@ -133,7 +133,7 @@ namespace DBNS {
         //FIXME: what if download stops working in the middle and never ends?
 
         // We start a download only if we are not already downloading
-        if (!downloading) {
+        if (!downloadingDB && !downloadingChecksum) {
             // millis() wraps every ~49 days, but
             // wrapping does not cause problems here
             // TODO: we might prefer to use dates,
@@ -149,14 +149,11 @@ namespace DBNS {
         }
 
         if (downloadingChecksum) { 
-            if(!startedDownloadChecksum) { // FIXME: maybe put a retry download interval?
-                startChecksumDownload();
-            }
-
             // If we finished downloading checksum, procede to verify checksum
             // and finish db update
             if (!clientChecksum.connected() && !clientChecksum.available()) {
-                verifyDBIntegrity();
+                finishChecksumDownload();
+                activateNewDBFile();
                 return;
             }
 
@@ -170,7 +167,6 @@ namespace DBNS {
         }
 
         if (!client.available() && !client.connected()) {
-            downloadingChecksum = true;
             finishDBDownload();
             startChecksumDownload();
             return;
@@ -181,8 +177,6 @@ namespace DBNS {
 
     void UpdateDBManager::startDBDownload() {
         downloadStartTime = millis();
-        startedDownloadChecksum = false;
-        downloadingChecksum = false;
 
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
@@ -211,7 +205,7 @@ namespace DBNS {
             return;
         }
 
-        downloading = true;
+        downloadingDB = true;
 
         client.println("GET /dataBaseIME.db HTTP/1.1");
         client.println(((String) "Host: ") + SERVER);
@@ -234,6 +228,7 @@ namespace DBNS {
         client.flush();
         client.stop();
         writer.close();
+        downloadingDB = false;
         lastDownloadTime = currentMillis;
 
 #       ifdef DEBUG
@@ -244,11 +239,13 @@ namespace DBNS {
     }
 
 
-    void UpdateDBManager::verifyDBIntegrity() {
+    void UpdateDBManager::finishChecksumDownload() {
         clientChecksum.flush();
         clientChecksum.stop();
-        downloading = false;
+        downloadingChecksum = false;
+    }
 
+    void UpdateDBManager::activateNewDBFile() {
         if (!verifyChecksum()) {
 #           ifdef DEBUG
             Serial.print("Downloaded DB file is corrupted, ignoring.");
@@ -290,7 +287,7 @@ namespace DBNS {
             return;
         }
 
-        startedDownloadChecksum = true;
+        downloadingChecksum = true;
         checksum.start(); // reset aux variables
 
         // http request to get hash of db from server
