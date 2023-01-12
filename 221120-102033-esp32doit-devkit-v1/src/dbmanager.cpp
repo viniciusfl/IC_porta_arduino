@@ -162,7 +162,7 @@ namespace DBNS {
 
             // If we did not disconnect above, we are connected
             int i = 0;
-            while (i++ < 283 || clientChecksum.available()) {
+            while (i++ < 283 && clientChecksum.available()) {
                 char c = clientChecksum.read();
                 checksum.write(c);
             }
