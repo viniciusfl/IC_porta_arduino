@@ -260,12 +260,8 @@ internal.setPin1State(digitalRead(INTERNAL_D1));
         internal.reset();
 
 #       ifdef DEBUG
-        if (returnReaderID == 1) {
-            Serial.print("External ");
-        } else {
-            Serial.print("Internal ");
-        }
-        Serial.print("card reader was used.");
+        Serial.print(returnReaderID);
+        Serial.print(" card reader was used.");
         Serial.print("We received card ID -> ");
         Serial.println(returnCardID);
 #       endif
