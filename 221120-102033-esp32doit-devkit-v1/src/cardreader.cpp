@@ -86,8 +86,6 @@ namespace ReaderNS {
         cardIDBits = bits;
         doorID = 1; //FIXME:
 
-        Serial.println("incoming data reader...");
-
         // It would be possible to avoid copying, but that could break
         // if something changes in the wiegand lib implementation.
         uint8_t bytes = (bits+7)/8;
