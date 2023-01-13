@@ -330,19 +330,11 @@ namespace DBNS {
 
         checksum.serverHash[64] = '\0';
 
-
 #       ifdef DEBUG
         Serial.println("Hash from local file:");
-        for (int i = 0; i < 64; i++) {
-            Serial.print(hash[i]);
-        }
-        Serial.println();
-
+        Serial.println(hash);
         Serial.println("Hash from server file: ");
-        for (int i = 0; i < 64; i++) {
-            Serial.printf("%c", checksum.serverHash[i]);
-        }
-        Serial.println();
+        Serial.println(checksum.serverHash);
 #       endif
 
         if(strcmp(hash, checksum.serverHash)){
