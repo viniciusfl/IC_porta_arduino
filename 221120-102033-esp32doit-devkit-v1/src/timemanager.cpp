@@ -4,6 +4,7 @@
 #include <RTClib.h>
 #include <time.h>
 #include <timemanager.h>
+#include <networkmanager.h>
 
 #define DEBUGTIMEMAN
 
@@ -89,13 +90,16 @@ namespace TimeNS {
         struct tm timeinfo;
         bool timeOK = false;
 
+        int attempts = 0;
         while (!timeOK) {
             if (getLocalTime(&timeinfo, 30000)) { // 30s timeout
                 timeOK = true;
+            } else if (++attempts > 3) {
+                ESP.restart(); // Desperate times call for desperate measures
             } else {
                 Serial.print("Failed to obtain time from both HW clock ");
-                Serial.println("and network, waiting for NTP to sync up");
-                delay(1000);
+                Serial.println("and network, resetting network");
+                netReset();
             }
         }
 

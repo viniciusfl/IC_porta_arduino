@@ -20,19 +20,21 @@ namespace NetNS {
 
     void printNetStatus();
 
+    void netReset() {
+        WiFi.disconnect(true);
+        WiFi.begin(ssid, password);
+        //WiFi.begin(ssid);
+    }
+
     // This should be called from setup()
     void initWiFi() {
 
         // select WiFi mode
         WiFi.mode(WIFI_STA);
-        WiFi.disconnect(true);
 
         // register WiFi event handlers
         WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
-
-        WiFi.begin(ssid, password);
-        //WiFi.begin(ssid);
-
+        netReset();
     }
 
     /* events handling */
@@ -69,9 +71,7 @@ namespace NetNS {
             // state during a reconnection attempt. So, we only
             // force a reconnection if we have been offline for
             // a "long" time.
-            WiFi.disconnect();
-            WiFi.begin(ssid, password);
-            //WiFi.begin(ssid);
+            netReset();
             lastNetOK = currentMillis;
         }
         // If both conditions fail, lastNetOK is not updated
@@ -116,4 +116,8 @@ void checkNetConnection(){
 
 bool connected() {
     return NetNS::connected();
+}
+
+void netReset() {
+    NetNS::netReset();
 }

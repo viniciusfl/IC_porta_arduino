@@ -7,4 +7,6 @@ void checkNetConnection();
 
 bool connected();
 
+void netReset();
+
 #endif
