@@ -1,3 +1,5 @@
+static const char *TAG = "HTTP_CLIENT";
+
 #include <WiFi.h>
 #include "FS.h"
 #include "SD.h"
@@ -16,7 +18,6 @@
 #include "esp_netif.h"
 #include "esp_tls.h"
 #include "esp_crt_bundle.h"
-static const char *TAG = "HTTP_CLIENT";
 
 #define MAX_HTTP_RECV_BUFFER 512
 
@@ -113,8 +114,9 @@ namespace DBNS {
         unsigned long downloadStartTime;
 
         Authorizer *authorizer;
-        WiFiClient client;
         FileWriter writer;
+        WiFiClient netclient;
+        esp_http_client_handle_t httpclient;
 
         bool downloadingChecksum = false;
         void startChecksumDownload();
@@ -172,7 +174,7 @@ namespace DBNS {
         if (downloadingChecksum) { 
             // If we finished downloading the checksum, procede to verify it
             // is valid and finish the db update
-            if (!client.connected() && !client.available()) {
+            if (!netclient.connected() && !netclient.available()) {
                 finishChecksumDownload();
                 activateNewDBFile();
                 return;
@@ -185,7 +187,12 @@ namespace DBNS {
 
         // If we did not return above, we are still downloading the DB;
         // are we done yet?
-        if (!client.available() && !client.connected()) {
+#ifdef  USE_SOCKETS
+        if (!netclient.available() && !netclient.connected()) {
+#else
+        esp_err_t err = esp_http_client_perform(httpclient);
+        if (err != ESP_ERR_HTTP_EAGAIN) {
+#endif
             finishDBDownload();
             startChecksumDownload();
             return;
@@ -207,11 +214,10 @@ namespace DBNS {
             return;
         }  */
 
-        // TODO: use HTTPS, check certificates etc.
-        client.connect(SERVER, 80);
+        netclient.connect(SERVER, 80);
 
 #       ifdef DEBUG
-        if (client.connected()) {
+        if (netclient.connected()) {
             Serial.println("Connected to server.");
         } else {
             Serial.println("Connection to server failed.");
@@ -220,21 +226,21 @@ namespace DBNS {
 
         // If connection failed, pretend nothing
         // ever happened and try again later
-        if (!client.connected()) {
+        if (!netclient.connected()) {
 #           ifdef DEBUG
             Serial.println("Client is not connected... aborting DB update.");
 #           endif
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-            client.stop();
+            netclient.stop();
             return;
         }
 
         downloadingDB = true;
 
-        client.println("GET /dataBaseIME.db HTTP/1.1");
-        client.println(((String) "Host: ") + SERVER);
-        client.println("Connection: close");
-        client.println();
+        netclient.println("GET /dataBaseIME.db HTTP/1.1");
+        netclient.println(((String) "Host: ") + SERVER);
+        netclient.println("Connection: close");
+        netclient.println();
 
 #       ifdef DEBUG
         Serial.println("---> Started DB upgrade...");
@@ -248,13 +254,13 @@ namespace DBNS {
     }
 
     void UpdateDBManager::processDBDownload() {
-        writer.write(client);
+        writer.write(netclient);
     }
 
     void UpdateDBManager::finishDBDownload() {
         unsigned int long downloadFinishTime = millis() - downloadStartTime;
-        client.flush();
-        client.stop();
+        netclient.flush();
+        netclient.stop();
         writer.close();
         downloadingDB = false;
         lastDownloadTime = currentMillis;
@@ -266,8 +272,11 @@ namespace DBNS {
 #       endif
     }
 
-#   else // USE_SOCKETS
+#   else // USE_SOCKETS is undefined
 
+    // TODO: this needs to write the data out. It is probably a good
+    //       idea to use user_data in the config to pass the file
+    //       handler to this function.
     esp_err_t handler(esp_http_client_event_t *evt) {
         switch(evt->event_id) {
             case HTTP_EVENT_ERROR:
@@ -310,9 +319,6 @@ namespace DBNS {
     }
 
     void UpdateDBManager::startDBDownload() {
-        // 
-        downloadStartTime = millis();
-        esp_http_client_handle_t clientTeste;
         esp_http_client_config_t config = {
             .host = "10.0.2.106",
             .port = 443,
@@ -325,87 +331,79 @@ namespace DBNS {
             .event_handler = handler,
             .transport_type = HTTP_TRANSPORT_OVER_SSL,
             .buffer_size = 4096,
-            //.is_async = true, <-- made it work
+            .is_async = true,
             .skip_cert_common_name_check = true,
         };
-        clientTeste = esp_http_client_init(&config);
-        esp_err_t err;
-        while ((err = esp_http_client_open(clientTeste, 0)) != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-            delay(1000);
 
-        }
-        int content_length =  esp_http_client_fetch_headers(clientTeste);
+        httpclient = esp_http_client_init(&config);
 
-        esp_http_client_perform(clientTeste);
+        esp_err_t err = esp_http_client_perform(httpclient);
 
-        Serial.printf("Content length %d\n", content_length);
-
-        if (received == content_length) {ESP_LOGE(TAG, "Sizes match!\n");}
-        else {ESP_LOGE(TAG, "Sizes do not match!\n");};
-
-        if (esp_http_client_is_complete_data_received(clientTeste)) {
-            ESP_LOGE(TAG, "Finished ok\n");
-        } else {
-            ESP_LOGE(TAG, "Did not finish ok\n");
-        };
-
-        esp_http_client_cleanup(clientTeste);
-
-        while (true) {delay(50);};
-
-        client.connect(SERVER, 80);
-
-#       ifdef DEBUG
-        if (client.connected()) {
-            Serial.println("Connected to server.");
-        } else {
-            Serial.println("Connection to server failed.");
-        }
-#       endif
-
-        // If connection failed, pretend nothing
-        // ever happened and try again later
-        if (!client.connected()) {
+        if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
+            // Connection failed. No worries, just pretend
+            // nothing ever happened and try again later
 #           ifdef DEBUG
-            Serial.println("Client is not connected... aborting DB update.");
+            ESP_LOGE(TAG, "Network connection failed, aborting DB update.");
 #           endif
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-            client.stop();
+
+            esp_http_client_cleanup(httpclient);
+
             return;
         }
 
+        // Download started ok! Normally "err" should be EAGAIN,
+        // meaning the download started but has not yet finished,
+        // but maybe the file is very small and download ended
+        // already. If this happens, we do nothing special here;
+        // processDBDownload() will also receive ESP_OK and handle it.
         downloadingDB = true;
-
-        client.println("GET /dataBaseIME.db HTTP/1.1");
-        client.println(((String) "Host: ") + SERVER);
-        client.println("Connection: close");
-        client.println();
-
-#       ifdef DEBUG
-        Serial.println("---> Started DB upgrade...");
-#       endif
+        downloadStartTime = millis();
 
         // remove old DB files
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
 
         writer.open(otherFile);
+
+        return;
     }
 
+    void UpdateDBManager::processDBDownload() { };
+
+    void UpdateDBManager::finishDBDownload() {
+        unsigned int long downloadFinishTime = millis() - downloadStartTime;
+
+        if (esp_http_client_is_complete_data_received(httpclient)) {
+            ESP_LOGE(TAG, "Finished ok\n");
+        } else {
+            ESP_LOGE(TAG, "Did not finish ok\n");
+        };
+
+        esp_http_client_cleanup(httpclient);
+        writer.close();
+        downloadingDB = false;
+        lastDownloadTime = currentMillis;
+
+#       ifdef DEBUG
+        Serial.println("Disconnecting from server and finishing db update.");
+        Serial.printf("Download took %lu ms\n",  downloadFinishTime);
+        Serial.println("Started checksum download.");
+#       endif
+    }
 #   endif // USE_SOCKETS
 
     void UpdateDBManager::processChecksumDownload() {
         int i = 0;
-        while (i++ < 283 && client.available()) {
-            char c = client.read();
+        while (i++ < 283 && netclient.available()) {
+            char c = netclient.read();
             checksum.write(c);
         }
     }
 
     void UpdateDBManager::finishChecksumDownload() {
-        client.flush();
-        client.stop();
+        netclient.flush();
+        netclient.stop();
         downloadingChecksum = false;
     }
 
@@ -432,10 +430,10 @@ namespace DBNS {
     }
 
     void UpdateDBManager::startChecksumDownload() {
-        client.connect(SERVER, 80);
+        netclient.connect(SERVER, 80);
 
 #       ifdef DEBUG
-        if (client.connected()) {
+        if (netclient.connected()) {
             Serial.println("Connected to server.");
         } else {
             Serial.println("Connection to server failed.");
@@ -445,9 +443,9 @@ namespace DBNS {
 
         // If connection failed, pretend nothing
         // ever happened and try again later
-        if (!client.connected()) {
+        if (!netclient.connected()) {
             Serial.println("Client checksum disconnected... trying again later");
-            client.stop();
+            netclient.stop();
             return;
         }
 
@@ -455,10 +453,10 @@ namespace DBNS {
         checksum.start(); // reset aux variables
 
         // http request to get hash of db from server
-        client.println("GET /checksum HTTP/1.1");
-        client.println(((String) "Host: ") + SERVER);
-        client.println("Connection: close");
-        client.println();
+        netclient.println("GET /checksum HTTP/1.1");
+        netclient.println(((String) "Host: ") + SERVER);
+        netclient.println("Connection: close");
+        netclient.println();
     }
 
     void checksumVefifier::start() {
@@ -612,8 +610,8 @@ namespace DBNS {
     }
 
     // TODO: receiving WiFiClient as a parameter here feels very hackish...
-    void FileWriter::write(WiFiClient& client) {
-        int avail = client.available();
+    void FileWriter::write(WiFiClient& netclient) {
+        int avail = netclient.available();
         if (avail <= 0) return;
 
         if (headerDone) {
@@ -624,7 +622,7 @@ namespace DBNS {
                 length = bufsize - position;
             }
 
-            int check = client.read(buf + position, length);
+            int check = netclient.read(buf + position, length);
             if (! check == length) {
                 Serial.println("Something bad happened reading from network");
             }
@@ -635,7 +633,7 @@ namespace DBNS {
                 position = 0;
             }
         } else {
-            char c = client.read();
+            char c = netclient.read();
             if (c == '\n') {
                 if (beginningOfLine && previous == '\r') {
                     headerDone = true;
