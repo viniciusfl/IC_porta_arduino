@@ -106,7 +106,6 @@ namespace DBNS {
         void finishChecksumDownload();
         bool verifyChecksum();
         checksumVefifier checksum;
-        WiFiClient clientChecksum;
     };
 
     // This should be called from setup()
@@ -153,7 +152,7 @@ namespace DBNS {
         if (downloadingChecksum) { 
             // If we finished downloading the checksum, procede to verify it
             // is valid and finish the db update
-            if (!clientChecksum.connected() && !clientChecksum.available()) {
+            if (!client.connected() && !client.available()) {
                 finishChecksumDownload();
                 activateNewDBFile();
                 return;
@@ -248,15 +247,15 @@ namespace DBNS {
 
     void UpdateDBManager::processChecksumDownload() {
         int i = 0;
-        while (i++ < 283 && clientChecksum.available()) {
-            char c = clientChecksum.read();
+        while (i++ < 283 && client.available()) {
+            char c = client.read();
             checksum.write(c);
         }
     }
 
     void UpdateDBManager::finishChecksumDownload() {
-        clientChecksum.flush();
-        clientChecksum.stop();
+        client.flush();
+        client.stop();
         downloadingChecksum = false;
     }
 
@@ -283,10 +282,10 @@ namespace DBNS {
     }
 
     void UpdateDBManager::startChecksumDownload() {
-        clientChecksum.connect(SERVER, 80);
+        client.connect(SERVER, 80);
 
 #       ifdef DEBUG
-        if (clientChecksum.connected()) {
+        if (client.connected()) {
             Serial.println("Connected to server.");
         } else {
             Serial.println("Connection to server failed.");
@@ -296,9 +295,9 @@ namespace DBNS {
 
         // If connection failed, pretend nothing
         // ever happened and try again later
-        if (!clientChecksum.connected()) {
+        if (!client.connected()) {
             Serial.println("Client checksum disconnected... trying again later");
-            clientChecksum.stop();
+            client.stop();
             return;
         }
 
@@ -306,10 +305,10 @@ namespace DBNS {
         checksum.start(); // reset aux variables
 
         // http request to get hash of db from server
-        clientChecksum.println("GET /checksum HTTP/1.1");
-        clientChecksum.println(((String) "Host: ") + SERVER);
-        clientChecksum.println("Connection: close");
-        clientChecksum.println();
+        client.println("GET /checksum HTTP/1.1");
+        client.println(((String) "Host: ") + SERVER);
+        client.println("Connection: close");
+        client.println();
     }
 
     void checksumVefifier::start() {
