@@ -91,7 +91,7 @@ namespace DBNS {
         unsigned long lastDownloadTime = 0;
         bool downloadingDB = false; // Is there an ongoing DB update?
         void startDBDownload();
-        void finishChecksumDownload();
+        void processDBDownload();
         void finishDBDownload();
         void activateNewDBFile();
         unsigned long downloadStartTime;
@@ -100,10 +100,11 @@ namespace DBNS {
         WiFiClient client;
         FileWriter writer;
 
-        void startChecksumDownload();
-        bool verifyChecksum();
         bool downloadingChecksum = false;
-
+        void startChecksumDownload();
+        void processChecksumDownload();
+        void finishChecksumDownload();
+        bool verifyChecksum();
         checksumVefifier checksum;
         WiFiClient clientChecksum;
     };
@@ -150,30 +151,29 @@ namespace DBNS {
         }
 
         if (downloadingChecksum) { 
-            // If we finished downloading checksum, procede to verify checksum
-            // and finish db update
+            // If we finished downloading the checksum, procede to verify it
+            // is valid and finish the db update
             if (!clientChecksum.connected() && !clientChecksum.available()) {
                 finishChecksumDownload();
                 activateNewDBFile();
                 return;
             }
 
-            // If we did not disconnect above, we are connected
-            int i = 0;
-            while (i++ < 283 && clientChecksum.available()) {
-                char c = clientChecksum.read();
-                checksum.write(c);
-            }
+            // If we did not return yet, we are still downloading the checksum
+            processChecksumDownload();
             return;
         }
 
+        // If we did not return above, we are still downloading the DB;
+        // are we done yet?
         if (!client.available() && !client.connected()) {
             finishDBDownload();
             startChecksumDownload();
             return;
         }
-        // If we did not disconnect above, we are connected
-        writer.write(client);
+
+        // If we did not return above, we are still downloading the DB
+        processDBDownload();
     }
 
     void UpdateDBManager::startDBDownload() {
@@ -227,6 +227,10 @@ namespace DBNS {
         writer.open(otherFile);
     }
 
+    void UpdateDBManager::processDBDownload() {
+        writer.write(client);
+    }
+
     void UpdateDBManager::finishDBDownload() {
         unsigned int long downloadFinishTime = millis() - downloadStartTime;
         client.flush();
@@ -242,6 +246,13 @@ namespace DBNS {
 #       endif
     }
 
+    void UpdateDBManager::processChecksumDownload() {
+        int i = 0;
+        while (i++ < 283 && clientChecksum.available()) {
+            char c = clientChecksum.read();
+            checksum.write(c);
+        }
+    }
 
     void UpdateDBManager::finishChecksumDownload() {
         clientChecksum.flush();
