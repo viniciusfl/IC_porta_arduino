@@ -20,16 +20,18 @@ void setup() {
 
     currentMillis = millis();
     initWiFi();
-    initTime();
+    //initTime();
+    delay(2000);
     initDB();
-    initCardReaders();
+ 
+    //initCardReaders();
 }
 
 void loop() {
     currentMillis = millis();
-    checkNetConnection();
-    updateDB();
-    checkTimeSync();
+    //checkNetConnection();
+    //updateDB();
+    //checkTimeSync();
     const char* lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {

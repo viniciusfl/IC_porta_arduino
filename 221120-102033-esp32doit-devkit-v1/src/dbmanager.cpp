@@ -8,11 +8,27 @@
 #include <dbmanager.h>
 #include "mbedtls/md.h"
 
+#include "esp_system.h"
+#include <keys.h>
+#include "esp_log.h"
+#include "esp_http_client.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "esp_tls.h"
+#include "esp_crt_bundle.h"
+static const char *TAG = "HTTP_CLIENT";
+
+#define MAX_HTTP_RECV_BUFFER 512
+
 #define RETRY_DOWNLOAD_TIME 60000
 
 #define DOWNLOAD_INTERVAL 20000
 
 #define DEBUG
+
+//#define USE_SOCKETS
+
+int received = 0;
 
 namespace DBNS {
     // This is a wrapper around SQLite which allows us
@@ -110,6 +126,9 @@ namespace DBNS {
 
     // This should be called from setup()
     void UpdateDBManager::init(Authorizer *authorizer) {
+        // TODO: just testing!
+        startDBDownload();
+        return;
         if (!SD.begin()) {
             Serial.println("Card Mount Failed, aborting");
             Serial.flush();
@@ -123,7 +142,8 @@ namespace DBNS {
 
         this->authorizer = authorizer;
 
-        chooseInitialFile();
+        // TODO: commented out for testing
+        //chooseInitialFile();
     }
 
     // This should be called from loop()
@@ -175,6 +195,7 @@ namespace DBNS {
         processDBDownload();
     }
 
+#   ifdef USE_SOCKETS
     void UpdateDBManager::startDBDownload() {
         downloadStartTime = millis();
 
@@ -244,6 +265,135 @@ namespace DBNS {
         Serial.println("Started checksum download.");
 #       endif
     }
+
+#   else // USE_SOCKETS
+
+    esp_err_t handler(esp_http_client_event_t *evt) {
+        switch(evt->event_id) {
+            case HTTP_EVENT_ERROR:
+                ESP_LOGE(TAG, "HTTP_EVENT_ERROR");
+                break;
+            case HTTP_EVENT_ON_CONNECTED:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_CONNECTED");
+                break;
+            case HTTP_EVENT_HEADER_SENT:
+                ESP_LOGE(TAG, "HTTP_EVENT_HEADER_SENT");
+                break;
+            case HTTP_EVENT_ON_HEADER:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+                break;
+            case HTTP_EVENT_ON_DATA:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+                if (!esp_http_client_is_chunked_response(evt->client)) {
+                    received += evt->data_len;
+                } else {ESP_LOGE(TAG, "CHUNKED!");}
+                break;
+            case HTTP_EVENT_ON_FINISH:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_FINISH");
+                ESP_LOGE(TAG, "Received: %d", received);
+                break;
+            case HTTP_EVENT_DISCONNECTED:
+                ESP_LOGE(TAG, "HTTP_EVENT_DISCONNECTED");
+                int mbedtls_err = 0;
+                esp_err_t err = esp_tls_get_and_clear_last_error((esp_tls_error_handle_t)evt->data, &mbedtls_err, NULL);
+                if (err != 0) {
+                    ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
+                    ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
+                }
+                received = 0;
+                break;
+            //case HTTP_EVENT_REDIRECT:
+            //    ESP_LOGE(TAG, "HTTP_EVENT_REDIRECT");
+            //    break;
+        }
+        return ESP_OK;
+    }
+
+    void UpdateDBManager::startDBDownload() {
+        // 
+        downloadStartTime = millis();
+        esp_http_client_handle_t clientTeste;
+        esp_http_client_config_t config = {
+            .host = "10.0.2.106",
+            .port = 443,
+            .path = "/dataBaseIME.db",
+            .cert_pem = rootCA,
+            .client_cert_pem = clientCertPem,
+            .client_key_pem = clientKeyPem,
+            .method = HTTP_METHOD_GET,
+            .timeout_ms = 60000,
+            .event_handler = handler,
+            .transport_type = HTTP_TRANSPORT_OVER_SSL,
+            .buffer_size = 4096,
+            //.is_async = true, <-- made it work
+            .skip_cert_common_name_check = true,
+        };
+        clientTeste = esp_http_client_init(&config);
+        esp_err_t err;
+        while ((err = esp_http_client_open(clientTeste, 0)) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
+            delay(1000);
+
+        }
+        int content_length =  esp_http_client_fetch_headers(clientTeste);
+
+        esp_http_client_perform(clientTeste);
+
+        Serial.printf("Content length %d\n", content_length);
+
+        if (received == content_length) {ESP_LOGE(TAG, "Sizes match!\n");}
+        else {ESP_LOGE(TAG, "Sizes do not match!\n");};
+
+        if (esp_http_client_is_complete_data_received(clientTeste)) {
+            ESP_LOGE(TAG, "Finished ok\n");
+        } else {
+            ESP_LOGE(TAG, "Did not finish ok\n");
+        };
+
+        esp_http_client_cleanup(clientTeste);
+
+        while (true) {delay(50);};
+
+        client.connect(SERVER, 80);
+
+#       ifdef DEBUG
+        if (client.connected()) {
+            Serial.println("Connected to server.");
+        } else {
+            Serial.println("Connection to server failed.");
+        }
+#       endif
+
+        // If connection failed, pretend nothing
+        // ever happened and try again later
+        if (!client.connected()) {
+#           ifdef DEBUG
+            Serial.println("Client is not connected... aborting DB update.");
+#           endif
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+            client.stop();
+            return;
+        }
+
+        downloadingDB = true;
+
+        client.println("GET /dataBaseIME.db HTTP/1.1");
+        client.println(((String) "Host: ") + SERVER);
+        client.println("Connection: close");
+        client.println();
+
+#       ifdef DEBUG
+        Serial.println("---> Started DB upgrade...");
+#       endif
+
+        // remove old DB files
+        SD.remove(otherTimestampFile);
+        SD.remove(otherFile);
+
+        writer.open(otherFile);
+    }
+
+#   endif // USE_SOCKETS
 
     void UpdateDBManager::processChecksumDownload() {
         int i = 0;

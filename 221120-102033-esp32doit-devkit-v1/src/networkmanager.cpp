@@ -32,6 +32,7 @@ namespace NetNS {
         // select WiFi mode
         WiFi.mode(WIFI_STA);
 
+
         // register WiFi event handlers
         WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
         netReset();
