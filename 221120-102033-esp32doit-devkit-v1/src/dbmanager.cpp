@@ -23,11 +23,9 @@ static const char *TAG = "HTTP_CLIENT";
 
 #define RETRY_DOWNLOAD_TIME 60000
 
-#define DOWNLOAD_INTERVAL 20000
+#define DOWNLOAD_INTERVAL 30000
 
 #define DEBUG
-
-//#define USE_SOCKETS
 
 int received = 0;
 
@@ -57,33 +55,25 @@ namespace DBNS {
     // received to disk, minus the HTTP headers.
     class FileWriter {
     public:
-        void open(const char *);
+        void open(const char*);
+#       ifdef USE_SOCKETS
         void write(WiFiClient&);
+#       else
+        inline void write(byte* buffer, int size);
+#       endif
         void close();
-
     private:
         File file;
+#       ifdef USE_SOCKETS
         const static int bufsize = 512;
         byte buf[bufsize];
         int position = 0;
         char previous;
         bool headerDone = false;
         bool beginningOfLine = true;
+#       endif
     };
-
-    class checksumVefifier {
-    public:
-        void start();
-        void write(char c);
-        char serverHash[65];
-        unsigned char localHashHex[32];
-    private:
-        bool headerChecksumDone = false;
-        bool beginningOfLine = true;
-        unsigned char previous;
-        int position = 0;
-    };
-
+   
     // This class periodically downloads a new version of the database
     // and sets this new version as the "active" db file in the Authorizer
     // when downloading is successful. It alternates between two filenames
@@ -93,6 +83,7 @@ namespace DBNS {
     public:
         void init(Authorizer *);
         void update();
+        FileWriter writer;
 
     private:
         const char *currentFile;
@@ -106,31 +97,32 @@ namespace DBNS {
 
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
-        bool downloadingDB = false; // Is there an ongoing DB update?
-        void startDBDownload();
-        void processDBDownload();
-        void finishDBDownload();
-        void activateNewDBFile();
         unsigned long downloadStartTime;
+        void processDownload();
 
-        Authorizer *authorizer;
-        FileWriter writer;
-        WiFiClient netclient;
-        esp_http_client_handle_t httpclient;
-
+        unsigned char localHashHex[32];
+        unsigned char serverHash[64];
+        unsigned char oldChecksum[64];
         bool downloadingChecksum = false;
         void startChecksumDownload();
-        void processChecksumDownload();
         void finishChecksumDownload();
         bool verifyChecksum();
-        checksumVefifier checksum;
+
+        bool downloadingDB = false; 
+        void startDBDownload();
+        bool downloadEnded();
+        void finishDBDownload();
+        void activateNewDBFile();
+
+        Authorizer *authorizer;
+        WiFiClient netclient;
+        esp_http_client_handle_t httpclient;
     };
+
+    esp_err_t handler(esp_http_client_event_t *evt);
 
     // This should be called from setup()
     void UpdateDBManager::init(Authorizer *authorizer) {
-        // TODO: just testing!
-        startDBDownload();
-        return;
         if (!SD.begin()) {
             Serial.println("Card Mount Failed, aborting");
             Serial.flush();
@@ -145,7 +137,8 @@ namespace DBNS {
         this->authorizer = authorizer;
 
         // TODO: commented out for testing
-        //chooseInitialFile();
+        chooseInitialFile();
+        startDBDownload();
     }
 
     // This should be called from loop()
@@ -174,32 +167,27 @@ namespace DBNS {
         if (downloadingChecksum) { 
             // If we finished downloading the checksum, procede to verify it
             // is valid and finish the db update
-            if (!netclient.connected() && !netclient.available()) {
+            if(downloadEnded()){
                 finishChecksumDownload();
                 activateNewDBFile();
                 return;
             }
 
             // If we did not return yet, we are still downloading the checksum
-            processChecksumDownload();
+            processDownload();
             return;
         }
-
         // If we did not return above, we are still downloading the DB;
+
         // are we done yet?
-#ifdef  USE_SOCKETS
-        if (!netclient.available() && !netclient.connected()) {
-#else
-        esp_err_t err = esp_http_client_perform(httpclient);
-        if (err != ESP_ERR_HTTP_EAGAIN) {
-#endif
+        if(downloadEnded()){
             finishDBDownload();
             startChecksumDownload();
             return;
         }
 
         // If we did not return above, we are still downloading the DB
-        processDBDownload();
+        processDownload();
     }
 
 #   ifdef USE_SOCKETS
@@ -208,11 +196,11 @@ namespace DBNS {
 
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
-/*         if (WiFi.status() != WL_CONNECTION_LOST){
+        if (WiFi.status() != WL_CONNECTION_LOST){
             Serial.println("No internet available, canceling db update.");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             return;
-        }  */
+        } 
 
         netclient.connect(SERVER, 80);
 
@@ -253,7 +241,7 @@ namespace DBNS {
         writer.open(otherFile);
     }
 
-    void UpdateDBManager::processDBDownload() {
+    void UpdateDBManager::processDownload() {
         writer.write(netclient);
     }
 
@@ -272,51 +260,91 @@ namespace DBNS {
 #       endif
     }
 
-#   else // USE_SOCKETS is undefined
 
-    // TODO: this needs to write the data out. It is probably a good
-    //       idea to use user_data in the config to pass the file
-    //       handler to this function.
-    esp_err_t handler(esp_http_client_event_t *evt) {
-        switch(evt->event_id) {
-            case HTTP_EVENT_ERROR:
-                ESP_LOGE(TAG, "HTTP_EVENT_ERROR");
-                break;
-            case HTTP_EVENT_ON_CONNECTED:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_CONNECTED");
-                break;
-            case HTTP_EVENT_HEADER_SENT:
-                ESP_LOGE(TAG, "HTTP_EVENT_HEADER_SENT");
-                break;
-            case HTTP_EVENT_ON_HEADER:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
-                break;
-            case HTTP_EVENT_ON_DATA:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-                if (!esp_http_client_is_chunked_response(evt->client)) {
-                    received += evt->data_len;
-                } else {ESP_LOGE(TAG, "CHUNKED!");}
-                break;
-            case HTTP_EVENT_ON_FINISH:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_FINISH");
-                ESP_LOGE(TAG, "Received: %d", received);
-                break;
-            case HTTP_EVENT_DISCONNECTED:
-                ESP_LOGE(TAG, "HTTP_EVENT_DISCONNECTED");
-                int mbedtls_err = 0;
-                esp_err_t err = esp_tls_get_and_clear_last_error((esp_tls_error_handle_t)evt->data, &mbedtls_err, NULL);
-                if (err != 0) {
-                    ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
-                    ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
-                }
-                received = 0;
-                break;
-            //case HTTP_EVENT_REDIRECT:
-            //    ESP_LOGE(TAG, "HTTP_EVENT_REDIRECT");
-            //    break;
+    void UpdateDBManager::startChecksumDownload() {
+        netclient.connect(SERVER, 80);
+
+#       ifdef DEBUG
+        if (netclient.connected()) {
+            Serial.println("Connected to server.");
+        } else {
+            Serial.println("Connection to server failed.");
         }
-        return ESP_OK;
+#       endif
+
+
+        // If connection failed, pretend nothing
+        // ever happened and try again later
+        if (!netclient.connected()) {
+            Serial.println("Client checksum disconnected... trying again later");
+            netclient.stop();
+            return;
+        }
+
+        downloadingChecksum = true;
+
+        // http request to get hash of db from server
+        netclient.println("GET /checksum HTTP/1.1");
+        netclient.println(((String) "Host: ") + SERVER);
+        netclient.println("Connection: close");
+        netclient.println();
+
+        SD.remove("/checksum");
+
+        writer.open("/checksum");
     }
+
+    void UpdateDBManager::finishChecksumDownload() {
+        netclient.flush();
+        netclient.stop();
+        downloadingChecksum = false;
+        writer.close();
+    }
+
+    // TODO: receiving WiFiClient as a parameter here feels very hackish...
+    void FileWriter::write(WiFiClient& netclient) {
+        int avail = netclient.available();
+        if (avail <= 0) return;
+
+        if (headerDone) {
+            int length;
+            if (avail <= bufsize - position) {
+                length = avail;
+            } else {
+                length = bufsize - position;
+            }
+
+            int check = netclient.read(buf + position, length);
+            if (! check == length) {
+                Serial.println("Something bad happened reading from network");
+            }
+            position += length;
+
+            if (position >= bufsize) {
+                file.write(buf, position);
+                position = 0;
+            }
+        } else {
+            char c = netclient.read();
+            if (c == '\n') {
+                if (beginningOfLine && previous == '\r') {
+                    headerDone = true;
+#                   ifdef DEBUG
+                    Serial.println("Header done!");
+#                   endif
+                } else {
+                    previous = 0;
+                }
+                beginningOfLine = true;
+            } else {
+                previous = c;
+                if (c != '\r')
+                    beginningOfLine = false;
+            }
+        }
+    }
+
+#   else // USE_SOCKETS is undefined
 
     void UpdateDBManager::startDBDownload() {
         esp_http_client_config_t config = {
@@ -365,11 +393,7 @@ namespace DBNS {
         SD.remove(otherFile);
 
         writer.open(otherFile);
-
-        return;
     }
-
-    void UpdateDBManager::processDBDownload() { };
 
     void UpdateDBManager::finishDBDownload() {
         unsigned int long downloadFinishTime = millis() - downloadStartTime;
@@ -379,38 +403,165 @@ namespace DBNS {
         } else {
             ESP_LOGE(TAG, "Did not finish ok\n");
         };
-
+        esp_http_client_close(httpclient);
         esp_http_client_cleanup(httpclient);
         writer.close();
         downloadingDB = false;
         lastDownloadTime = currentMillis;
+        received = 0;
+        downloadingChecksum = true;
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
         Serial.printf("Download took %lu ms\n",  downloadFinishTime);
-        Serial.println("Started checksum download.");
 #       endif
     }
-#   endif // USE_SOCKETS
 
-    void UpdateDBManager::processChecksumDownload() {
-        int i = 0;
-        while (i++ < 283 && netclient.available()) {
-            char c = netclient.read();
-            checksum.write(c);
+
+void UpdateDBManager::startChecksumDownload() {
+        Serial.println("Started checksum download");
+
+        esp_http_client_config_t config = {
+            .host = "10.0.2.106",
+            .port = 443,
+            .path = "/checksum",
+            .cert_pem = rootCA,
+            .client_cert_pem = clientCertPem,
+            .client_key_pem = clientKeyPem,
+            .method = HTTP_METHOD_GET,
+            .timeout_ms = 60000,
+            .event_handler = handler,
+            .transport_type = HTTP_TRANSPORT_OVER_SSL,
+            .buffer_size = 4096,
+            .is_async = true,
+            .skip_cert_common_name_check = true,
+        };
+
+        httpclient = esp_http_client_init(&config);
+
+        esp_err_t err = esp_http_client_perform(httpclient);
+
+        if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
+            // Connection failed. No worries, just pretend
+            // nothing ever happened and try again later
+#           ifdef DEBUG
+            ESP_LOGE(TAG, "Network connection failed, aborting DB update.");
+#           endif
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+
+            esp_http_client_cleanup(httpclient);
+
+            return;
+        }
+
+        downloadingChecksum = true;
+        downloadStartTime = millis();
+
+        File f = SD.open("/checksum");
+        f.read(oldChecksum, 64);
+
+        SD.remove("/checksum");
+
+        writer.open("/checksum");
+    }
+
+    void UpdateDBManager::processDownload(){
+        esp_err_t err = esp_http_client_perform(httpclient);
+
+        if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
+            // Connection failed. No worries, just pretend
+            // nothing ever happened and try again later
+#           ifdef DEBUG
+            ESP_LOGE(TAG, "Network connection failed, aborting DB update.");
+#           endif
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+
+            downloadingDB = false;
+            downloadingChecksum = false;
+
+            esp_http_client_cleanup(httpclient);
         }
     }
 
     void UpdateDBManager::finishChecksumDownload() {
-        netclient.flush();
-        netclient.stop();
+        if (esp_http_client_is_complete_data_received(httpclient)) {
+            ESP_LOGE(TAG, "Finished checksum ok\n");
+        } else {
+            ESP_LOGE(TAG, "Did not finish ok\n");
+        };
+
+        esp_http_client_close(httpclient);
+        esp_http_client_cleanup(httpclient);
+        writer.close();
         downloadingChecksum = false;
+        lastDownloadTime = currentMillis;
+        received = 0;
+
+#       ifdef DEBUG
+        Serial.println("Disconnecting from server and finishing checksum download.");
+#       endif
+    }
+
+    inline void FileWriter::write(byte* buffer, int size) {
+        file.write(buffer, size);
+    }
+
+
+#       endif
+
+    bool UpdateDBManager::downloadEnded(){
+        #ifdef  USE_SOCKETS
+        if (!netclient.available() && !netclient.connected()) {
+#       else
+        esp_err_t err = esp_http_client_perform(httpclient);
+        if (err != ESP_ERR_HTTP_EAGAIN) {
+#        endif
+            return true;
+        }
+        return false;
+    }
+
+    bool UpdateDBManager::verifyChecksum() {
+        // calculates hash from local recent downloaded db
+#       ifdef DEBUG
+        Serial.println("Finished downloading hash");
+#       endif
+
+        String name = (String) "/sd" + otherFile; // FIXME:
+
+        int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+                                 name.c_str(), localHashHex);
+
+        if (rc != 0) {
+            Serial.printf("Failed to access file %s\n", name.c_str());
+            return false;
+        }
+
+        char hash[65];
+        for (int i = 0; i < 32; ++i) {
+            snprintf(hash + 2*i, 3,"%02hhx", localHashHex[i]);
+        }
+
+        File f = SD.open("/checksum");
+        char servHash[65];
+        f.readString().toCharArray(servHash, 65);
+
+#       ifdef DEBUG
+        Serial.print("Hash from local file:  ");
+        Serial.println(hash);
+        Serial.print("Hash from server file: ");
+        Serial.println(servHash);
+#       endif
+
+        if(strcmp(hash, servHash))
+            return false;
+        return true;
     }
 
     void UpdateDBManager::activateNewDBFile() {
         if (!verifyChecksum()) {
 #           ifdef DEBUG
-            Serial.print("Downloaded DB file is corrupted, ignoring.");
+            Serial.print("Downloaded DB file is corrupted (checksums are not equal), ignoring.");
 #           endif
             SD.remove(otherFile);
             return;
@@ -426,101 +577,6 @@ namespace DBNS {
             swapFiles();
             // FIXME: in the unlikely event that this fails too, we are doomed
             authorizer->openDB(currentFile);
-        }
-    }
-
-    void UpdateDBManager::startChecksumDownload() {
-        netclient.connect(SERVER, 80);
-
-#       ifdef DEBUG
-        if (netclient.connected()) {
-            Serial.println("Connected to server.");
-        } else {
-            Serial.println("Connection to server failed.");
-        }
-#       endif
-
-
-        // If connection failed, pretend nothing
-        // ever happened and try again later
-        if (!netclient.connected()) {
-            Serial.println("Client checksum disconnected... trying again later");
-            netclient.stop();
-            return;
-        }
-
-        downloadingChecksum = true;
-        checksum.start(); // reset aux variables
-
-        // http request to get hash of db from server
-        netclient.println("GET /checksum HTTP/1.1");
-        netclient.println(((String) "Host: ") + SERVER);
-        netclient.println("Connection: close");
-        netclient.println();
-    }
-
-    void checksumVefifier::start() {
-        beginningOfLine = true;
-        headerChecksumDone = false;
-        position = 0;
-    }
-
-    bool UpdateDBManager::verifyChecksum() {
-        // calculates hash from local recent downloaded db
-#       ifdef DEBUG
-        Serial.println("Finished downloading hash... now comparing both");
-#       endif
-
-        String name = (String) "/sd" + otherFile; // FIXME:
-
-        int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-                                 name.c_str(), checksum.localHashHex);
-
-        if (rc != 0) {
-            Serial.printf("Failed to access file %s\n", name.c_str());
-            return false;
-        }
-
-        char hash[65];
-        for (int i = 0; i < 32; ++i) {
-            snprintf(hash + 2*i, 3,"%02hhx", checksum.localHashHex[i]);
-        }
-
-        checksum.serverHash[64] = '\0';
-
-#       ifdef DEBUG
-        Serial.println("Hash from local file:");
-        Serial.println(hash);
-        Serial.println("Hash from server file: ");
-        Serial.println(checksum.serverHash);
-#       endif
-
-        if(strcmp(hash, checksum.serverHash)){
-            return false;
-        }
-        return true;
-    }
-
-
-    void checksumVefifier::write(char c) {
-            if (headerChecksumDone) {
-                serverHash[position++] = c;
-            } else {
-            if (c == '\n') {
-                if (beginningOfLine && previous == '\r') {
-                        headerChecksumDone = true;
-    #                   ifdef DEBUG
-                        Serial.println("Header done!");
-    #                   endif
-                    } else {
-                        previous = 0;
-                    }
-                    beginningOfLine = true;
-            } else {
-                previous = c;
-                if (c != '\r')
-                    beginningOfLine = false;
-            }
         }
     }
 
@@ -566,7 +622,7 @@ namespace DBNS {
         otherTimestampFile = "/TSB.TXT";
         bool dbFileOK = false;
 
-        while (!dbFileOK) {
+         while (!dbFileOK) {
             dbFileOK = true; // a little optimism might pay off :)
             if (!checkFileFreshness(currentTimestampFile)) {
                 if (!checkFileFreshness(otherTimestampFile)) {
@@ -588,7 +644,7 @@ namespace DBNS {
 #       ifdef DEBUG
         Serial.printf("Choosing %s as current DB.\n", currentFile);
 #       endif
-        authorizer->openDB(currentFile);
+        authorizer->openDB(currentFile); 
     }
 
     void FileWriter::open(const char *filename) {
@@ -597,11 +653,13 @@ namespace DBNS {
             Serial.println("Error openning DB file.");
         }
   
+#       ifdef USE_SOCKETS
         headerDone = false;
         beginningOfLine = true;
         buf[0] = 0;
         position = 0;
         previous = 0;
+#       endif
 
 #       ifdef DEBUG
         Serial.print("Writing to ");
@@ -609,51 +667,11 @@ namespace DBNS {
 #       endif
     }
 
-    // TODO: receiving WiFiClient as a parameter here feels very hackish...
-    void FileWriter::write(WiFiClient& netclient) {
-        int avail = netclient.available();
-        if (avail <= 0) return;
-
-        if (headerDone) {
-            int length;
-            if (avail <= bufsize - position) {
-                length = avail;
-            } else {
-                length = bufsize - position;
-            }
-
-            int check = netclient.read(buf + position, length);
-            if (! check == length) {
-                Serial.println("Something bad happened reading from network");
-            }
-            position += length;
-
-            if (position >= bufsize) {
-                file.write(buf, position);
-                position = 0;
-            }
-        } else {
-            char c = netclient.read();
-            if (c == '\n') {
-                if (beginningOfLine && previous == '\r') {
-                    headerDone = true;
-#                   ifdef DEBUG
-                    Serial.println("Header done!");
-#                   endif
-                } else {
-                    previous = 0;
-                }
-                beginningOfLine = true;
-            } else {
-                previous = c;
-                if (c != '\r')
-                    beginningOfLine = false;
-            }
-        }
-    }
 
     void FileWriter::close() {
+#       ifdef USE_SOCKETS
         file.write(buf, position);
+#       endif
         file.close();
     }
 
@@ -819,10 +837,58 @@ namespace DBNS {
         sqlitelog = NULL;
     }
 
-
     Authorizer authorizer;
     UpdateDBManager updateDBManager;
+
+    // TODO: this needs to write the data out. It is probably a good
+    //       idea to use user_data in the config to pass the file
+    //       handler to this function.
+#   ifndef USE_SOCKETS
+    esp_err_t handler(esp_http_client_event_t *evt) {
+        switch(evt->event_id) {
+            case HTTP_EVENT_ERROR:
+                ESP_LOGE(TAG, "HTTP_EVENT_ERROR");
+                break;
+            case HTTP_EVENT_ON_CONNECTED:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_CONNECTED");
+                break;
+            case HTTP_EVENT_HEADER_SENT:
+                ESP_LOGE(TAG, "HTTP_EVENT_HEADER_SENT");
+                break;
+            case HTTP_EVENT_ON_HEADER:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+                break;
+            case HTTP_EVENT_ON_DATA:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+                if (!esp_http_client_is_chunked_response(evt->client)) {
+                    received += evt->data_len;
+                    updateDBManager.writer.write((byte*) evt->data, evt->data_len);
+                } else {ESP_LOGE(TAG, "CHUNKED!");}
+                break;
+            case HTTP_EVENT_ON_FINISH:
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_FINISH");
+                ESP_LOGE(TAG, "Received: %d", received);
+                break;
+            case HTTP_EVENT_DISCONNECTED:
+                ESP_LOGE(TAG, "HTTP_EVENT_DISCONNECTED");
+                int mbedtls_err = 0;
+                esp_err_t err = esp_tls_get_and_clear_last_error((esp_tls_error_handle_t)evt->data, &mbedtls_err, NULL);
+                if (err != 0) {
+                    ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
+                    ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
+                }
+                received = 0;
+                break;
+            //case HTTP_EVENT_REDIRECT:
+            //    ESP_LOGE(TAG, "HTTP_EVENT_REDIRECT");
+            //    break;
+        }
+        return ESP_OK;
+    }
+#   endif
 }
+
+
 
 void initDB() {
     DBNS::authorizer.init();
