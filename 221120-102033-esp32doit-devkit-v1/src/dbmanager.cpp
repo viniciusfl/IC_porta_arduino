@@ -27,8 +27,6 @@ static const char *TAG = "HTTP_CLIENT";
 
 #define DEBUG
 
-int received = 0;
-
 namespace DBNS {
     // This is a wrapper around SQLite which allows us
     // to query whether a user is authorized to enter.
@@ -412,7 +410,6 @@ namespace DBNS {
         writer.close();
         downloadingDB = false;
         lastDownloadTime = currentMillis;
-        received = 0;
         downloadingChecksum = true;
 
 #       ifdef DEBUG
@@ -499,7 +496,6 @@ void UpdateDBManager::startChecksumDownload() {
         writer.close();
         downloadingChecksum = false;
         lastDownloadTime = currentMillis;
-        received = 0;
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing checksum download.");
@@ -865,13 +861,11 @@ void UpdateDBManager::startChecksumDownload() {
             case HTTP_EVENT_ON_DATA:
                 ESP_LOGE(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
                 if (!esp_http_client_is_chunked_response(evt->client)) {
-                    received += evt->data_len;
                     updateDBManager.writer.write((byte*) evt->data, evt->data_len);
                 } else {ESP_LOGE(TAG, "CHUNKED!");}
                 break;
             case HTTP_EVENT_ON_FINISH:
                 ESP_LOGE(TAG, "HTTP_EVENT_ON_FINISH");
-                ESP_LOGE(TAG, "Received: %d", received);
                 break;
             case HTTP_EVENT_DISCONNECTED:
                 ESP_LOGE(TAG, "HTTP_EVENT_DISCONNECTED");
@@ -881,7 +875,6 @@ void UpdateDBManager::startChecksumDownload() {
                     ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
                     ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
                 }
-                received = 0;
                 break;
             //case HTTP_EVENT_REDIRECT:
             //    ESP_LOGE(TAG, "HTTP_EVENT_REDIRECT");
