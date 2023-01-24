@@ -416,7 +416,6 @@ namespace DBNS {
         writer.close();
         downloadingDB = false;
         lastDownloadTime = currentMillis;
-        downloadingChecksum = true;
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
