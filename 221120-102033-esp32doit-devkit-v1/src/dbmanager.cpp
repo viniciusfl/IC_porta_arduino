@@ -137,7 +137,6 @@ namespace DBNS {
         this->authorizer = authorizer;
 
         chooseInitialFile();
-        startDBDownload();
     }
 
     // This should be called from loop()
