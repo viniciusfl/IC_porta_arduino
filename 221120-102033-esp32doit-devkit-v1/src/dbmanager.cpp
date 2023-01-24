@@ -136,7 +136,6 @@ namespace DBNS {
 
         this->authorizer = authorizer;
 
-        // TODO: commented out for testing
         chooseInitialFile();
         startDBDownload();
     }
