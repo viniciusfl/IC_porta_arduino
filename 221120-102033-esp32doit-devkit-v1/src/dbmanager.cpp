@@ -95,7 +95,6 @@ namespace DBNS {
 
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
-        unsigned long downloadStartTime;
         void processDownload();
 
         unsigned char localHashHex[32];
@@ -193,8 +192,6 @@ namespace DBNS {
 
 #   ifdef USE_SOCKETS
     void UpdateDBManager::startDBDownload() {
-        downloadStartTime = millis();
-
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
         if (WiFi.status() != WL_CONNECTION_LOST){
@@ -247,7 +244,6 @@ namespace DBNS {
     }
 
     void UpdateDBManager::finishDBDownload() {
-        unsigned int long downloadFinishTime = millis() - downloadStartTime;
         netclient.flush();
         netclient.stop();
         writer.close();
@@ -256,7 +252,6 @@ namespace DBNS {
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
-        Serial.printf("Download took %lu ms\n",  downloadFinishTime);
         Serial.println("Started checksum download.");
 #       endif
     }
@@ -387,7 +382,6 @@ namespace DBNS {
         // already. If this happens, we do nothing special here;
         // processDBDownload() will also receive ESP_OK and handle it.
         downloadingDB = true;
-        downloadStartTime = millis();
 
         // remove old DB files
         SD.remove(otherTimestampFile);
@@ -397,8 +391,6 @@ namespace DBNS {
     }
 
     void UpdateDBManager::finishDBDownload() {
-        unsigned int long downloadFinishTime = millis() - downloadStartTime;
-
         if (esp_http_client_is_complete_data_received(httpclient)) {
             ESP_LOGE(TAG, "Finished ok\n");
         } else {
@@ -414,7 +406,6 @@ namespace DBNS {
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
-        Serial.printf("Download took %lu ms\n",  downloadFinishTime);
 #       endif
     }
 
@@ -456,7 +447,6 @@ void UpdateDBManager::startChecksumDownload() {
         }
 
         downloadingChecksum = true;
-        downloadStartTime = millis();
 
         File f = SD.open("/checksum");
         f.read(oldChecksum, 64);
