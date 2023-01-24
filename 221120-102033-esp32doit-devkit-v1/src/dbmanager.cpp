@@ -840,6 +840,7 @@ void UpdateDBManager::startChecksumDownload() {
     Authorizer authorizer;
     UpdateDBManager updateDBManager;
 
+    // The callback for the HTTP client
     // TODO: this needs to write the data out. It is probably a good
     //       idea to use user_data in the config to pass the file
     //       handler to this function.
@@ -856,12 +857,14 @@ void UpdateDBManager::startChecksumDownload() {
                 ESP_LOGE(TAG, "HTTP_EVENT_HEADER_SENT");
                 break;
             case HTTP_EVENT_ON_HEADER:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+                ESP_LOGE(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s",
+                         evt->header_key, evt->header_value);
                 break;
             case HTTP_EVENT_ON_DATA:
                 ESP_LOGE(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
                 if (!esp_http_client_is_chunked_response(evt->client)) {
-                    updateDBManager.writer.write((byte*) evt->data, evt->data_len);
+                    updateDBManager.writer.write((byte*) evt->data,
+                                                 evt->data_len);
                 } else {ESP_LOGE(TAG, "CHUNKED!");}
                 break;
             case HTTP_EVENT_ON_FINISH:
@@ -870,7 +873,9 @@ void UpdateDBManager::startChecksumDownload() {
             case HTTP_EVENT_DISCONNECTED:
                 ESP_LOGE(TAG, "HTTP_EVENT_DISCONNECTED");
                 int mbedtls_err = 0;
-                esp_err_t err = esp_tls_get_and_clear_last_error((esp_tls_error_handle_t)evt->data, &mbedtls_err, NULL);
+                esp_err_t err = esp_tls_get_and_clear_last_error(
+                                (esp_tls_error_handle_t)evt->data,
+                                &mbedtls_err, NULL);
                 if (err != 0) {
                     ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
                     ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
