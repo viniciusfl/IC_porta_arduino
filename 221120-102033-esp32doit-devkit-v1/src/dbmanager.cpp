@@ -258,6 +258,14 @@ namespace DBNS {
 
 
     void UpdateDBManager::startChecksumDownload() {
+        // If WiFI is disconnected, pretend nothing
+        // ever happened and try again later
+        if (WiFi.status() != WL_CONNECTION_LOST){
+            Serial.println("No internet available, canceling db update.");
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+            return;
+        }
+
         netclient.connect(SERVER, 80);
 
 #       ifdef DEBUG
@@ -268,11 +276,13 @@ namespace DBNS {
         }
 #       endif
 
-
         // If connection failed, pretend nothing
         // ever happened and try again later
         if (!netclient.connected()) {
-            Serial.println("Client checksum disconnected... trying again later");
+#           ifdef DEBUG
+            Serial.println("Client checksum disconnected... aborting DB update.");
+#           endif
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             netclient.stop();
             return;
         }
@@ -284,6 +294,10 @@ namespace DBNS {
         netclient.println(((String) "Host: ") + SERVER);
         netclient.println("Connection: close");
         netclient.println();
+
+        File f = SD.open("/checksum");
+        f.read(oldChecksum, 64);
+        f.close();
 
         SD.remove("/checksum");
 
@@ -450,6 +464,7 @@ void UpdateDBManager::startChecksumDownload() {
 
         File f = SD.open("/checksum");
         f.read(oldChecksum, 64);
+        f.close();
 
         SD.remove("/checksum");
 
@@ -535,6 +550,7 @@ void UpdateDBManager::startChecksumDownload() {
         File f = SD.open("/checksum");
         char servHash[65];
         f.readString().toCharArray(servHash, 65);
+        f.close();
 
 #       ifdef DEBUG
         Serial.print("Hash from local file:  ");
