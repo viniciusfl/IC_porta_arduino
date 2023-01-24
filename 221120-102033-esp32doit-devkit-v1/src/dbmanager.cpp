@@ -406,7 +406,8 @@ namespace DBNS {
         } else {
             ESP_LOGE(TAG, "Did not finish ok\n");
         };
-        esp_http_client_close(httpclient);
+
+        esp_http_client_close(httpclient); // TODO: this should not be needed
         esp_http_client_cleanup(httpclient);
         writer.close();
         downloadingDB = false;
@@ -493,7 +494,7 @@ void UpdateDBManager::startChecksumDownload() {
             ESP_LOGE(TAG, "Did not finish ok\n");
         };
 
-        esp_http_client_close(httpclient);
+        esp_http_client_close(httpclient); // TODO: this should not be needed
         esp_http_client_cleanup(httpclient);
         writer.close();
         downloadingChecksum = false;
