@@ -115,11 +115,16 @@ namespace DBNS {
         void activateNewDBFile();
 
         Authorizer *authorizer;
+#       ifdef USE_SOCKETS
         WiFiClient netclient;
+#       else
         esp_http_client_handle_t httpclient;
+#       endif
     };
 
+#   ifndef USE_SOCKETS
     esp_err_t handler(esp_http_client_event_t *evt);
+#   endif
 
     // This should be called from setup()
     void UpdateDBManager::init(Authorizer *authorizer) {
@@ -505,15 +510,15 @@ void UpdateDBManager::startChecksumDownload() {
     }
 
 
-#       endif
+#   endif // USE_SOCKETS
 
     bool UpdateDBManager::downloadEnded(){
-        #ifdef  USE_SOCKETS
+#       ifdef USE_SOCKETS
         if (!netclient.available() && !netclient.connected()) {
 #       else
         esp_err_t err = esp_http_client_perform(httpclient);
         if (err != ESP_ERR_HTTP_EAGAIN) {
-#        endif
+#       endif
             return true;
         }
         return false;
