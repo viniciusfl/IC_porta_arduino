@@ -460,6 +460,11 @@ void UpdateDBManager::startChecksumDownload() {
             return;
         }
 
+        // Download started ok! Normally "err" should be EAGAIN,
+        // meaning the download started but has not yet finished,
+        // but maybe the file is very small and download ended
+        // already. If this happens, we do nothing special here;
+        // processDBDownload() will also receive ESP_OK and handle it.
         downloadingChecksum = true;
 
         File f = SD.open("/checksum");
