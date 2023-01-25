@@ -102,13 +102,13 @@ namespace DBNS {
         unsigned char oldChecksum[64];
         bool downloadingChecksum = false;
         void startChecksumDownload();
-        void finishChecksumDownload();
+        bool finishChecksumDownload();
         bool verifyChecksum();
 
         bool downloadingDB = false; 
         void startDBDownload();
         bool downloadEnded();
-        void finishDBDownload();
+        bool finishDBDownload();
         void activateNewDBFile();
 
         Authorizer *authorizer;
@@ -168,8 +168,9 @@ namespace DBNS {
             // If we finished downloading the checksum, procede to verify it
             // is valid and finish the db update
             if(downloadEnded()){
-                finishChecksumDownload();
-                activateNewDBFile();
+                if (finishChecksumDownload()) {
+                    activateNewDBFile();
+                }
                 return;
             }
 
@@ -181,8 +182,9 @@ namespace DBNS {
 
         // are we done yet?
         if(downloadEnded()){
-            finishDBDownload();
-            startChecksumDownload();
+            if (finishDBDownload()) {
+                startChecksumDownload();
+            }
             return;
         }
 
@@ -243,7 +245,7 @@ namespace DBNS {
         writer.write(netclient);
     }
 
-    void UpdateDBManager::finishDBDownload() {
+    bool UpdateDBManager::finishDBDownload() {
         netclient.flush();
         netclient.stop();
         writer.close();
@@ -254,6 +256,9 @@ namespace DBNS {
         Serial.println("Disconnecting from server and finishing db update.");
         Serial.println("Started checksum download.");
 #       endif
+
+        // we do not really check whether the download succeeded here
+        return true;
     }
 
 
@@ -304,11 +309,14 @@ namespace DBNS {
         writer.open("/checksum");
     }
 
-    void UpdateDBManager::finishChecksumDownload() {
+    bool UpdateDBManager::finishChecksumDownload() {
         netclient.flush();
         netclient.stop();
         downloadingChecksum = false;
         writer.close();
+
+        // we do not really check whether the download succeeded here
+        return true;
     }
 
     // TODO: receiving WiFiClient as a parameter here feels very hackish...
@@ -404,12 +412,14 @@ namespace DBNS {
         writer.open(otherFile);
     }
 
-    void UpdateDBManager::finishDBDownload() {
+    bool UpdateDBManager::finishDBDownload() {
+        bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
             ESP_LOGE(TAG, "Finished ok\n");
             lastDownloadTime = currentMillis;
         } else {
             ESP_LOGE(TAG, "Did not finish ok\n");
+            finishedOK = false;
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
         };
 
@@ -421,6 +431,8 @@ namespace DBNS {
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
 #       endif
+
+        return finishedOK;
     }
 
 
@@ -479,13 +491,15 @@ void UpdateDBManager::startChecksumDownload() {
     // Nothing to do here, all work is done by the callback function
     void UpdateDBManager::processDownload() { }
 
-    void UpdateDBManager::finishChecksumDownload() {
+    bool UpdateDBManager::finishChecksumDownload() {
+        bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
             ESP_LOGE(TAG, "Finished checksum ok\n");
             lastDownloadTime = currentMillis;
         } else {
             ESP_LOGE(TAG, "Did not finish ok\n");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+            bool finishedOK = false;
         };
 
         esp_http_client_close(httpclient); // TODO: this should not be needed
@@ -496,6 +510,8 @@ void UpdateDBManager::startChecksumDownload() {
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing checksum download.");
 #       endif
+
+        return finishedOK;
     }
 
     inline void FileWriter::write(byte* buffer, int size) {
