@@ -407,15 +407,16 @@ namespace DBNS {
     void UpdateDBManager::finishDBDownload() {
         if (esp_http_client_is_complete_data_received(httpclient)) {
             ESP_LOGE(TAG, "Finished ok\n");
+            lastDownloadTime = currentMillis;
         } else {
             ESP_LOGE(TAG, "Did not finish ok\n");
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
         };
 
         esp_http_client_close(httpclient); // TODO: this should not be needed
         esp_http_client_cleanup(httpclient);
         writer.close();
         downloadingDB = false;
-        lastDownloadTime = currentMillis;
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing db update.");
@@ -475,36 +476,22 @@ void UpdateDBManager::startChecksumDownload() {
         writer.open("/checksum");
     }
 
-    void UpdateDBManager::processDownload(){
-        esp_err_t err = esp_http_client_perform(httpclient);
-
-        if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
-            // Connection failed. No worries, just pretend
-            // nothing ever happened and try again later
-#           ifdef DEBUG
-            ESP_LOGE(TAG, "Network connection failed, aborting DB update.");
-#           endif
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-
-            downloadingDB = false;
-            downloadingChecksum = false;
-
-            esp_http_client_cleanup(httpclient);
-        }
-    }
+    // Nothing to do here, all work is done by the callback function
+    void UpdateDBManager::processDownload() { }
 
     void UpdateDBManager::finishChecksumDownload() {
         if (esp_http_client_is_complete_data_received(httpclient)) {
             ESP_LOGE(TAG, "Finished checksum ok\n");
+            lastDownloadTime = currentMillis;
         } else {
             ESP_LOGE(TAG, "Did not finish ok\n");
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
         };
 
         esp_http_client_close(httpclient); // TODO: this should not be needed
         esp_http_client_cleanup(httpclient);
         writer.close();
         downloadingChecksum = false;
-        lastDownloadTime = currentMillis;
 
 #       ifdef DEBUG
         Serial.println("Disconnecting from server and finishing checksum download.");
