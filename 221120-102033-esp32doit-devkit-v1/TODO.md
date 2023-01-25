@@ -23,6 +23,9 @@
 
  * Implement `blinkOk()` and `blinkFail()`
 
+ * Functions for downloading checksums and DBs are almost equal; we should
+   use a parameter or something similar to avoid code duplication
+
 # Medium-term TODOs
 
  * Remove card reader code that does not use interrupts
