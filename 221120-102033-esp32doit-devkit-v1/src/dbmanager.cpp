@@ -401,8 +401,7 @@ namespace DBNS {
         // Download started ok! Normally "err" should be EAGAIN,
         // meaning the download started but has not yet finished,
         // but maybe the file is very small and download ended
-        // already. If this happens, we do nothing special here;
-        // processDBDownload() will also receive ESP_OK and handle it.
+        // already. If this happens, we do nothing special here.
         downloadingDB = true;
 
         // remove old DB files
@@ -475,8 +474,7 @@ void UpdateDBManager::startChecksumDownload() {
         // Download started ok! Normally "err" should be EAGAIN,
         // meaning the download started but has not yet finished,
         // but maybe the file is very small and download ended
-        // already. If this happens, we do nothing special here;
-        // processDBDownload() will also receive ESP_OK and handle it.
+        // already. If this happens, we do nothing special here.
         downloadingChecksum = true;
 
         File f = SD.open("/checksum");
