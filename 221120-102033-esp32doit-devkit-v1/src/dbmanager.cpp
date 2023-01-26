@@ -852,9 +852,6 @@ void UpdateDBManager::startChecksumDownload() {
     UpdateDBManager updateDBManager;
 
     // The callback for the HTTP client
-    // TODO: this needs to write the data out. It is probably a good
-    //       idea to use user_data in the config to pass the file
-    //       handler to this function.
 #   ifndef USE_SOCKETS
     esp_err_t handler(esp_http_client_event_t *evt) {
         switch(evt->event_id) {
