@@ -172,6 +172,8 @@ namespace DBNS {
             // start using the new DB
             if(downloadEnded()){
                 if (finishChecksumDownload()) {
+                    // both downloads successful, update the timestamp
+                    lastDownloadTime = currentMillis;
                     activateNewDBFile();
                 }
             } else {
@@ -248,7 +250,6 @@ namespace DBNS {
         netclient.stop();
         writer.close();
         downloadingDB = false;
-        lastDownloadTime = currentMillis;
 
         log_v("Disconnecting from server and finishing db update.");
         log_v("Started checksum download.");
@@ -402,7 +403,6 @@ namespace DBNS {
         bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
             log_v("Finished ok\n");
-            lastDownloadTime = currentMillis;
         } else {
             log_i("Did not finish ok\n");
             finishedOK = false;
@@ -476,7 +476,6 @@ namespace DBNS {
         bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
             log_v("Finished checksum ok\n");
-            lastDownloadTime = currentMillis;
         } else {
             log_i("Did not finish ok\n");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
