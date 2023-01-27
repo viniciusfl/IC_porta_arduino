@@ -93,12 +93,12 @@ namespace TimeNS {
             if (getLocalTime(&timeinfo, 30000)) { // 30s timeout
                 timeOK = true;
             } else if (++attempts > 3) {
-                log_e("Failed to obtain time from both HW clock \
-                      and network too many times, restarting");
+                log_e("Failed to obtain time from both HW clock "
+                      "and network too many times, restarting");
                 ESP.restart(); // Desperate times call for desperate measures
             } else {
-                log_i("Failed to obtain time from both HW clock \
-                      and network, resetting network");
+                log_i("Failed to obtain time from both HW clock "
+                      "and network, resetting network");
 
                 netReset();
             }
@@ -129,8 +129,8 @@ namespace TimeNS {
                                       "quarta", "quinta", "sexta", "sabado"};
 
         char buf[192];
-        sprintf(buf, "%u/%u/%u (%s) %u:%u:%u UTC\nsince midnight 1/1/1970 = \
-                 %us (%u days)", moment.year(), moment.month(),
+        sprintf(buf, "%u/%u/%u (%s) %u:%u:%u UTC\nsince midnight 1/1/1970 = "
+                 "%us (%u days)", moment.year(), moment.month(),
                  moment.day(), daysOfTheWeek[moment.dayOfTheWeek()],
                  moment.hour(), moment.minute(), moment.second(),
                  moment.unixtime(), moment.unixtime() / 86400L);
