@@ -109,7 +109,7 @@ namespace DBNS {
 
         bool downloadingDB = false; 
         void startDBDownload();
-        bool downloadEnded();
+        inline bool downloadEnded();
         inline bool finishDBDownload();
 
         bool startDownload(const char*);
@@ -422,7 +422,7 @@ namespace DBNS {
 #   endif // USE_SOCKETS
 
 
-    bool UpdateDBManager::downloadEnded() {
+    inline bool UpdateDBManager::downloadEnded() {
 #       ifdef USE_SOCKETS
         if (!netclient.available() && !netclient.connected()) {
 #       else
