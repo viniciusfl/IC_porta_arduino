@@ -151,37 +151,44 @@ namespace DBNS {
             // https://robojax.com/learn/arduino/?vid=robojax_DS1307-clock-alarm
             // I believe the nodeMCU RTC might also have this feature
 
-            if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL)
+            if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
                 startDBDownload();
+            }
+
             return;
         }
 
+        // If we did not return above, we are currently downloading something
+        // (either the DB or the checksum)
+
         if (downloadingChecksum) { 
-            // If we finished downloading the checksum, procede to verify it
-            // is valid and finish the db update
+            // If we finished downloading the checksum, check whether the
+            // download was successful; if so and the checksum matches,
+            // start using the new DB
             if(downloadEnded()){
                 if (finishChecksumDownload()) {
                     activateNewDBFile();
                 }
-                return;
+            } else {
+                // still downloading the checksum
+                processDownload();
             }
 
-            // If we did not return yet, we are still downloading the checksum
-            processDownload();
-            return;
-        }
-        // If we did not return above, we are still downloading the DB;
-
-        // are we done yet?
-        if(downloadEnded()){
-            if (finishDBDownload()) {
-                startChecksumDownload();
-            }
             return;
         }
 
         // If we did not return above, we are still downloading the DB
-        processDownload();
+
+        // If we finished downloading the DB, check whether the
+        // download was successful; is so, start downloading the checksum
+        if(downloadEnded()) {
+            if (finishDBDownload()) {
+                startChecksumDownload();
+            }
+        } else {
+            // still downloading the DB
+            processDownload();
+        }
     }
 
 #   ifdef USE_SOCKETS
