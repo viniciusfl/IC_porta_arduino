@@ -116,21 +116,21 @@ namespace ReaderNS {
               Wiegand::DataErrorStr(error), rawBits, buf);
     }
 
-void IRAM_ATTR setExternal0PinState() {
-    external.setPin0State(digitalRead(EXTERNAL_D0));
-}
+    void IRAM_ATTR setExternal0PinState() {
+        external.setPin0State(digitalRead(EXTERNAL_D0));
+    }
 
-void IRAM_ATTR setExternal1PinState() {
-    external.setPin1State(digitalRead(EXTERNAL_D1));
-}
+    void IRAM_ATTR setExternal1PinState() {
+        external.setPin1State(digitalRead(EXTERNAL_D1));
+    }
 
-void IRAM_ATTR setInternal0PinState() {
-    internal.setPin0State(digitalRead(INTERNAL_D0));
-}
+    void IRAM_ATTR setInternal0PinState() {
+        internal.setPin0State(digitalRead(INTERNAL_D0));
+    }
 
-void IRAM_ATTR setInternal1PinState() {
-    internal.setPin1State(digitalRead(INTERNAL_D1));
-}
+    void IRAM_ATTR setInternal1PinState() {
+        internal.setPin1State(digitalRead(INTERNAL_D1));
+    }
 
 
     // This should be called from setup()
