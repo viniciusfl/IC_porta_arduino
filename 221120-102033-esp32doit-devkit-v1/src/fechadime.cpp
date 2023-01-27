@@ -4,6 +4,7 @@ static const char* TAG = "main";
 #include <networkmanager.h>
 #include <timemanager.h>
 #include <dbmanager.h>
+#include <authorizer.h>
 #include <cardreader.h>
 #include <Arduino.h>
 
@@ -26,6 +27,7 @@ void setup() {
     //initTime();
     delay(2000);
     initDB();
+    initDBMan();
  
     //initCardReaders();
 }
