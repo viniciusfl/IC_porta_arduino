@@ -5,9 +5,6 @@ static const char* TAG = "card";
 #include <Wiegand.h>
 #include <cardreader.h>
 
-// Interrupts sometimes fail with the ControlID reader,
-// so let's use polling instead.
-
 // pins for card reader 1 (external)
 #define EXTERNAL_D0  26
 #define EXTERNAL_D1  27
