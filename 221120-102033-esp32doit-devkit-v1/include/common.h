@@ -10,4 +10,6 @@ extern unsigned long currentMillis;
 
 extern int doorID;
 
+#include <log_conf.h>
+
 #endif

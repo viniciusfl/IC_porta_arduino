@@ -1,11 +1,11 @@
-static const char *TAG = "HTTP_CLIENT";
+static const char *TAG = "dbman";
 
+#include <common.h>
 #include <WiFi.h>
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
 #include <sqlite3.h>
-#include <common.h>
 #include <RTClib.h>
 #include <dbmanager.h>
 #include "mbedtls/md.h"
@@ -24,8 +24,6 @@ static const char *TAG = "HTTP_CLIENT";
 #define RETRY_DOWNLOAD_TIME 60000
 
 #define DOWNLOAD_INTERVAL 30000
-
-#define DEBUG
 
 namespace DBNS {
     // This is a wrapper around SQLite which allows us
@@ -126,14 +124,10 @@ namespace DBNS {
     // This should be called from setup()
     void UpdateDBManager::init(Authorizer *authorizer) {
         if (!SD.begin()) {
-            Serial.println("Card Mount Failed, aborting");
-            Serial.flush();
-            while (true)
-                delay(10);
-#       ifdef DEBUG
+            log_e("Card Mount Failed, aborting");
+            while (true) delay(10);
         } else {
-            Serial.println("SD connected.");
-#       endif
+            log_v("SD connected.");
         }
 
         this->authorizer = authorizer;
@@ -197,27 +191,23 @@ namespace DBNS {
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
         if (WiFi.status() != WL_CONNECTION_LOST){
-            Serial.println("No internet available, canceling db update.");
+            log_i("No internet available, canceling db update.");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             return;
         } 
 
         netclient.connect(SERVER, 80);
 
-#       ifdef DEBUG
         if (netclient.connected()) {
-            Serial.println("Connected to server.");
+            log_v("Connected to server.");
         } else {
-            Serial.println("Connection to server failed.");
+            log_i("Connection to server failed.");
         }
-#       endif
 
         // If connection failed, pretend nothing
         // ever happened and try again later
         if (!netclient.connected()) {
-#           ifdef DEBUG
-            Serial.println("Client is not connected... aborting DB update.");
-#           endif
+            log_i("Client is not connected, aborting DB update.");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             netclient.stop();
             return;
@@ -230,9 +220,7 @@ namespace DBNS {
         netclient.println("Connection: close");
         netclient.println();
 
-#       ifdef DEBUG
-        Serial.println("---> Started DB upgrade...");
-#       endif
+        log_v("---> Started DB upgrade...");
 
         // remove old DB files
         SD.remove(otherTimestampFile);
@@ -252,10 +240,8 @@ namespace DBNS {
         downloadingDB = false;
         lastDownloadTime = currentMillis;
 
-#       ifdef DEBUG
-        Serial.println("Disconnecting from server and finishing db update.");
-        Serial.println("Started checksum download.");
-#       endif
+        log_v("Disconnecting from server and finishing db update.");
+        log_v("Started checksum download.");
 
         // we do not really check whether the download succeeded here
         return true;
@@ -266,27 +252,23 @@ namespace DBNS {
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
         if (WiFi.status() != WL_CONNECTION_LOST){
-            Serial.println("No internet available, canceling db update.");
+            log_i("No internet available, canceling db update.");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             return;
         }
 
         netclient.connect(SERVER, 80);
 
-#       ifdef DEBUG
         if (netclient.connected()) {
-            Serial.println("Connected to server.");
+            log_v("Connected to server.");
         } else {
-            Serial.println("Connection to server failed.");
+            log_i("Connection to server failed.");
         }
-#       endif
 
         // If connection failed, pretend nothing
         // ever happened and try again later
         if (!netclient.connected()) {
-#           ifdef DEBUG
-            Serial.println("Client checksum disconnected... aborting DB update.");
-#           endif
+            log_i("Client checksum disconnected... aborting DB update.");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             netclient.stop();
             return;
@@ -334,7 +316,7 @@ namespace DBNS {
 
             int check = netclient.read(buf + position, length);
             if (! check == length) {
-                Serial.println("Something bad happened reading from network");
+                log_i("Something bad happened reading from network");
             }
             position += length;
 
@@ -347,9 +329,7 @@ namespace DBNS {
             if (c == '\n') {
                 if (beginningOfLine && previous == '\r') {
                     headerDone = true;
-#                   ifdef DEBUG
-                    Serial.println("Header done!");
-#                   endif
+                    log_v("Header done!");
                 } else {
                     previous = 0;
                 }
@@ -388,9 +368,7 @@ namespace DBNS {
         if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
             // Connection failed. No worries, just pretend
             // nothing ever happened and try again later
-#           ifdef DEBUG
-            ESP_LOGE(TAG, "Network connection failed, aborting DB update.");
-#           endif
+            log_i("Network connection failed, aborting DB update.");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
 
             esp_http_client_cleanup(httpclient);
@@ -427,16 +405,14 @@ namespace DBNS {
         writer.close();
         downloadingDB = false;
 
-#       ifdef DEBUG
-        Serial.println("Disconnecting from server and finishing db update.");
-#       endif
+        log_v("Disconnecting from server and finishing db update.");
 
         return finishedOK;
     }
 
 
 void UpdateDBManager::startChecksumDownload() {
-        Serial.println("Started checksum download");
+        log_v("Started checksum download");
 
         esp_http_client_config_t config = {
             .host = "10.0.2.106",
@@ -461,9 +437,7 @@ void UpdateDBManager::startChecksumDownload() {
         if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
             // Connection failed. No worries, just pretend
             // nothing ever happened and try again later
-#           ifdef DEBUG
-            ESP_LOGE(TAG, "Network connection failed, aborting DB update.");
-#           endif
+            log_i("Network connection failed, aborting DB update.");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
 
             esp_http_client_cleanup(httpclient);
@@ -505,9 +479,7 @@ void UpdateDBManager::startChecksumDownload() {
         writer.close();
         downloadingChecksum = false;
 
-#       ifdef DEBUG
-        Serial.println("Disconnecting from server and finishing checksum download.");
-#       endif
+        log_v("Disconnecting from server and finishing checksum download.");
 
         return finishedOK;
     }
@@ -533,9 +505,7 @@ void UpdateDBManager::startChecksumDownload() {
 
     bool UpdateDBManager::verifyChecksum() {
         // calculates hash from local recent downloaded db
-#       ifdef DEBUG
-        Serial.println("Finished downloading hash");
-#       endif
+        log_v("Finished downloading hash");
 
         String name = (String) "/sd" + otherFile; // FIXME:
 
@@ -543,7 +513,7 @@ void UpdateDBManager::startChecksumDownload() {
                                  name.c_str(), localHashHex);
 
         if (rc != 0) {
-            Serial.printf("Failed to access file %s\n", name.c_str());
+            log_w("Failed to access file %s", name.c_str());
             return false;
         }
 
@@ -557,12 +527,8 @@ void UpdateDBManager::startChecksumDownload() {
         f.readString().toCharArray(servHash, 65);
         f.close();
 
-#       ifdef DEBUG
-        Serial.print("Hash from local file:  ");
-        Serial.println(hash);
-        Serial.print("Hash from server file: ");
-        Serial.println(servHash);
-#       endif
+        log_v("Hash from local file: %s; Hash from server file: %s",
+              hash, servHash);
 
         if(strcmp(hash, servHash))
             return false;
@@ -571,9 +537,7 @@ void UpdateDBManager::startChecksumDownload() {
 
     void UpdateDBManager::activateNewDBFile() {
         if (!verifyChecksum()) {
-#           ifdef DEBUG
-            Serial.print("Downloaded DB file is corrupted (checksums are not equal), ignoring.");
-#           endif
+            log_i("Downloaded DB file is corrupted (checksums are not equal), ignoring.");
             SD.remove(otherFile);
             return;
         }
@@ -582,9 +546,7 @@ void UpdateDBManager::startChecksumDownload() {
         authorizer->closeDB();
 
         if (authorizer->openDB(currentFile) != SQLITE_OK) {
-#           ifdef DEBUG
-            Serial.println("Error opening the updated DB, reverting to old one");
-#           endif
+            log_w("Error opening the updated DB, reverting to old one");
             swapFiles();
             // FIXME: in the unlikely event that this fails too, we are doomed
             authorizer->openDB(currentFile);
@@ -638,9 +600,7 @@ void UpdateDBManager::startChecksumDownload() {
             if (!checkFileFreshness(currentTimestampFile)) {
                 if (!checkFileFreshness(otherTimestampFile)) {
                     if (!downloadingDB && !downloadingChecksum) {
-    #                   ifdef DEBUG
-                        Serial.printf("Downloading DB for the first time...");
-    #                   endif
+                        log_i("Downloading DB for the first time...");
                         startDBDownload();
                     } else {
                         update();
@@ -652,16 +612,14 @@ void UpdateDBManager::startChecksumDownload() {
             }
         }
 
-#       ifdef DEBUG
-        Serial.printf("Choosing %s as current DB.\n", currentFile);
-#       endif
+        log_d("Choosing %s as current DB.\n", currentFile);
         authorizer->openDB(currentFile); 
     }
 
     void FileWriter::open(const char *filename) {
         file = SD.open(filename, FILE_WRITE);
         if(!file) { 
-            Serial.println("Error openning DB file.");
+            log_e("Error openning DB file.");
         }
   
 #       ifdef USE_SOCKETS
@@ -672,10 +630,7 @@ void UpdateDBManager::startChecksumDownload() {
         previous = 0;
 #       endif
 
-#       ifdef DEBUG
-        Serial.print("Writing to ");
-        Serial.println(filename);
-#       endif
+        log_v("Writing to %s", filename);
     }
 
 
@@ -702,23 +657,20 @@ void UpdateDBManager::startChecksumDownload() {
         int rc = sqlite3_open(name.c_str(), &sqlitedb);
         if (rc != SQLITE_OK)
         {
-            Serial.printf("Can't open database: %s\n", sqlite3_errmsg(sqlitedb));
+            log_e("Can't open database: %s", sqlite3_errmsg(sqlitedb));
         } else {
 
-#           ifdef DEBUG
-            Serial.printf("Opened database successfully %s\n", filename);
-#           endif
+            log_v("Opened database successfully %s", filename);
             rc = sqlite3_prepare_v2(sqlitedb,
                                     "SELECT EXISTS(SELECT * FROM auth WHERE userID=? AND doorID=?)",
                                     -1, &dbquery, NULL);
 
             if (rc != SQLITE_OK) {
-                Serial.printf("Can't generate prepared statement: \n");
-                Serial.printf("%s: %s\n", sqlite3_errstr(sqlite3_extended_errcode(sqlitedb)), sqlite3_errmsg(sqlitedb));
-#           ifdef DEBUG
+                log_e("Can't generate prepared statement: %s: %s",
+                      sqlite3_errstr(sqlite3_extended_errcode(sqlitedb)),
+                      sqlite3_errmsg(sqlitedb));
             } else {
-                Serial.printf("Prepared statement created\n");
-#           endif
+                log_v("Prepared statement created");
             }
         }
 
@@ -730,9 +682,9 @@ void UpdateDBManager::startChecksumDownload() {
         int rc = sqlite3_open(filename, &sqlitelog);
 
         if (rc != SQLITE_OK) {
-            Serial.printf("Can't open database: %s\n", sqlite3_errmsg(sqlitelog));
+            log_e("Can't open database: %s", sqlite3_errmsg(sqlitelog));
         } else {
-            Serial.printf("Opened database successfully\n");
+            log_v("Opened database successfully");
 
             // prepare query
             rc = sqlite3_prepare_v2(sqlitelog,
@@ -740,12 +692,10 @@ void UpdateDBManager::startChecksumDownload() {
                                     -1, &logquery, NULL);
 
             if (rc != SQLITE_OK) {
-                Serial.printf("Can't generate prepared statement for log DB: %s\n",
+                log_e("Can't generate prepared statement for log DB: %s",
                               sqlite3_errmsg(sqlitelog));
-#           ifdef DEBUG
             } else {
-                Serial.printf("Prepared statement created for log DB\n");
-#           endif
+                log_v("Prepared statement created for log DB");
             }
         }
         return rc;
@@ -759,13 +709,9 @@ void UpdateDBManager::startChecksumDownload() {
         if (sqlitedb == NULL)
             return false;
 
-#       ifdef DEBUG
-        Serial.print("Card reader ");
-        Serial.print(readerID);
-        Serial.println(" was used.");
-        Serial.print("We received -> ");
-        Serial.println(cardID);
-#       endif
+        log_v("Card reader %s was used. Received card ID %lu",
+              readerID, cardID);
+
         sqlite3_int64 card = cardID;
         sqlite3_reset(dbquery);
         sqlite3_bind_int64(dbquery, 1, card);
@@ -782,7 +728,7 @@ void UpdateDBManager::startChecksumDownload() {
         }
 
         if (rc != SQLITE_DONE) {
-            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitedb));
+            log_e("Error querying DB: %s", sqlite3_errmsg(sqlitedb));
         }
 
         generateLog(cardID, readerID, authorized);
@@ -825,7 +771,7 @@ void UpdateDBManager::startChecksumDownload() {
         }
 
         if (rc != SQLITE_DONE) {
-            Serial.printf("Error querying DB: %s\n", sqlite3_errmsg(sqlitelog));
+            log_e("Error querying DB: %s", sqlite3_errmsg(sqlitelog));
         }
         closelogDB();
     }

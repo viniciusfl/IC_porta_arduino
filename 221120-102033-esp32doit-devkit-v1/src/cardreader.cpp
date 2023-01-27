@@ -1,7 +1,9 @@
+static const char* TAG = "card";
+
+#include <common.h>
 #include <Arduino.h>
 #include <Wiegand.h>
 #include <cardreader.h>
-#include <common.h>
 
 // Interrupts sometimes fail with the ControlID reader,
 // so let's use polling instead.
@@ -96,27 +98,22 @@ namespace ReaderNS {
     // Instead of a message, the seconds parameter can be anything you want --
     // Whatever you specify on `wiegand.onStateChange()`
     void IRAM_ATTR stateChanged(bool plugged, const char* message) {
-        Serial.print(message);
-        Serial.println(plugged ? "CONNECTED" : "DISCONNECTED");
+        log_i("%s %s", message, plugged ? "CONNECTED" : "DISCONNECTED");
     }
 
     void IRAM_ATTR receivedDataError(Wiegand::DataError error,
                                      uint8_t* rawData, uint8_t rawBits,
                                      const char* message) {
 
-        Serial.print(message);
-        Serial.print(Wiegand::DataErrorStr(error));
-        Serial.print(" - Raw data: ");
-        Serial.print(rawBits);
-        Serial.print("bits / ");
-
         //Print value in HEX
         char buf[17]; // 64 bits, way more than enough
         uint8_t bytes = (rawBits+7)/8;
         for (int i = 0; i < bytes; ++i) {
             snprintf(buf + 2*i, 3, "%02hhx", rawData[i]);
-         }
-        Serial.println(buf);
+        }
+
+        log_i("%s %s - Raw data: %u bits / %s", message,
+              Wiegand::DataErrorStr(error), rawBits, buf);
     }
 
 void IRAM_ATTR setExternal0PinState() {
@@ -255,12 +252,8 @@ internal.setPin1State(digitalRead(INTERNAL_D1));
         external.reset();
         internal.reset();
 
-#       ifdef DEBUG
-        Serial.print(returnReaderID);
-        Serial.print(" card reader was used.");
-        Serial.print("We received card ID -> ");
-        Serial.println(returnCardID);
-#       endif
+        log_v("Card reader %s was used. Received card ID %lu",
+              returnReaderID, returnCardID);
 
         newAccess = false;
 

@@ -1,3 +1,5 @@
+static const char* TAG = "network";
+
 #include <common.h>
 #include <WiFi.h>
 #include <networkmanager.h>
@@ -41,9 +43,8 @@ namespace NetNS {
     /* events handling */
     // https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/#10 
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
-        Serial.print("Connected to WiFi successfully!");
-        Serial.print(" IP address: ");
-        Serial.println(WiFi.localIP());
+        log_v("Connected to WiFi successfully! IP address: %s",
+              WiFi.localIP());
 
         configNTP();
     }
@@ -60,9 +61,7 @@ namespace NetNS {
 
         lastNetCheck = currentMillis;
 
-#       ifdef DEBUG
         printNetStatus();
-#       endif
 
         if (WiFi.status() == WL_CONNECTED) {
             // All is good!
@@ -79,27 +78,28 @@ namespace NetNS {
     }
 
     void printNetStatus() {
+#       if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE
+
         byte macBuffer[6];  // create a buffer to hold the MAC address
         WiFi.macAddress(macBuffer); // fill the buffer
-        Serial.print("The MAC address is: ");
-        for (byte octet = 0; octet < 6; ++octet) {
-            Serial.print(macBuffer[octet], HEX);
-            if (octet < 5) {
-                Serial.print(':');
-            }
+
+        // Now let's convert this to a string
+        char txtbuf[19]; // aa:bb:cc:dd:ee:ff:\0
+        for (int i = 0; i < 6; ++i) {
+            snprintf(txtbuf + 3*i, 4, "%02hhx:", macBuffer[i]);
         }
-        Serial.println("");
+        txtbuf[17] = 0; // eliminate extra ":" at the end
+        log_v("The MAC address is: %s", txtbuf);
 
         if ((WiFi.status() != WL_CONNECTED)) {
-            Serial.println("Not connected to WiFi.");
+            log_v("Not connected to WiFi.");
             return;
         }
 
-        Serial.println("");
-        Serial.print("The IP address is: ");
-        Serial.println(WiFi.localIP());
-        Serial.print("The wifi network is: ");
-        Serial.println(WiFi.SSID());
+        log_v("The IP address is %s and the wifi net is %s",
+              WiFi.localIP(), WiFi.SSID());
+
+#       endif
     }
 
     bool connected() {

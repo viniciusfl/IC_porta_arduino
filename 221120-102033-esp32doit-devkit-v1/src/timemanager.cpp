@@ -1,3 +1,5 @@
+static const char* TAG = "time";
+
 #include <common.h>
 #include <SPI.h>
 #include <stdlib.h>
@@ -5,8 +7,6 @@
 #include <time.h>
 #include <timemanager.h>
 #include <networkmanager.h>
-
-#define DEBUGTIMEMAN
 
 #define READJUST_CLOCK_INTERVAL 60000 // 10s, just for testing; a good
                                       // value is 10800 (3 hours)
@@ -50,9 +50,7 @@ namespace TimeNS {
 
         if (!rtc.begin()) {
             HWClockExists = false;
-#           ifdef DEBUGTIMEMAN
-            Serial.println("Couldn't find HW clock, continuing with NTP only");
-#           endif
+            log_i("Couldn't find HW clock, continuing with NTP only");
         } else {
             HWClockExists = true;
 
@@ -95,10 +93,13 @@ namespace TimeNS {
             if (getLocalTime(&timeinfo, 30000)) { // 30s timeout
                 timeOK = true;
             } else if (++attempts > 3) {
+                log_e("Failed to obtain time from both HW clock \
+                      and network too many times, restarting");
                 ESP.restart(); // Desperate times call for desperate measures
             } else {
-                Serial.print("Failed to obtain time from both HW clock ");
-                Serial.println("and network, resetting network");
+                log_i("Failed to obtain time from both HW clock \
+                      and network, resetting network");
+
                 netReset();
             }
         }
@@ -107,9 +108,7 @@ namespace TimeNS {
         // HW clock for the first time
         update();
 
-#       ifdef DEBUGTIMEMAN
-        Serial.println("Date/time are set!");
-#       endif
+        log_v("Date/time are set!");
     }
 
     // This should be called from loop()
@@ -124,29 +123,21 @@ namespace TimeNS {
     }
 
     void printDate(DateTime moment) {
+#       if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE
+
         char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça",
                                       "quarta", "quinta", "sexta", "sabado"};
 
-        Serial.print(moment.year(), DEC);
-        Serial.print('/');
-        Serial.print(moment.month(), DEC);
-        Serial.print('/');
-        Serial.print(moment.day(), DEC);
-        Serial.print(" (");
-        Serial.print(daysOfTheWeek[moment.dayOfTheWeek()]);
-        Serial.print(") ");
-        Serial.print(moment.hour(), DEC);
-        Serial.print(':');
-        Serial.print(moment.minute(), DEC);
-        Serial.print(':');
-        Serial.print(moment.second(), DEC);
-        Serial.println();
-        Serial.print(" since midnight 1/1/1970 = ");
-        Serial.print(moment.unixtime());
-        Serial.print("s = ");
-        Serial.print(moment.unixtime() / 86400L);
-        Serial.print("d");
-        Serial.println(" UTC"); // Let's always use UTC
+        char buf[192];
+        sprintf(buf, "%u/%u/%u (%s) %u:%u:%u UTC\nsince midnight 1/1/1970 = \
+                 %us (%u days)", moment.year(), moment.month(),
+                 moment.day(), daysOfTheWeek[moment.dayOfTheWeek()],
+                 moment.hour(), moment.minute(), moment.second(),
+                 moment.unixtime(), moment.unixtime() / 86400L);
+
+        log_v("%s", buf);
+
+#       endif
     }
 
     void TimeManager::update() {
@@ -157,21 +148,15 @@ namespace TimeNS {
 
         unsigned long systemtime = now;
         unsigned long hwclocktime = rtc.now().unixtime();
-#       ifdef DEBUGTIMEMAN
-        Serial.print("System date: ");
-        Serial.println(systemtime);
+
+        log_v("System date: %lu", systemtime);
         printDate(DateTime(systemtime));
-        Serial.print("HW clock date: ");
-        Serial.println(hwclocktime);
+        log_v("HW clock date: %lu", hwclocktime);
         printDate(DateTime(hwclocktime));
-        Serial.print("Difference: ");
-        Serial.println(systemtime - hwclocktime);
-#       endif
+        log_v("Difference: %lu", systemtime - hwclocktime);
 
         if (systemtime - hwclocktime >= 10) {
-#           ifdef DEBUGTIMEMAN
-            Serial.println("Updating hardware clock time");
-#           endif
+            log_v("Updating hardware clock time");
             rtc.adjust(DateTime(systemtime));
         }
     }

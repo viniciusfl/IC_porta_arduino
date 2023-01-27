@@ -1,3 +1,5 @@
+static const char* TAG = "main";
+
 #include <common.h>
 #include <networkmanager.h>
 #include <timemanager.h>
@@ -13,10 +15,11 @@ void setup() {
     Serial.begin(115200);
     // wait for serial port to connect. Needed for native USB port only
     while (!Serial) { ; }
+    delay(100);
 
-#   ifdef DEBUG
-    Serial.println("Start program");
-#   endif
+    initlog();
+
+    log_v("Start program");
 
     currentMillis = millis();
     initWiFi();
