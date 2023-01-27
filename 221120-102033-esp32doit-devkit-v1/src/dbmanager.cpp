@@ -625,8 +625,19 @@ namespace DBNS {
             }
         }
 
+        // If we were forced to download a new file above, it was already
+        // opened by update(), but there is no harm in doing it here again
         log_d("Choosing %s as current DB.\n", currentFile);
-        authorizer->openDB(currentFile); 
+        if (authorizer->openDB(currentFile) != SQLITE_OK) {
+            log_e("Something bad happen with the DB file! "
+                  "Downloading a fresh one");
+            SD.remove(currentFile);
+            SD.remove(otherFile);
+            SD.remove(currentTimestampFile);
+            SD.remove(otherTimestampFile);
+            authorizer->closeDB();
+            chooseInitialFile(); // this is ugly, sue me
+        }
     }
 
     inline void FileWriter::open(const char *filename) {
