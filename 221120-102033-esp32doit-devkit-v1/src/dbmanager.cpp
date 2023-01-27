@@ -21,6 +21,8 @@ static const char *TAG = "dbman";
 //#include "esp_crt_bundle.h"
 #endif
 
+#include <networkmanager.h>
+
 #include <dbmanager.h>
 #include <keys.h>
 
@@ -98,7 +100,7 @@ namespace DBNS {
 
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
-        inline void processDownload();
+        inline void processCurrentDownload();
 
         unsigned char oldChecksum[64];
         bool downloadingChecksum = false;
@@ -110,6 +112,9 @@ namespace DBNS {
         void startDBDownload();
         bool downloadEnded();
         inline bool finishDBDownload();
+
+        bool startDownload(const char*);
+        inline bool finishCurrentDownload();
         inline void activateNewDBFile();
 
         Authorizer *authorizer;
@@ -178,7 +183,7 @@ namespace DBNS {
                 }
             } else {
                 // still downloading the checksum
-                processDownload();
+                processCurrentDownload();
             }
 
             return;
@@ -194,119 +199,117 @@ namespace DBNS {
             }
         } else {
             // still downloading the DB
-            processDownload();
+            processCurrentDownload();
         }
     }
 
-#   ifdef USE_SOCKETS
     void UpdateDBManager::startDBDownload() {
-        // If WiFI is disconnected, pretend nothing
-        // ever happened and try again later
-        if (WiFi.status() != WL_CONNECTION_LOST){
-            log_i("No internet available, canceling db update.");
+        log_v("Starting DB download");
+        if (!startDownload("/dataBaseIME.db")) {
+            log_i("Network failure, cancelling DB download");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             return;
-        } 
-
-        netclient.connect(SERVER, 80);
-
-        if (netclient.connected()) {
-            log_v("Connected to server.");
-        } else {
-            log_i("Connection to server failed.");
         }
-
-        // If connection failed, pretend nothing
-        // ever happened and try again later
-        if (!netclient.connected()) {
-            log_i("Client is not connected, aborting DB update.");
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-            netclient.stop();
-            return;
-        }
-
+        log_v("Started DB download");
         downloadingDB = true;
-
-        netclient.println("GET /dataBaseIME.db HTTP/1.1");
-        netclient.println(((String) "Host: ") + SERVER);
-        netclient.println("Connection: close");
-        netclient.println();
-
-        log_v("---> Started DB upgrade...");
 
         // remove old DB files
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
-
         writer.open(otherFile);
     }
 
-    inline void UpdateDBManager::processDownload() {
-        writer.write(netclient);
-    }
-
-    inline bool UpdateDBManager::finishDBDownload() {
-        netclient.flush();
-        netclient.stop();
-        writer.close();
-        downloadingDB = false;
-
-        log_v("Disconnecting from server and finishing db update.");
-        log_v("Started checksum download.");
-
-        // we do not really check whether the download succeeded here
-        return true;
-    }
-
     inline void UpdateDBManager::startChecksumDownload() {
-        // If WiFI is disconnected, pretend nothing
-        // ever happened and try again later
-        if (WiFi.status() != WL_CONNECTION_LOST){
-            log_i("No internet available, canceling db update.");
+        log_v("Starting checksum download");
+        if (!startDownload("/checksum")) {
+            log_i("Network failure, cancelling checksum download");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             return;
         }
-
-        netclient.connect(SERVER, 80);
-
-        if (netclient.connected()) {
-            log_v("Connected to server.");
-        } else {
-            log_i("Connection to server failed.");
-        }
-
-        // If connection failed, pretend nothing
-        // ever happened and try again later
-        if (!netclient.connected()) {
-            log_i("Client checksum disconnected... aborting DB update.");
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-            netclient.stop();
-            return;
-        }
-
+        log_v("Started checksum download");
         downloadingChecksum = true;
-
-        // http request to get hash of db from server
-        netclient.println("GET /checksum HTTP/1.1");
-        netclient.println(((String) "Host: ") + SERVER);
-        netclient.println("Connection: close");
-        netclient.println();
 
         File f = SD.open("/checksum");
         f.read(oldChecksum, 64);
         f.close();
 
         SD.remove("/checksum");
-
         writer.open("/checksum");
     }
 
+    inline bool UpdateDBManager::finishDBDownload() {
+        downloadingDB = false;
+
+        bool finishedOK = finishCurrentDownload();
+
+        if (finishedOK) {
+            log_v("DB download finished, disconnecting from server.");
+        } else {
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+            log_v("DB download finished with error, ignoring file.");
+        }
+
+        return finishedOK;
+    }
+
     inline bool UpdateDBManager::finishChecksumDownload() {
+        downloadingChecksum = false;
+
+        bool finishedOK = finishCurrentDownload();
+
+        if (finishedOK) {
+            log_v("Checksum download finished, disconnecting from server.");
+        } else {
+            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+            log_v("Checksum download finished with error, ignoring file.");
+        }
+
+        return finishedOK;
+    }
+
+
+#   ifdef USE_SOCKETS
+    bool UpdateDBManager::startDownload(const char* filename) {
+        // If WiFI is disconnected, pretend nothing
+        // ever happened and try again later
+        if (!connected()) {
+            log_i("No internet available.");
+            return false;
+        }
+
+        netclient.connect(SERVER, 80);
+
+        // If connection failed, pretend nothing
+        // ever happened and try again later
+        if (!netclient.connected()) {
+            log_i("Connection failed.");
+            netclient.stop();
+            return false;
+        }
+
+        log_v("Connected to server.");
+
+        char buf[192];
+        buf[0] = 0;
+        snprintf(buf, 192,
+                      "GET %s HTTP/1.1\n"
+                      "Host: %s\n"
+                      "Connection: close\n\n",
+                 filename, SERVER);
+        netclient.print(buf);
+
+        return true;
+    }
+
+
+    inline void UpdateDBManager::processCurrentDownload() {
+        writer.write(netclient);
+    }
+
+    inline bool UpdateDBManager::finishCurrentDownload() {
         netclient.flush();
         netclient.stop();
-        downloadingChecksum = false;
         writer.close();
-
         // we do not really check whether the download succeeded here
         return true;
     }
@@ -354,11 +357,18 @@ namespace DBNS {
 
 #   else // USE_SOCKETS is undefined
 
-    void UpdateDBManager::startDBDownload() {
+    bool UpdateDBManager::startDownload(const char* filename) {
+        // If WiFI is disconnected, pretend nothing
+        // ever happened and try again later
+        if (!connected()) {
+            log_i("No internet available.");
+            return false;
+        }
+
         esp_http_client_config_t config = {
             .host = "10.0.2.106",
             .port = 443,
-            .path = "/dataBaseIME.db",
+            .path = filename,
             .cert_pem = rootCA,
             .client_cert_pem = clientCertPem,
             .client_key_pem = clientKeyPem,
@@ -378,128 +388,42 @@ namespace DBNS {
         if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
             // Connection failed. No worries, just pretend
             // nothing ever happened and try again later
-            log_i("Network connection failed, aborting DB update.");
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-
+            log_i("Network connection failed.");
             esp_http_client_cleanup(httpclient);
-
-            return;
+            return false;
         }
 
         // Download started ok! Normally "err" should be EAGAIN,
         // meaning the download started but has not yet finished,
         // but maybe the file is very small and download ended
         // already. If this happens, we do nothing special here.
-        downloadingDB = true;
 
-        // remove old DB files
-        SD.remove(otherTimestampFile);
-        SD.remove(otherFile);
-
-        writer.open(otherFile);
+        return true;
     }
 
-    inline bool UpdateDBManager::finishDBDownload() {
+    inline bool UpdateDBManager::finishCurrentDownload() {
         bool finishedOK = true;
-        if (esp_http_client_is_complete_data_received(httpclient)) {
-            log_v("Finished ok\n");
-        } else {
-            log_i("Did not finish ok\n");
+        if (!esp_http_client_is_complete_data_received(httpclient)) {
             finishedOK = false;
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
         };
 
         esp_http_client_close(httpclient); // TODO: this should not be needed
         esp_http_client_cleanup(httpclient);
-        writer.close();
-        downloadingDB = false;
-
-        log_v("Disconnecting from server and finishing db update.");
 
         return finishedOK;
-    }
-
-
-    inline void UpdateDBManager::startChecksumDownload() {
-        log_v("Started checksum download");
-
-        esp_http_client_config_t config = {
-            .host = "10.0.2.106",
-            .port = 443,
-            .path = "/checksum",
-            .cert_pem = rootCA,
-            .client_cert_pem = clientCertPem,
-            .client_key_pem = clientKeyPem,
-            .method = HTTP_METHOD_GET,
-            .timeout_ms = 60000,
-            .event_handler = handler,
-            .transport_type = HTTP_TRANSPORT_OVER_SSL,
-            .buffer_size = 4096,
-            .is_async = true,
-            .skip_cert_common_name_check = true,
-        };
-
-        httpclient = esp_http_client_init(&config);
-
-        esp_err_t err = esp_http_client_perform(httpclient);
-
-        if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
-            // Connection failed. No worries, just pretend
-            // nothing ever happened and try again later
-            log_i("Network connection failed, aborting DB update.");
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-
-            esp_http_client_cleanup(httpclient);
-
-            return;
-        }
-
-        // Download started ok! Normally "err" should be EAGAIN,
-        // meaning the download started but has not yet finished,
-        // but maybe the file is very small and download ended
-        // already. If this happens, we do nothing special here.
-        downloadingChecksum = true;
-
-        File f = SD.open("/checksum");
-        f.read(oldChecksum, 64);
-        f.close();
-
-        SD.remove("/checksum");
-
-        writer.open("/checksum");
     }
 
     // Nothing to do here, all work is done by the callback function
-    inline void UpdateDBManager::processDownload() { }
-
-    inline bool UpdateDBManager::finishChecksumDownload() {
-        bool finishedOK = true;
-        if (esp_http_client_is_complete_data_received(httpclient)) {
-            log_v("Finished checksum ok\n");
-        } else {
-            log_i("Did not finish ok\n");
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-            bool finishedOK = false;
-        };
-
-        esp_http_client_close(httpclient); // TODO: this should not be needed
-        esp_http_client_cleanup(httpclient);
-        writer.close();
-        downloadingChecksum = false;
-
-        log_v("Disconnecting from server and finishing checksum download.");
-
-        return finishedOK;
-    }
+    inline void UpdateDBManager::processCurrentDownload() { }
 
     inline void FileWriter::write(byte* buffer, int size) {
         file.write(buffer, size);
     }
 
-
 #   endif // USE_SOCKETS
 
-    bool UpdateDBManager::downloadEnded(){
+
+    bool UpdateDBManager::downloadEnded() {
 #       ifdef USE_SOCKETS
         if (!netclient.available() && !netclient.connected()) {
 #       else
@@ -564,7 +488,6 @@ namespace DBNS {
             authorizer->openDB(currentFile);
         }
     }
-
 
     void UpdateDBManager::swapFiles() {
         const char *tmp = currentFile;
