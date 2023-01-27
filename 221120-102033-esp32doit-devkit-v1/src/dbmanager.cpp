@@ -1,23 +1,28 @@
 static const char *TAG = "dbman";
 
 #include <common.h>
-#include <WiFi.h>
-#include "FS.h"
-#include "SD.h"
+
 #include "SPI.h"
+#include "SD.h"
+#include "FS.h"
 #include <sqlite3.h>
-#include <RTClib.h>
-#include <dbmanager.h>
+
 #include "mbedtls/md.h"
 
-#include "esp_system.h"
-#include <keys.h>
-#include "esp_log.h"
+#ifdef USE_SOCKETS
+#include <WiFi.h>
+#else
 #include "esp_http_client.h"
-#include "esp_event.h"
-#include "esp_netif.h"
 #include "esp_tls.h"
-#include "esp_crt_bundle.h"
+// TODO: I think we do not need these, we should check
+//#include "esp_system.h"
+//#include "esp_event.h"
+//#include "esp_netif.h"
+//#include "esp_crt_bundle.h"
+#endif
+
+#include <dbmanager.h>
+#include <keys.h>
 
 #define MAX_HTTP_RECV_BUFFER 512
 
