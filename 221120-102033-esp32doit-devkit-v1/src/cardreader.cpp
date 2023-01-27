@@ -63,17 +63,15 @@ namespace ReaderNS {
     inline unsigned long bitsToNumber(volatile const uint8_t* data,
                                       volatile const uint8_t bits) {
 
-        String number = "";
-
+        // Convert to hexadecimal
+        char buf[17]; // 64 bits, way more than enough
         uint8_t bytes = (bits+7)/8;
-
-        // concatenate each byte from hex
         for (int i = 0; i < bytes; ++i) {
-          number += String(data[i] >> 4, HEX);
-          number += String(data[i] & 0xF, HEX);
-        }
+            snprintf(buf + 2*i, 3, "%02hhx", data[i]);
+         }
 
-        return strtoul(number.c_str(), NULL, 16);
+        // Convert to decimal
+        return strtoul(buf, NULL, 16);
     }
 
     // Function that is called when card is read; we do not call
@@ -113,12 +111,12 @@ namespace ReaderNS {
         Serial.print("bits / ");
 
         //Print value in HEX
+        char buf[17]; // 64 bits, way more than enough
         uint8_t bytes = (rawBits+7)/8;
-        for (int i=0; i<bytes; i++) {
-            Serial.print(rawData[i] >> 4, 16);
-            Serial.print(rawData[i] & 0xF, 16);
-        }
-        Serial.println();
+        for (int i = 0; i < bytes; ++i) {
+            snprintf(buf + 2*i, 3, "%02hhx", rawData[i]);
+         }
+        Serial.println(buf);
     }
 
 void IRAM_ATTR setExternal0PinState() {

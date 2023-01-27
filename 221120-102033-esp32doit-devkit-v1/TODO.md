@@ -146,7 +146,5 @@
    call was at least 1 hour before. This would prevent us from hammering
    the NTP serve if the network connection is erratic.
 
- * Rewrite bitsToNumber without `String` (see `verifyChecksum()`)
-
  * Before downloading the DB, download the checksum to verify whether
    it has changed; if not, skip downloading
