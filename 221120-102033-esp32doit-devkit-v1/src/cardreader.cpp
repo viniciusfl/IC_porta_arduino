@@ -160,15 +160,11 @@ void IRAM_ATTR setInternal1PinState() {
         pinMode(EXTERNAL_BEEP, OUTPUT);
         digitalWrite(EXTERNAL_BEEP, HIGH);
 
-        // Ideally, we should define the interrupt handlers with
-        // ESP_INTR_FLAG_IRAM and IRAM_ATTR (or at least with only IRAM_ATTR):
+        // We define the interrupt handlers with IRAM_ATTR; it is not really
+        // necessary to use ESP_INTR_FLAG_IRAM:
         // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/intr_alloc.html
         // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/memory-types.html
-        // However, this is probably overkill and would be complicated because
-        // we would need to apply that to setPinXState & friends too.
-        //
-        // We use lambda functions to call the correct object from
-        // the wiegand library with the appropriate parameter
+        // This is why we had to incorporate the Wiegand lib and modify it.
 
 #       ifdef USE_INTERRUPTS
         // Initialize interrupt handler for first Wiegand reader pins
