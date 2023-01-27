@@ -95,8 +95,6 @@ namespace DBNS {
         unsigned long lastDownloadTime = 0;
         void processDownload();
 
-        unsigned char localHashHex[32];
-        unsigned char serverHash[64];
         unsigned char oldChecksum[64];
         bool downloadingChecksum = false;
         void startChecksumDownload();
@@ -508,6 +506,8 @@ void UpdateDBManager::startChecksumDownload() {
         log_v("Finished downloading hash");
 
         String name = (String) "/sd" + otherFile; // FIXME:
+
+        unsigned char localHashHex[32];
 
         int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
                                  name.c_str(), localHashHex);
