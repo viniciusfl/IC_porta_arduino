@@ -133,16 +133,6 @@ void IRAM_ATTR setInternal1PinState() {
 }
 
 
-/*
-external.setPin0State(digitalRead(EXTERNAL_D0));
-
-external.setPin1State(digitalRead(EXTERNAL_D1));
-
-internal.setPin0State(digitalRead(INTERNAL_D0));
-
-internal.setPin1State(digitalRead(INTERNAL_D1));
-*/
-
     // This should be called from setup()
     void initCardReaders() {
 
