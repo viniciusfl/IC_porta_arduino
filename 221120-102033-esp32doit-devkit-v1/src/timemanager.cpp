@@ -22,7 +22,7 @@ namespace TimeNS {
     const long  gmtOffset_sec = -3600*3;
     const int   daylightOffset_sec = 0;
 
-    void configNTP() {
+    inline void configNTP() {
         // initialize esp32 sntp client, which calls settimeofday
         // periodically; this performs a DNS lookup and an NTP
         // request, so it takes some time. If the network is not
@@ -34,8 +34,8 @@ namespace TimeNS {
 
     class TimeManager {
         public:
-            void init();
-            void checkSync();
+            inline void init();
+            inline void checkSync();
         private:
             RTC_DS1307 rtc;
             unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
@@ -45,7 +45,7 @@ namespace TimeNS {
 
     // This should be called from setup(), after NTP has been configured
     // (it's ok if the network is not up and/or NTP is not synchronized yet)
-    void TimeManager::init() {
+    inline void TimeManager::init() {
         lastClockAdjustment = 0; // when we last adjusted the HW clock
 
         if (!rtc.begin()) {
@@ -112,7 +112,7 @@ namespace TimeNS {
     }
 
     // This should be called from loop()
-    void TimeManager::checkSync() {
+    inline void TimeManager::checkSync() {
         if (currentMillis - lastClockAdjustment > READJUST_CLOCK_INTERVAL) {
             // Actually, this is the time of the last *attempt* to adjust
             // the clock, but that's ok: If it fails, we do nothing special,
@@ -164,14 +164,8 @@ namespace TimeNS {
     TimeManager hwclock;
 }
 
-void initTime() {
-    TimeNS::hwclock.init();
-}
+void initTime() { TimeNS::hwclock.init(); }
 
-void configNTP() {
-    TimeNS::configNTP();
-}
+void configNTP() { TimeNS::configNTP(); }
 
-void checkTimeSync() {
-    TimeNS::hwclock.checkSync();
-}
+void checkTimeSync() { TimeNS::hwclock.checkSync(); }

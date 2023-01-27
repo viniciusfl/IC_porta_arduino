@@ -131,7 +131,7 @@ namespace ReaderNS {
 
 
     // This should be called from setup()
-    void initCardReaders() {
+    inline void initCardReaders() {
 
         // Install listeners and initialize first Wiegand reader
         external.onReceive(captureIncomingData, "external");
@@ -244,9 +244,7 @@ namespace ReaderNS {
     }
 }
 
-void initCardReaders() {
-    ReaderNS::initCardReaders();
-}
+void initCardReaders() { ReaderNS::initCardReaders(); }
 
 bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
     return ReaderNS::checkCardReaders(readerID, cardID);

@@ -22,21 +22,20 @@ namespace NetNS {
 
     void printNetStatus();
 
-    void netReset() {
+    inline void netReset() {
         WiFi.disconnect(true);
         WiFi.begin(ssid, password);
         //WiFi.begin(ssid);
     }
 
     // This should be called from setup()
-    void initWiFi() {
-
+    inline void initWiFi() {
         // select WiFi mode
         WiFi.mode(WIFI_STA);
 
-
         // register WiFi event handlers
         WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+
         netReset();
     }
 
@@ -55,7 +54,7 @@ namespace NetNS {
     // event that such reconnection fails, we will probably be stuck
     // offline. This code handles this rare case.
     // TODO: detect and log if we stay offline for a really long time
-    //       (several hours)
+    //       (several hours) - maybe force a reset?
     inline void checkNetConnection() {
         if (currentMillis - lastNetCheck <= CHECK_NET_INTERVAL) return;
 
@@ -102,23 +101,13 @@ namespace NetNS {
 #       endif
     }
 
-    bool connected() {
-        return WiFi.status() == WL_CONNECTED;
-    }
+    inline bool connected() { return WiFi.status() == WL_CONNECTED; }
 }
 
-void initWiFi() {
-    NetNS::initWiFi();
-}
+void initWiFi() { NetNS::initWiFi(); }
 
-void checkNetConnection(){
-    NetNS::checkNetConnection();
-}
+void checkNetConnection() { NetNS::checkNetConnection(); }
 
-bool connected() {
-    return NetNS::connected();
-}
+bool connected() { return NetNS::connected(); }
 
-void netReset() {
-    NetNS::netReset();
-}
+void netReset() { NetNS::netReset(); }

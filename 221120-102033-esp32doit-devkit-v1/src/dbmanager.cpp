@@ -35,10 +35,10 @@ namespace DBNS {
     // to query whether a user is authorized to enter.
     class Authorizer {
     public:
-        void init();
+        inline void init();
         int openDB(const char *filename);
-        void closeDB();
-        bool userAuthorized(const char* readerID, unsigned long cardID);
+        inline void closeDB();
+        inline bool userAuthorized(const char* readerID, unsigned long cardID);
 
     private:
         sqlite3 *sqlitedb;
@@ -48,7 +48,7 @@ namespace DBNS {
         void generateLog(unsigned long cardID, const char* readerID,
                          bool authorized);
         int openlogDB();
-        void closelogDB();
+        inline void closelogDB();
     };
 
     // This is an auxiliary class to UpdateDBManager. It processes small
@@ -56,13 +56,13 @@ namespace DBNS {
     // received to disk, minus the HTTP headers.
     class FileWriter {
     public:
-        void open(const char*);
+        inline void open(const char*);
 #       ifdef USE_SOCKETS
-        void write(WiFiClient&);
+        inline void write(WiFiClient&);
 #       else
         inline void write(byte* buffer, int size);
 #       endif
-        void close();
+        inline void close();
     private:
         File file;
 #       ifdef USE_SOCKETS
@@ -82,7 +82,7 @@ namespace DBNS {
     // the current one by means of the "timestamp" file.
     class UpdateDBManager {
     public:
-        void init(Authorizer *);
+        inline void init(Authorizer *);
         void update();
         FileWriter writer;
 
@@ -92,25 +92,25 @@ namespace DBNS {
         const char *currentTimestampFile;
         const char *otherTimestampFile;
 
-        void chooseInitialFile();
+        inline void chooseInitialFile();
         void swapFiles();
         bool checkFileFreshness(const char *);
 
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
-        void processDownload();
+        inline void processDownload();
 
         unsigned char oldChecksum[64];
         bool downloadingChecksum = false;
-        void startChecksumDownload();
-        bool finishChecksumDownload();
-        bool verifyChecksum();
+        inline void startChecksumDownload();
+        inline bool finishChecksumDownload();
+        inline bool verifyChecksum();
 
         bool downloadingDB = false; 
         void startDBDownload();
         bool downloadEnded();
-        bool finishDBDownload();
-        void activateNewDBFile();
+        inline bool finishDBDownload();
+        inline void activateNewDBFile();
 
         Authorizer *authorizer;
 #       ifdef USE_SOCKETS
@@ -125,7 +125,7 @@ namespace DBNS {
 #   endif
 
     // This should be called from setup()
-    void UpdateDBManager::init(Authorizer *authorizer) {
+    inline void UpdateDBManager::init(Authorizer *authorizer) {
         if (!SD.begin()) {
             log_e("Card Mount Failed, aborting");
             while (true) delay(10);
@@ -239,11 +239,11 @@ namespace DBNS {
         writer.open(otherFile);
     }
 
-    void UpdateDBManager::processDownload() {
+    inline void UpdateDBManager::processDownload() {
         writer.write(netclient);
     }
 
-    bool UpdateDBManager::finishDBDownload() {
+    inline bool UpdateDBManager::finishDBDownload() {
         netclient.flush();
         netclient.stop();
         writer.close();
@@ -257,8 +257,7 @@ namespace DBNS {
         return true;
     }
 
-
-    void UpdateDBManager::startChecksumDownload() {
+    inline void UpdateDBManager::startChecksumDownload() {
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
         if (WiFi.status() != WL_CONNECTION_LOST){
@@ -301,7 +300,7 @@ namespace DBNS {
         writer.open("/checksum");
     }
 
-    bool UpdateDBManager::finishChecksumDownload() {
+    inline bool UpdateDBManager::finishChecksumDownload() {
         netclient.flush();
         netclient.stop();
         downloadingChecksum = false;
@@ -312,7 +311,7 @@ namespace DBNS {
     }
 
     // TODO: receiving WiFiClient as a parameter here feels very hackish...
-    void FileWriter::write(WiFiClient& netclient) {
+    inline void FileWriter::write(WiFiClient& netclient) {
         int avail = netclient.available();
         if (avail <= 0) return;
 
@@ -399,7 +398,7 @@ namespace DBNS {
         writer.open(otherFile);
     }
 
-    bool UpdateDBManager::finishDBDownload() {
+    inline bool UpdateDBManager::finishDBDownload() {
         bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
             log_v("Finished ok\n");
@@ -421,7 +420,7 @@ namespace DBNS {
     }
 
 
-void UpdateDBManager::startChecksumDownload() {
+    inline void UpdateDBManager::startChecksumDownload() {
         log_v("Started checksum download");
 
         esp_http_client_config_t config = {
@@ -471,9 +470,9 @@ void UpdateDBManager::startChecksumDownload() {
     }
 
     // Nothing to do here, all work is done by the callback function
-    void UpdateDBManager::processDownload() { }
+    inline void UpdateDBManager::processDownload() { }
 
-    bool UpdateDBManager::finishChecksumDownload() {
+    inline bool UpdateDBManager::finishChecksumDownload() {
         bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
             log_v("Finished checksum ok\n");
@@ -513,7 +512,7 @@ void UpdateDBManager::startChecksumDownload() {
         return false;
     }
 
-    bool UpdateDBManager::verifyChecksum() {
+    inline bool UpdateDBManager::verifyChecksum() {
         // calculates hash from local recent downloaded db
         log_v("Finished downloading hash");
 
@@ -549,7 +548,7 @@ void UpdateDBManager::startChecksumDownload() {
         }
     }
 
-    void UpdateDBManager::activateNewDBFile() {
+    inline void UpdateDBManager::activateNewDBFile() {
         if (!verifyChecksum()) {
             log_i("Downloaded DB file is corrupted (checksums are not equal), ignoring.");
             SD.remove(otherFile);
@@ -602,7 +601,7 @@ void UpdateDBManager::startChecksumDownload() {
         return t > 0;
     }
 
-    void UpdateDBManager::chooseInitialFile() {
+    inline void UpdateDBManager::chooseInitialFile() {
         currentFile = "/bancoA.db";
         otherFile = "/bancoB.db";
         currentTimestampFile = "/TSA.TXT";
@@ -630,7 +629,7 @@ void UpdateDBManager::startChecksumDownload() {
         authorizer->openDB(currentFile); 
     }
 
-    void FileWriter::open(const char *filename) {
+    inline void FileWriter::open(const char *filename) {
         file = SD.open(filename, FILE_WRITE);
         if(!file) { 
             log_e("Error openning DB file.");
@@ -648,7 +647,7 @@ void UpdateDBManager::startChecksumDownload() {
     }
 
 
-    void FileWriter::close() {
+    inline void FileWriter::close() {
 #       ifdef USE_SOCKETS
         file.write(buf, position);
 #       endif
@@ -656,7 +655,7 @@ void UpdateDBManager::startChecksumDownload() {
     }
 
     // This should be called from setup()
-    void Authorizer::init() {
+    inline void Authorizer::init() {
         sqlitedb = NULL; // check the comment near Authorizer::closeDB()
         dbquery = NULL;
         sqlitelog = NULL;
@@ -717,7 +716,7 @@ void UpdateDBManager::startChecksumDownload() {
 
 
     // search element through current database
-    bool Authorizer::userAuthorized(const char* readerID,
+    inline bool Authorizer::userAuthorized(const char* readerID,
                                     unsigned long cardID) {
 
         if (sqlitedb == NULL)
@@ -794,14 +793,14 @@ void UpdateDBManager::startChecksumDownload() {
     // sqlite3_close_v2(C) must be either a NULL pointer or an sqlite3
     // object pointer [...] and not previously closed". So, we always
     // make it NULL here to avoid closing a pointer previously closed.
-    void Authorizer::closeDB() {
+    inline void Authorizer::closeDB() {
         sqlite3_finalize(dbquery);
         dbquery = NULL;
         sqlite3_close_v2(sqlitedb);
         sqlitedb = NULL;
     }
 
-    void Authorizer::closelogDB(){
+    inline void Authorizer::closelogDB(){
         sqlite3_finalize(logquery);
         logquery = NULL;
         sqlite3_close_v2(sqlitelog);
@@ -860,15 +859,12 @@ void UpdateDBManager::startChecksumDownload() {
 }
 
 
-
 void initDB() {
     DBNS::authorizer.init();
     DBNS::updateDBManager.init(&DBNS::authorizer);
 }
 
-void updateDB() {
-    DBNS::updateDBManager.update();
-}
+void updateDB() { DBNS::updateDBManager.update(); }
 
 bool userAuthorized(const char* readerID, unsigned long cardID) {
     return DBNS::authorizer.userAuthorized(readerID, cardID);
