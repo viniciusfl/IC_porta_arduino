@@ -507,32 +507,34 @@ void UpdateDBManager::startChecksumDownload() {
 
         String name = (String) "/sd" + otherFile; // FIXME:
 
-        unsigned char localHashHex[32];
+        unsigned char binHash[32];
 
         int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-                                 name.c_str(), localHashHex);
+                                 name.c_str(), binHash);
 
         if (rc != 0) {
             log_w("Failed to access file %s", name.c_str());
             return false;
         }
 
-        char hash[65];
+        char calculatedHash[65];
         for (int i = 0; i < 32; ++i) {
-            snprintf(hash + 2*i, 3,"%02hhx", localHashHex[i]);
+            snprintf(calculatedHash + 2*i, 3,"%02hhx", binHash[i]);
         }
 
         File f = SD.open("/checksum");
-        char servHash[65];
-        f.readString().toCharArray(servHash, 65);
+        char downloadedHash[65];
+        f.readString().toCharArray(downloadedHash, 65);
         f.close();
 
         log_v("Hash from local file: %s; Hash from server file: %s",
-              hash, servHash);
+              calculatedHash, downloadedHash);
 
-        if(strcmp(hash, servHash))
+        if(strcmp(calculatedHash, downloadedHash)) {
             return false;
-        return true;
+        } else {
+            return true;
+        }
     }
 
     void UpdateDBManager::activateNewDBFile() {
