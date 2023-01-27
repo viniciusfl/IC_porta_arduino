@@ -4,7 +4,6 @@ static const char *TAG = "dbman";
 
 #include "SPI.h"
 #include "SD.h"
-#include "FS.h"
 #include <sqlite3.h>
 
 #include "mbedtls/md.h"
