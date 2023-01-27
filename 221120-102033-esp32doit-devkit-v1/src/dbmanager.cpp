@@ -390,10 +390,10 @@ namespace DBNS {
     bool UpdateDBManager::finishDBDownload() {
         bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
-            ESP_LOGE(TAG, "Finished ok\n");
+            log_v("Finished ok\n");
             lastDownloadTime = currentMillis;
         } else {
-            ESP_LOGE(TAG, "Did not finish ok\n");
+            log_i("Did not finish ok\n");
             finishedOK = false;
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
         };
@@ -464,10 +464,10 @@ void UpdateDBManager::startChecksumDownload() {
     bool UpdateDBManager::finishChecksumDownload() {
         bool finishedOK = true;
         if (esp_http_client_is_complete_data_received(httpclient)) {
-            ESP_LOGE(TAG, "Finished checksum ok\n");
+            log_v("Finished checksum ok\n");
             lastDownloadTime = currentMillis;
         } else {
-            ESP_LOGE(TAG, "Did not finish ok\n");
+            log_i("Did not finish ok\n");
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             bool finishedOK = false;
         };
@@ -799,46 +799,47 @@ void UpdateDBManager::startChecksumDownload() {
     Authorizer authorizer;
     UpdateDBManager updateDBManager;
 
-    // The callback for the HTTP client
 #   ifndef USE_SOCKETS
+    // The callback for the HTTP client
     esp_err_t handler(esp_http_client_event_t *evt) {
+        const char* TAG = "http_callback";
         switch(evt->event_id) {
             case HTTP_EVENT_ERROR:
-                ESP_LOGE(TAG, "HTTP_EVENT_ERROR");
+                log_i("HTTP_EVENT_ERROR");
                 break;
             case HTTP_EVENT_ON_CONNECTED:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_CONNECTED");
+                log_d("HTTP_EVENT_ON_CONNECTED");
                 break;
             case HTTP_EVENT_HEADER_SENT:
-                ESP_LOGE(TAG, "HTTP_EVENT_HEADER_SENT");
+                log_v("HTTP_EVENT_HEADER_SENT");
                 break;
             case HTTP_EVENT_ON_HEADER:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s",
+                log_v("HTTP_EVENT_ON_HEADER, key=%s, value=%s",
                          evt->header_key, evt->header_value);
                 break;
             case HTTP_EVENT_ON_DATA:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+                log_v("HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
                 if (!esp_http_client_is_chunked_response(evt->client)) {
                     updateDBManager.writer.write((byte*) evt->data,
                                                  evt->data_len);
-                } else {ESP_LOGE(TAG, "CHUNKED!");}
+                } else {log_e("CHUNKED!");}
                 break;
             case HTTP_EVENT_ON_FINISH:
-                ESP_LOGE(TAG, "HTTP_EVENT_ON_FINISH");
+                log_d("HTTP_EVENT_ON_FINISH");
                 break;
             case HTTP_EVENT_DISCONNECTED:
-                ESP_LOGE(TAG, "HTTP_EVENT_DISCONNECTED");
+                log_i("HTTP_EVENT_DISCONNECTED");
                 int mbedtls_err = 0;
                 esp_err_t err = esp_tls_get_and_clear_last_error(
                                 (esp_tls_error_handle_t)evt->data,
                                 &mbedtls_err, NULL);
                 if (err != 0) {
-                    ESP_LOGE(TAG, "Last esp error code: 0x%x", err);
-                    ESP_LOGE(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
+                    log_i("Last esp error code: 0x%x", err);
+                    log_i("Last mbedtls failure: 0x%x", mbedtls_err);
                 }
                 break;
             //case HTTP_EVENT_REDIRECT:
-            //    ESP_LOGE(TAG, "HTTP_EVENT_REDIRECT");
+            //    log_d("HTTP_EVENT_REDIRECT");
             //    break;
         }
         return ESP_OK;
