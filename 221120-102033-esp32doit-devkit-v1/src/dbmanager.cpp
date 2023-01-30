@@ -487,6 +487,7 @@ namespace DBNS {
         if (!verifyChecksum()) {
             log_i("Downloaded DB file is corrupted (checksums are not equal), ignoring.");
             SD.remove(otherFile);
+            SD.remove("/checksum");
             return;
         }
 
@@ -496,8 +497,10 @@ namespace DBNS {
         if (openDB(currentFile) != SQLITE_OK) {
             log_w("Error opening the updated DB, reverting to old one");
             swapFiles();
-            // FIXME: in the unlikely event that this fails too, we are doomed
-            openDB(currentFile);
+            if(openDB(currentFile) != SQLITE_OK){ // FIXME: in the unlikely event that this fails too, we are doomed
+                SD.remove("/checksum");
+                // TODO:
+            }
         }
     }
 
