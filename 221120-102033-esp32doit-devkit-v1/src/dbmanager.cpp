@@ -81,11 +81,12 @@ namespace DBNS {
         unsigned long lastDownloadTime = 0;
         inline void processCurrentDownload();
 
-        unsigned char oldChecksum[64];
+        char oldChecksum[65];
         bool downloadingChecksum = false;
         inline void startChecksumDownload();
         inline bool finishChecksumDownload();
         inline bool verifyChecksum();
+        inline bool verifyOldChecksum();
 
         bool downloadingDB = false; 
         void startDBDownload();
@@ -138,7 +139,7 @@ namespace DBNS {
             // I believe the nodeMCU RTC might also have this feature
 
             if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
-                startDBDownload();
+                startChecksumDownload();
             }
 
             return;
@@ -149,13 +150,18 @@ namespace DBNS {
 
         if (downloadingChecksum) { 
             // If we finished downloading the checksum, check whether the
-            // download was successful; if so and the checksum matches,
-            // start using the new DB
+            // download was successful;
             if(downloadEnded()){
                 if (finishChecksumDownload()) {
-                    // both downloads successful, update the timestamp
-                    lastDownloadTime = currentMillis;
-                    activateNewDBFile();
+                    // If old DB checksum and current DB checksum matches,
+                    // it means DB didn't change and we don't need to update 
+                    if (verifyOldChecksum()){
+                        lastDownloadTime = currentMillis;
+                        return;
+                    }
+                    // else, starts downloading DB
+                    startDBDownload();
+
                 }
             } else {
                 // still downloading the checksum
@@ -168,10 +174,13 @@ namespace DBNS {
         // If we did not return above, we are still downloading the DB
 
         // If we finished downloading the DB, check whether the
-        // download was successful; is so, start downloading the checksum
+        // download was successful; if so and the checksum matches,
+        // start using the new DB
         if(downloadEnded()) {
             if (finishDBDownload()) {
-                startChecksumDownload();
+                // Both downloads successful, update the timestamp
+                activateNewDBFile();
+                lastDownloadTime = currentMillis;
             }
         } else {
             // still downloading the DB
@@ -196,6 +205,10 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::startChecksumDownload() {
+        // TODO: In the case that db download fails (download corrupted), /checksum file will
+        // have a wrong checksum. Is it a problem?
+        // I don't think so...
+
         log_v("Starting checksum download");
         if (!startDownload("/checksum")) {
             log_i("Network failure, cancelling checksum download");
@@ -206,7 +219,7 @@ namespace DBNS {
         downloadingChecksum = true;
 
         File f = SD.open("/checksum");
-        f.read(oldChecksum, 64);
+        f.readString().toCharArray(oldChecksum, 65);
         f.close();
 
         SD.remove("/checksum");
@@ -230,7 +243,6 @@ namespace DBNS {
 
     inline bool UpdateDBManager::finishChecksumDownload() {
         downloadingChecksum = false;
-
         bool finishedOK = finishCurrentDownload();
 
         if (finishedOK) {
@@ -382,7 +394,7 @@ namespace DBNS {
         if (!esp_http_client_is_complete_data_received(httpclient)) {
             finishedOK = false;
         };
-
+        writer.close();
         esp_http_client_close(httpclient); // TODO: this should not be needed
         esp_http_client_cleanup(httpclient);
 
@@ -411,6 +423,30 @@ namespace DBNS {
         return false;
     }
 
+    inline bool UpdateDBManager::verifyOldChecksum(){
+        char serverHash[65];
+
+        // If checksum file doesn't exist, there is no
+        // reason to proceed
+        if(SD.exists("/checksum"));
+            return false;
+
+        File f = SD.open("/checksum");
+        f.readString().toCharArray(serverHash, 65);
+        f.close();
+
+        Serial.println(serverHash);
+
+        log_v("Hash from server: %s; Hash from old db: %s",
+              serverHash, oldChecksum);
+
+        if(strcmp(serverHash, oldChecksum)) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
     inline bool UpdateDBManager::verifyChecksum() {
         // calculates hash from local recent downloaded db
         log_v("Finished downloading hash");
@@ -437,7 +473,7 @@ namespace DBNS {
         f.readString().toCharArray(downloadedHash, 65);
         f.close();
 
-        log_v("Hash from local file: %s; Hash from server file: %s",
+        log_v("Hash from local file: %s; \nHash from server file: %s",
               calculatedHash, downloadedHash);
 
         if(strcmp(calculatedHash, downloadedHash)) {
@@ -492,8 +528,8 @@ namespace DBNS {
         // "1" to the file more than once; that's ok, 11 > 0 too :) .
         File f = SD.open(tsfile);
         int t = 0;
-        if (f) {
-            int t = f.parseInt(); // If reading fails, this returns 0
+        if (f.available()) {
+            t = f.parseInt(); // If reading fails, this returns 0
         }
         f.close();
         return t > 0;
@@ -512,7 +548,7 @@ namespace DBNS {
                 if (!checkFileFreshness(otherTimestampFile)) {
                     if (!downloadingDB && !downloadingChecksum) {
                         log_i("Downloading DB for the first time...");
-                        startDBDownload();
+                        startChecksumDownload();
                     } else {
                         update();
                     }
