@@ -537,6 +537,7 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::chooseInitialFile() {
+        START_OF_FUNCTION: // We will use goto further below
         currentFile = "/bancoA.db";
         otherFile = "/bancoB.db";
         currentTimestampFile = "/TSA.TXT";
@@ -544,19 +545,16 @@ namespace DBNS {
         bool dbFileOK = false;
 
          while (!dbFileOK) {
-            dbFileOK = true; // a little optimism might pay off :)
-            if (!checkFileFreshness(currentTimestampFile)) {
-                if (!checkFileFreshness(otherTimestampFile)) {
-                    if (!downloadingDB && !downloadingChecksum) {
-                        log_i("Downloading DB for the first time...");
-                        startChecksumDownload();
-                    } else {
-                        update();
-                    }
-                    dbFileOK = false; // it didn't :(
-                } else {
-                    swapFiles();
-                }
+            if (checkFileFreshness(currentTimestampFile)) {
+                dbFileOK = true;
+            } else if (checkFileFreshness(otherTimestampFile)) {
+                swapFiles();
+                dbFileOK = true;
+            } else if (!downloadingDB && !downloadingChecksum) {
+                log_i("Downloading DB for the first time...");
+                startChecksumDownload();
+            } else {
+                update();
             }
         }
 
@@ -566,12 +564,14 @@ namespace DBNS {
         if (openDB(currentFile) != SQLITE_OK) {
             log_e("Something bad happen with the DB file! "
                   "Downloading a fresh one");
+
+            // start over
             SD.remove(currentFile);
             SD.remove(otherFile);
             SD.remove(currentTimestampFile);
             SD.remove(otherTimestampFile);
             closeDB();
-            chooseInitialFile(); // this is ugly, sue me
+            goto START_OF_FUNCTION;
         }
     }
 
