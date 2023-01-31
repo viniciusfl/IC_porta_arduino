@@ -15,8 +15,6 @@ static const char* TAG = "card";
 #define INTERNAL_D1  25
 #define INTERNAL_BEEP 32
 
-#define USE_INTERRUPTS
-
 // Note that, with more than one reader, trying to read two cards at
 // exactly the same time will probably fail (we use a single data buffer
 // for all readers). For our use case at least, that is irrelevant.
@@ -163,7 +161,6 @@ namespace ReaderNS {
         // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/memory-types.html
         // This is why we had to incorporate the Wiegand lib and modify it.
 
-#       ifdef USE_INTERRUPTS
         // Initialize interrupt handler for first Wiegand reader pins
 
         attachInterrupt(digitalPinToInterrupt(EXTERNAL_D0),
@@ -182,7 +179,6 @@ namespace ReaderNS {
         attachInterrupt(digitalPinToInterrupt(INTERNAL_D1),
                         &setInternal1PinState,
                         CHANGE);
-#       endif
 
         // Register the initial pin state for first Wiegand reader pins
         external.setPin0State(digitalRead(EXTERNAL_D0));
@@ -198,8 +194,6 @@ namespace ReaderNS {
     inline bool checkCardReaders(const char*& returnReaderID,
                                  unsigned long int& returnCardID) {
 
-#       ifdef USE_INTERRUPTS
-
         // We could run this on every loop, but since we
         // disable interrupts it might be better not to.
         if (currentMillis - lastFlush < 20) return false;
@@ -212,17 +206,6 @@ namespace ReaderNS {
         internal.flush();
         external.flush();
         portENABLE_INTERRUPTS();
-
-#       else
-
-        external.flush();
-        internal.flush();
-        external.setPin0State(digitalRead(EXTERNAL_D0));
-        external.setPin1State(digitalRead(EXTERNAL_D1));
-        internal.setPin0State(digitalRead(INTERNAL_D0));
-        internal.setPin1State(digitalRead(INTERNAL_D1));
-
-#       endif
 
         if (!newAccess) return false;
 
