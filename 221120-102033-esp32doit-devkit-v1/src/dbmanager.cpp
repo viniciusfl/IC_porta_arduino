@@ -441,8 +441,7 @@ namespace DBNS {
 
         // If checksum file doesn't exist, there is no
         // reason to proceed
-        if(SD.exists("/checksum"));
-            return false;
+        if(SD.exists("/checksum")) return false;
 
         File f = SD.open("/checksum");
         f.readString().toCharArray(serverHash, 65);
