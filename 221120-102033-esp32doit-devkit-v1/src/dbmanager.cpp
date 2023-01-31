@@ -65,8 +65,10 @@ namespace DBNS {
     public:
         inline void init();
         void update();
+
         FileWriter writer;
 
+        void mbedtlsUpdate(byte* buffer, int size);
     private:
         const char *currentFile;
         const char *otherFile;
@@ -80,6 +82,10 @@ namespace DBNS {
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
         inline void processCurrentDownload();
+
+        byte shaResult[32];
+        mbedtls_md_context_t ctx;
+        mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
 
         char oldChecksum[65];
         bool downloadingChecksum = false;
@@ -202,6 +208,10 @@ namespace DBNS {
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
         writer.open(otherFile);
+
+        mbedtls_md_init(&ctx);
+        mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
+        mbedtls_md_starts(&ctx);
     }
 
     inline void UpdateDBManager::startChecksumDownload() {
@@ -237,6 +247,9 @@ namespace DBNS {
             lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             log_v("DB download finished with error, ignoring file.");
         }
+
+        mbedtls_md_finish(&ctx, shaResult);
+        mbedtls_md_free(&ctx);
 
         return finishedOK;
     }
@@ -453,19 +466,9 @@ namespace DBNS {
 
         String name = (String) "/sd" + otherFile; // FIXME:
 
-        unsigned char binHash[32];
-
-        int rc = mbedtls_md_file(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-                                 name.c_str(), binHash);
-
-        if (rc != 0) {
-            log_w("Failed to access file %s", name.c_str());
-            return false;
-        }
-
         char calculatedHash[65];
         for (int i = 0; i < 32; ++i) {
-            snprintf(calculatedHash + 2*i, 3,"%02hhx", binHash[i]);
+            snprintf(calculatedHash + 2*i, 3,"%02hhx", shaResult[i]);
         }
 
         File f = SD.open("/checksum");
@@ -487,7 +490,7 @@ namespace DBNS {
         if (!verifyChecksum()) {
             log_i("Downloaded DB file is corrupted (checksums are not equal), ignoring.");
             SD.remove(otherFile);
-            SD.remove("/checksum");
+            SD.remove("/checksum"); // TODO: there may be better ways to manage this
             return;
         }
 
@@ -577,12 +580,20 @@ namespace DBNS {
         }
     }
 
+    void UpdateDBManager::mbedtlsUpdate(byte* buffer, int size) {
+        if (!downloadingDB) {
+            return;
+        }
+
+        mbedtls_md_update(&ctx, (const unsigned char *) buffer, size);
+    }
+
     inline void FileWriter::open(const char *filename) {
         file = SD.open(filename, FILE_WRITE);
         if(!file) { 
             log_e("Error openning file.");
         }
-  
+
 #       ifdef USE_SOCKETS
         headerDone = false;
         beginningOfLine = true;
@@ -627,6 +638,8 @@ namespace DBNS {
                 if (!esp_http_client_is_chunked_response(evt->client)) {
                     updateDBManager.writer.write((byte*) evt->data,
                                                  evt->data_len);
+                    updateDBManager.mbedtlsUpdate((byte*) evt->data,
+                                                    evt->data_len);
                 } else {log_e("CHUNKED!");}
                 break;
             case HTTP_EVENT_ON_FINISH:
