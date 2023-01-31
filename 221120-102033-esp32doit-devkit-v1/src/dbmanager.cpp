@@ -215,10 +215,6 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::startChecksumDownload() {
-        // TODO: In the case that db download fails (download corrupted), /checksum file will
-        // have a wrong checksum. Is it a problem?
-        // I don't think so...
-
         log_v("Starting checksum download");
         if (!startDownload("/checksum")) {
             log_i("Network failure, cancelling checksum download");
@@ -407,8 +403,8 @@ namespace DBNS {
         if (!esp_http_client_is_complete_data_received(httpclient)) {
             finishedOK = false;
         };
+
         writer.close();
-        esp_http_client_close(httpclient); // TODO: this should not be needed
         esp_http_client_cleanup(httpclient);
 
         return finishedOK;
