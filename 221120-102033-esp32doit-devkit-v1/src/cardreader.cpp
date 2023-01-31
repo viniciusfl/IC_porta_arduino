@@ -212,12 +212,6 @@ namespace ReaderNS {
         returnReaderID = readerID;
         returnCardID = bitsToNumber(cardIDRaw, cardIDBits);
 
-        // No idea why, but this almost eliminates some
-        // spurious errors with the ControlID reader
-        // TODO is this still necessary?
-        external.reset();
-        internal.reset();
-
         log_v("Card reader %s was used. Received card ID %lu",
               returnReaderID, returnCardID);
 
