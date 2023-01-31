@@ -147,3 +147,11 @@
 
  * Before downloading the DB, download the checksum to verify whether
    it has changed; if not, skip downloading
+
+ * We are using almost 100% of the storage space; consider using some
+   of the tips from https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/performance/size.html ,
+   especially those related to mbedTLS, but also maybe disabling
+   IPv6, using the newlib nano formatting, and modifying the compiler
+   optimization. `CONFIG_ESP32_REV_MIN` also seems interesting. Compilation
+   options are defined with `build_flags` in platformio.ini:
+   https://docs.platformio.org/en/latest/platforms/espressif32.html
