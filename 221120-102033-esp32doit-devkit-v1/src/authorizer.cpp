@@ -9,22 +9,15 @@ namespace DBNS {
     // to query whether a user is authorized to enter.
     class Authorizer {
     public:
-        inline void init();
         int openDB(const char *filename);
         inline void closeDB();
         inline bool userAuthorized(const char* readerID, unsigned long cardID);
 
     private:
-        sqlite3 *sqlitedb;
-        sqlite3_stmt *dbquery;
+        // check the comment near Authorizer::closeDB()
+        sqlite3 *sqlitedb = NULL;
+        sqlite3_stmt *dbquery = NULL;
     };
-
-
-    // This should be called from setup()
-    inline void Authorizer::init() {
-        sqlitedb = NULL; // check the comment near Authorizer::closeDB()
-        dbquery = NULL;
-    }
 
     int Authorizer::openDB(const char *filename) {
         closeDB();
@@ -103,10 +96,6 @@ namespace DBNS {
     Authorizer authorizer;
 }
 
-
-void initDB() {
-    DBNS::authorizer.init();
-}
 
 int openDB(const char* filename) {
     return DBNS::authorizer.openDB(filename);

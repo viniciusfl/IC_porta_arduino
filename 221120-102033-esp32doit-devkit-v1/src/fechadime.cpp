@@ -27,7 +27,6 @@ void setup() {
     currentMillis = millis();
 
     initWiFi();
-    initDB();
     initLog();
     initDBMan();
     initTime();
