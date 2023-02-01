@@ -6,6 +6,7 @@ static const char* TAG = "main";
 #include <dbmanager.h>
 #include <authorizer.h>
 #include <cardreader.h>
+#include <log_conf.h>
 #include <Arduino.h>
 
 unsigned long currentMillis;
@@ -18,34 +19,35 @@ void setup() {
     while (!Serial) { ; }
     delay(100);
 
-    initlog();
-
     log_v("Start program");
 
     currentMillis = millis();
+
     initWiFi();
-    //initTime();
-    delay(2000);
     initDB();
+    initLog();
     initDBMan();
- 
-    //initCardReaders();
+    initTime();
+    initCardReaders();
 }
 
 void loop() {
     currentMillis = millis();
-    //checkNetConnection();
+    checkNetConnection();
     //updateDB();
     //checkTimeSync();
+    updateLogBackup(getTime());
     const char* lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
-        if (userAuthorized(lastReaderID, lastCardID)) {
+        bool authorized = userAuthorized(lastReaderID, lastCardID);
+        if (authorized) {
             Serial.println("Exists in db.");
             blinkOk(lastReaderID);
         } else {
             Serial.println("Doesn't exist in db.");
             blinkFail(lastReaderID);
         }
+        generateLog(lastReaderID, lastCardID, authorized, getTime());
     }
 }

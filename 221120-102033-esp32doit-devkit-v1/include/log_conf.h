@@ -79,6 +79,11 @@ ARDUHAL_LOG_LEVEL_VERBOSE (5)
 // must be defined before loading Arduino.h !
 #define CORE_DEBUG_LEVEL ARDUHAL_LOG_LEVEL_VERBOSE
 
-void initlog();
+void initLog();
+
+void updateLogBackup(unsigned long time);
+
+void generateLog(const char* readerID, unsigned long cardID, 
+                  bool authorized, unsigned long time);
 
 #endif
