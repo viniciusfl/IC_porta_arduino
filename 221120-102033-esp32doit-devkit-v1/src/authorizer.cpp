@@ -17,12 +17,6 @@ namespace DBNS {
     private:
         sqlite3 *sqlitedb;
         sqlite3_stmt *dbquery;
-        sqlite3 *sqlitelog;
-        sqlite3_stmt *logquery;
-        void generateLog(unsigned long cardID, const char* readerID,
-                         bool authorized);
-        int openlogDB();
-        inline void closelogDB();
     };
 
 
@@ -30,8 +24,6 @@ namespace DBNS {
     inline void Authorizer::init() {
         sqlitedb = NULL; // check the comment near Authorizer::closeDB()
         dbquery = NULL;
-        sqlitelog = NULL;
-        logquery = NULL;
         sqlite3_initialize();
     }
 
@@ -62,34 +54,8 @@ namespace DBNS {
         return rc;
     }
 
-    int Authorizer::openlogDB() {
-        const char* filename = "/sd/log.db"; // FIXME: 
-        int rc = sqlite3_open(filename, &sqlitelog);
-
-        if (rc != SQLITE_OK) {
-            log_e("Can't open database: %s", sqlite3_errmsg(sqlitelog));
-        } else {
-            log_v("Opened database successfully");
-
-            // prepare query
-            rc = sqlite3_prepare_v2(sqlitelog,
-                                    "INSERT INTO log(cardID, doorID, readerID, unixTimestamp, authorized) VALUES(?, ?, ?, ?, ?)",
-                                    -1, &logquery, NULL);
-
-            if (rc != SQLITE_OK) {
-                log_e("Can't generate prepared statement for log DB: %s",
-                              sqlite3_errmsg(sqlitelog));
-            } else {
-                log_v("Prepared statement created for log DB");
-            }
-        }
-        return rc;
-    }
-
-
     // search element through current database
-    inline bool Authorizer::userAuthorized(const char* readerID,
-                                    unsigned long cardID) {
+    inline bool Authorizer::userAuthorized(const char* readerID, unsigned long cardID) {
 
         if (sqlitedb == NULL)
             return false;
@@ -116,8 +82,6 @@ namespace DBNS {
             log_e("Error querying DB: %s", sqlite3_errmsg(sqlitedb));
         }
 
-        generateLog(cardID, readerID, authorized);
-
         if (authorized) {
             return true;
         } else {
@@ -125,40 +89,6 @@ namespace DBNS {
         }
     }
 
-    void Authorizer::generateLog(unsigned long cardID, const char* readerID,
-                                 bool authorized) {
-
-        //TODO: create error column in db 
-
-        // get unix time
-        time_t now;
-        time(&now);
-        unsigned long systemtime = now;
-
-        openlogDB();
-
-        // should i verify errors while binding? 
-
-        sqlite3_int64 card = cardID;
-        sqlite3_int64 unixTime = systemtime;
-
-        sqlite3_reset(logquery);
-        sqlite3_bind_int64(logquery, 1, card);
-        sqlite3_bind_int(logquery, 2, doorID); 
-        sqlite3_bind_text(logquery, 3, readerID, -1, SQLITE_STATIC);
-        sqlite3_bind_int64(logquery, 4, unixTime); 
-        sqlite3_bind_int(logquery, 5, authorized); 
-        
-        int rc = sqlite3_step(dbquery);
-        while (rc == SQLITE_ROW) {
-            rc = sqlite3_step(logquery);
-        }
-
-        if (rc != SQLITE_DONE) {
-            log_e("Error querying DB: %s", sqlite3_errmsg(sqlitelog));
-        }
-        closelogDB();
-    }
 
     // The sqlite3 docs say "The C parameter to sqlite3_close(C) and
     // sqlite3_close_v2(C) must be either a NULL pointer or an sqlite3
@@ -169,13 +99,6 @@ namespace DBNS {
         dbquery = NULL;
         sqlite3_close_v2(sqlitedb);
         sqlitedb = NULL;
-    }
-
-    inline void Authorizer::closelogDB(){
-        sqlite3_finalize(logquery);
-        logquery = NULL;
-        sqlite3_close_v2(sqlitelog);
-        sqlitelog = NULL;
     }
 
     Authorizer authorizer;
