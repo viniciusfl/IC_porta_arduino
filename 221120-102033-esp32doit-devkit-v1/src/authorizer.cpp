@@ -24,7 +24,6 @@ namespace DBNS {
     inline void Authorizer::init() {
         sqlitedb = NULL; // check the comment near Authorizer::closeDB()
         dbquery = NULL;
-        sqlite3_initialize();
     }
 
     int Authorizer::openDB(const char *filename) {

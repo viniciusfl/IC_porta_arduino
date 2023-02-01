@@ -8,6 +8,7 @@ static const char* TAG = "main";
 #include <cardreader.h>
 #include <log_conf.h>
 #include <Arduino.h>
+#include <sqlite3.h>
 
 unsigned long currentMillis;
 
@@ -20,6 +21,8 @@ void setup() {
     delay(100);
 
     log_v("Start program");
+
+    sqlite3_initialize();
 
     currentMillis = millis();
 

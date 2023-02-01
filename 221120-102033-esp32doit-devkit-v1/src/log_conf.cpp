@@ -39,7 +39,6 @@ namespace DBNS {
     inline void Log::initLog() {
         sqlitelog = NULL;
         logquery = NULL;
-        sqlite3_initialize();
 
         // Do not change this! Instead, define the desired level in log_conf.h
         esp_log_level_set("*", ESP_LOG_VERBOSE);
