@@ -35,6 +35,13 @@ void setup() {
 
     currentMillis = millis();
 
+    // TODO: I think initTime() should come right after WiFi, otherwise
+    //       any attempts to get the time during initialization of the
+    //       DB, as well as any log messages with timestamps, will yield
+    //       wrong results. Any reason for this order? At the same time,
+    //       making initLog run right after sqlite3_initialize would give
+    //       us a record of generated logs, even if their timestamps are
+    //       wrong before initTime().
     initWiFi();
     initLog();
     initDBMan();

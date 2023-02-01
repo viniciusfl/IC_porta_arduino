@@ -36,6 +36,8 @@ namespace DBNS {
         };
     int logmessage(const char* format, va_list ap);
 
+    // TODO: openlogDB() should be called here, not every time we want
+    //       to log something.
     inline void Log::initLog() {
         sqlitelog = NULL;
         logquery = NULL;
