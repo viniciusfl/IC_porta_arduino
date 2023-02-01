@@ -194,6 +194,19 @@ namespace DBNS {
     }
 
     int logmessage(const char* format, va_list ap) {
+        // "format" is "LEVEL (%u) %s: user-defined part"
+        // Where "LEVEL" is a letter (V/D/I/W/E)
+        // %u is the timestamp
+        // %s is the tag
+        //
+        // So, to obtain the level we need to extract the first letter
+        // of the format; the timestamp is the first parameter in the
+        // va_list and the tag is the second parameter in the va_list.
+        //
+        // By default, the timestamp is equivalent to millis(); defining
+        // CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM changes that to HH:MM:SS.sss
+        // (in that case, "%u" becomes "%s"). We may also get the system
+        // time here ourselves and ignore this.
         int count;
         char buf[512];
         buf[0] = 0;
