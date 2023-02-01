@@ -8,6 +8,8 @@ static const char* TAG = "main";
 #include <cardreader.h>
 #include <log_conf.h>
 #include <Arduino.h>
+#include <SPI.h>
+#include <SD.h>
 #include <sqlite3.h>
 
 unsigned long currentMillis;
@@ -21,6 +23,13 @@ void setup() {
     delay(100);
 
     log_v("Start program");
+
+    if (!SD.begin()) {
+        log_e("Card Mount Failed, aborting");
+        while (true) delay(10);
+    } else {
+        log_v("SD connected.");
+    }
 
     sqlite3_initialize();
 

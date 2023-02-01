@@ -116,13 +116,6 @@ namespace DBNS {
 
     // This should be called from setup()
     inline void UpdateDBManager::init() {
-        if (!SD.begin()) {
-            log_e("Card Mount Failed, aborting");
-            while (true) delay(10);
-        } else {
-            log_v("SD connected.");
-        }
-
         chooseInitialFile();
     }
 
