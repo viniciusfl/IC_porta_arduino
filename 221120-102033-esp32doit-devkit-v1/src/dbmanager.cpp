@@ -566,11 +566,11 @@ namespace DBNS {
                   "Downloading a fresh one");
 
             // start over
+            closeDB();
             SD.remove(currentFile);
             SD.remove(otherFile);
             SD.remove(currentTimestampFile);
             SD.remove(otherTimestampFile);
-            closeDB();
             goto START_OF_FUNCTION;
         }
     }
