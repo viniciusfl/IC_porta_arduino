@@ -1,34 +1,8 @@
 # Short-term TODOs
 
- * Check whether DB downloading is working as expected
-
-   - Download happens periodically and things continue to work during and
-     after downloads
-
-   - If no DB is available, the first DB is downloaded during init
-
- * Check whether time management is working as expected
-
-   - Time is set from the HW clock on initialization
-
-   - NTP is configured
-
-   - Time is periodically synchronized
-
- * Handle connection errors, interrupted downloads etc. and verify
-   checksums at the end of each download. This means we actually
-   have to download two files: the checksum (and check that is
-   has the correct size) and the real file.
-   https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
-
  * Implement `blinkOk()` and `blinkFail()`
 
- * Functions for downloading checksums and DBs are almost equal; we should
-   use a parameter or something similar to avoid code duplication
-
 # Medium-term TODOs
-
- * Remove card reader code that does not use interrupts
 
  * Add mechanism to download/upload and rotate logs:
 
@@ -45,44 +19,12 @@
      was successful so we can delete the file? Maybe just keep them
      for a long time and delete them when they are some months old?
 
- * Actually open the door (probably use a transistor to activate the
-   relay)
-
- * Modify the net client in dbmanager to use HTTPS and certificates, and
-   actually check the certificates. This involves:
-
-   1. Creating a local root certificate (fake Certificate Authority) -
-      look up on how to create a self-signed certificate or a snake oil
-      certificate
-
-   2. Creating a certificate for the nodeMCU and another for the test web
-      server
-
-   3. Signing both with the fake CA certificate
-
-   4. Adding the fake CA certificate, the nodeMCU certificate and the
-      private key for the nodeMCU certificate to the nodeMCU
-
-   5. Adding the fake CA certificate, the test webserver certificate and
-      the private key for the webserver certificate to the web server
-
-   6. Replacing WiFiClient with WiFiClientSecure. NOPE! We should use
-      this: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/protocols/esp_http_client.html
-      To download the checksum, we should use `esp_http_client_perform()`
-      with `is_async`. For the DB, we should follow the "HTTP Stream"
-      section. This allows us to check the status code (200) and the
-      expected size of the file (content-length) while also ditching
-      our code to skip the HTTP headers.
-
-   I believe this is enough to make the nodeMCU check whether the server
-   it connects to is correct. I do not really know how to make the server
-   only accept connections from a valid client; should not be too hard to
-   figure out.
+ * Actually open the door; we may use an ordinary logic level converter
+   (https://www.sparkfun.com/products/12009 ) for that (although all
+   pages about this device talk about "3.3-5V", the datasheet for the
+   BSS138 allows for up to 50V Drain-Source and +-20V Gate-Source DDP)
 
 # Non-critical TODOs
-
- * When downloading from the network, we should check the response
-   code (200) and the record the expected file size to verify later
 
  * Save log messages to the sqlite log DB.
 
@@ -119,9 +61,6 @@
  * wiegand `stateChanged()` and `receivedDataError()` callbacks should
    be more useful
 
- * Should we check whether we are connected before trying to download
-   updates to the DB?
-
  * Hardcoded net credentials and URLs - maybe move to common.h ?
 
  * Hardcoded DB names - maybe that's ok?
@@ -155,3 +94,5 @@
    optimization. `CONFIG_ESP32_REV_MIN` also seems interesting. Compilation
    options are defined with `build_flags` in platformio.ini:
    https://docs.platformio.org/en/latest/platforms/espressif32.html
+   Apparently, the arduino framework for ESP32 presets most relevant
+   variables, so we need to figure out how to override that.
