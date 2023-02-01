@@ -6,5 +6,6 @@
 void initTime ();
 void configNTP();
 void checkTimeSync();
+unsigned long getTime();
 
 #endif

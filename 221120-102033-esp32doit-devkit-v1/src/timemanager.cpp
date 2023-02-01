@@ -36,6 +36,7 @@ namespace TimeNS {
         public:
             inline void init();
             inline void checkSync();
+            inline unsigned long getTime();
         private:
             RTC_DS1307 rtc;
             unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
@@ -159,6 +160,15 @@ namespace TimeNS {
             log_v("Updating hardware clock time");
             rtc.adjust(DateTime(systemtime));
         }
+    }
+
+    inline unsigned long TimeManager::getTime() {
+        if (HWClockExists) return rtc.now().unixtime();
+
+        time_t now;
+        time(&now);
+
+        return now;
     }
 
     TimeManager hwclock;
