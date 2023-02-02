@@ -36,20 +36,21 @@ namespace DBNS {
         };
     int logmessage(const char* format, va_list ap);
 
-    // TODO: openlogDB() should be called here, not every time we want
-    //       to log something.
     inline void Log::initLog() {
         sqlitelog = NULL;
         logquery = NULL;
+
+        rc = openlogDB();
+        if (!rc == SQLITE_OK){
+            log_e("Couldn't open log db: %s, aborting...", sqlite3_errmsg(sqlitebackup));
+            while (true) delay(10);
+        }
 
         // Do not change this! Instead, define the desired level in log_conf.h
         esp_log_level_set("*", ESP_LOG_VERBOSE);
 
         // Log messages will be processed by the function defined above
         esp_log_set_vprintf(logmessage);
-
-        // This next section im not quite sure. 
-        // Should
     }
 
     void Log::updateBackup(unsigned long time) {
@@ -74,16 +75,6 @@ namespace DBNS {
         log_v("Started log DB backup");
 
         doingBackup = true;
-
-        rc = sqlite3_open(filename, &sqlitelog);
-
-        if (!rc == SQLITE_OK){
-            log_e("Aborting update... Couldn't open log db: %s", sqlite3_errmsg(sqlitebackup));
-
-            doingBackup = false;
-            lastBackupTime += RETRY_TIME;
-            return;
-        }
 
         char buffer[50];
         sprintf(buffer, "/sd/%lu.db", time);
