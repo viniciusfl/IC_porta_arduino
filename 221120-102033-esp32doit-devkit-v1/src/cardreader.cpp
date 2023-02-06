@@ -79,7 +79,6 @@ namespace ReaderNS {
         newAccess = true;
         readerID = reader;
         cardIDBits = bits;
-        doorID = 1; //FIXME:
 
         // It would be possible to avoid copying, but that could break
         // if something changes in the wiegand lib implementation.

@@ -44,6 +44,7 @@ namespace NetNS {
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
         log_v("Connected to WiFi successfully! IP address: %s",
               WiFi.localIP());
+        Serial.println(WiFi.localIP()); // FIXME: Printing IP address with log_v is not working. Garbage characters
 
         configNTP();
     }

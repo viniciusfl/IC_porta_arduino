@@ -3,6 +3,7 @@ static const char* TAG = "main";
 #include <common.h>
 #include <networkmanager.h>
 #include <timemanager.h>
+#include <apiserver.h>
 #include <dbmanager.h>
 #include <authorizer.h>
 #include <cardreader.h>
@@ -14,7 +15,7 @@ static const char* TAG = "main";
 
 unsigned long currentMillis;
 
-int doorID;
+int doorID = 1;
 
 void setup() {
     Serial.begin(115200);
@@ -47,6 +48,7 @@ void setup() {
     initDBMan();
     initTime();
     initCardReaders();
+    initServer();
 }
 
 void loop() {
@@ -54,6 +56,7 @@ void loop() {
     checkNetConnection();
     //updateDB();
     //checkTimeSync();
+    updateServer();
     updateLogBackup(getTime());
     const char* lastReaderID;
     unsigned long int lastCardID;
