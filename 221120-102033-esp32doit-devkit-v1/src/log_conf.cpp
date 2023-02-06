@@ -11,12 +11,12 @@ static const char *TAG = "log";
 #define RETRY_TIME 10000 // TODO: if we switch to alarms instead of
                          //       time intervals, how to handle this?
 
-namespace DBNS {
+namespace LOGNS {
     class Log { // TODO: better name
         public:
             inline void initLog();
             void updateBackup(unsigned long time);
-            void generateLog(const char* readerID, unsigned long cardID, 
+            void generateLog(const char* readerID, unsigned long cardID,
                             bool authorized, unsigned long time);
 
         private:
@@ -223,18 +223,19 @@ namespace DBNS {
         return rc;
     }
 
-    void Log::generateLog(const char* readerID, unsigned long cardID, 
+    void Log::generateLog(const char* readerID, unsigned long cardID,
                                  bool authorized, unsigned long time) {
-        //TODO: create error column in db 
+        //TODO: create error column in db
+
         sqlite3_int64 card = cardID;
         sqlite3_int64 unixTime = time;
 
         sqlite3_reset(logquery);
         sqlite3_bind_int64(logquery, 1, card);
-        sqlite3_bind_int(logquery, 2, doorID); 
+        sqlite3_bind_int(logquery, 2, doorID);
         sqlite3_bind_text(logquery, 3, readerID, -1, SQLITE_STATIC);
-        sqlite3_bind_int64(logquery, 4, unixTime); 
-        sqlite3_bind_int(logquery, 5, authorized); 
+        sqlite3_bind_int64(logquery, 4, unixTime);
+        sqlite3_bind_int(logquery, 5, authorized);
 
         int rc = sqlite3_step(logquery);
         while (rc == SQLITE_ROW) {
@@ -266,20 +267,20 @@ namespace DBNS {
         count = vsnprintf(buf, 512, format, ap);
         Serial.print(buf);
         return count;
-    } 
-    
+    }
+
     Log logging; // TODO: better name
 }
 
-void initLog() { 
-    DBNS::logging.initLog(); 
+void initLog() {
+    LOGNS::logging.initLog();
 }
 
-void updateLogBackup(unsigned long time) { 
-    DBNS::logging.updateBackup(time); 
+void updateLogBackup(unsigned long time) {
+    LOGNS::logging.updateBackup(time);
 }
 
-void generateLog(const char* readerID, unsigned long cardID, 
+void generateLog(const char* readerID, unsigned long cardID,
                     bool authorized, unsigned long time) {
-    DBNS::logging.generateLog(readerID, cardID, authorized, time);
+    LOGNS::logging.generateLog(readerID, cardID, authorized, time);
 }
