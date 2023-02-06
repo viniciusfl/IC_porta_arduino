@@ -5,8 +5,8 @@ void initCardReaders();
 
 bool checkCardReaders(const char*& readerID, unsigned long int& cardID);
 
-void blinkOk(const char* reader);
+void openDoor(const char* reader);
 
-void blinkFail(const char* reader);
+void denyToOpenDoor(const char* reader);
 
 #endif

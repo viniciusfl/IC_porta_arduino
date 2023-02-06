@@ -270,3 +270,13 @@ void blinkFail(const char* reader) {
     delay(600);
     digitalWrite(pin, HIGH);
 };
+
+void openDoor(const char* reader) {
+    Serial.println("Exists in db.");
+    blinkOk(reader);
+}
+
+void denyToOpenDoor(const char* reader) {
+    Serial.println("Doesn't exist in db.");
+    blinkFail(reader);
+}

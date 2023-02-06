@@ -64,11 +64,9 @@ void loop() {
         bool authorized = userAuthorized(lastReaderID, lastCardID);
         generateLog(lastReaderID, lastCardID, authorized, getTime());
         if (authorized) {
-            Serial.println("Exists in db.");
-            blinkOk(lastReaderID);
+            openDoor(lastReaderID);
         } else {
-            Serial.println("Doesn't exist in db.");
-            blinkFail(lastReaderID);
+            denyToOpenDoor(lastReaderID);
         }
     }
 }
