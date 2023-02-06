@@ -3,6 +3,8 @@ static const char *TAG = "log";
 #include <common.h>
 #include <Arduino.h>
 #include <sqlite3.h>
+#include <SD.h>
+#include "esp_tls.h"
 
 #define BACKUP_INTERVAL 60000
 
@@ -20,10 +22,21 @@ namespace DBNS {
             inline void finishBackup();
             inline bool backupEnded();
             inline void processBackup();
-            const char* filename = "/sd/log.db"; // FIXME: hardcoded?
-
-            unsigned long lastBackupTime = 0; // TODO: remove after implement alarm
             bool doingBackup = false;
+            const char* filename = "/sd/log.db"; // FIXME: hardcoded?
+            unsigned long lastBackupTime = 0; // TODO: remove after implement alarm
+            unsigned long logCreationTime;
+
+            inline void startChecksum();
+            inline void processChecksum();
+            inline void finishChecksum();
+            bool doingChecksum;
+            unsigned char buffer[512];
+            byte shaResult[32];
+            mbedtls_md_context_t ctx;
+            mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+
+            File f;
             int rc;
             sqlite3_backup *logBackup;
             sqlite3 *sqlitebackup;
@@ -45,6 +58,7 @@ namespace DBNS {
             log_e("Couldn't open log db: %s, aborting...", sqlite3_errmsg(sqlitebackup));
             while (true) delay(10);
         }
+        log_e("Openned log db");
 
         // Do not change this! Instead, define the desired level in log_conf.h
         esp_log_level_set("*", ESP_LOG_VERBOSE);
@@ -54,30 +68,39 @@ namespace DBNS {
     }
 
     void Log::updateBackup(unsigned long time) {
-        if (!doingBackup) {
+        if (!doingBackup && !doingChecksum) {
             // TODO: Change to alarm
             if (currentMillis - lastBackupTime > BACKUP_INTERVAL) {
                 startBackup(time);
-                
             }
             return;
         }
 
-        if (backupEnded()) {
-            finishBackup();
+        if(doingBackup) {
+            if (backupEnded()) {
+                finishBackup();
+                startChecksum();
+                return;
+            }
+
+            processBackup();
             return;
         }
 
-        processBackup();
+        if (f.available() <= 0) {
+            finishChecksum();
+            return;
+        }
+        processChecksum();
     }
 
     inline void Log::startBackup(unsigned long time) {
         log_v("Started log DB backup");
 
         doingBackup = true;
-
+        logCreationTime = time;
         char buffer[50];
-        sprintf(buffer, "/sd/%lu.db", time);
+        sprintf(buffer, "/sd/%lu.db", logCreationTime);
 
         rc = sqlite3_open_v2(buffer, &sqlitebackup, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
 
@@ -86,7 +109,6 @@ namespace DBNS {
 
             doingBackup = false;
             lastBackupTime += RETRY_TIME;
-            sqlite3_close(sqlitelog);
             return;
         }
 
@@ -94,11 +116,10 @@ namespace DBNS {
 
         if (!logBackup) {
             log_v("Problem with backup init");
-            
+
             doingBackup = false;
             lastBackupTime += RETRY_TIME;
 
-            sqlite3_close(sqlitelog);
             sqlite3_close(sqlitebackup);
 
             return;
@@ -112,14 +133,18 @@ namespace DBNS {
         log_e("Finished log DB backup");
         doingBackup = false;
 
-        sqlite3_close(sqlitelog);
         sqlite3_close(sqlitebackup);
 
         lastBackupTime = currentMillis;
+
+        f = SD.open("/lastBackup", FILE_WRITE);
+        char buffer[50];
+        sprintf(buffer, "%lu", logCreationTime);
+        f.print(buffer);
+        f.close();
     }
 
     inline void Log::processBackup() {
-        log_e("Processing...");
         rc = sqlite3_backup_step(logBackup, 5);
     }
 
@@ -127,6 +152,44 @@ namespace DBNS {
         if (rc == SQLITE_OK || rc == SQLITE_BUSY || rc == SQLITE_LOCKED) 
             return false;
         return true;
+    }
+
+    inline void Log::startChecksum() {
+        log_v("Started logDB checksum");
+        doingChecksum = true;
+
+        char buffer[50];
+        sprintf(buffer, "/%lu.db", logCreationTime);
+
+        f = SD.open(buffer);
+
+        mbedtls_md_init(&ctx);
+        mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
+        mbedtls_md_starts(&ctx);
+    }
+
+    inline void Log::processChecksum() {
+        int size = f.read(buffer, 512);
+        mbedtls_md_update(&ctx, (const unsigned char *) buffer, size);
+    }
+
+    inline void Log::finishChecksum() {
+        doingChecksum = false;
+        log_e("Finished logDB checksum");
+        mbedtls_md_finish(&ctx, shaResult);
+        mbedtls_md_free(&ctx);
+        f.close();
+
+        char calculatedHash[65];
+        for (int i = 0; i < 32; ++i) {
+            snprintf(calculatedHash + 2*i, 3,"%02hhx", shaResult[i]);
+        }
+
+        f = SD.open("/checksumBackup", FILE_WRITE);
+        f.print(calculatedHash);
+        f.close();
+
+        log_e("Checksum: %s", calculatedHash);
     }
 
 
