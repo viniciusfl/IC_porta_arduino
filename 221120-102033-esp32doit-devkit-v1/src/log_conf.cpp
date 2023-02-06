@@ -8,7 +8,9 @@ static const char *TAG = "log";
 
 #define BACKUP_INTERVAL 60000
 
-#define RETRY_TIME 10000
+#define RETRY_TIME 10000 // TODO: if we switch to alarms instead of
+                         //       time intervals, how to handle this?
+
 namespace DBNS {
     class Log { // TODO: better name
         public:
