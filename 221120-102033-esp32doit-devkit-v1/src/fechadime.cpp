@@ -62,6 +62,7 @@ void loop() {
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
         bool authorized = userAuthorized(lastReaderID, lastCardID);
+        generateLog(lastReaderID, lastCardID, authorized, getTime());
         if (authorized) {
             Serial.println("Exists in db.");
             blinkOk(lastReaderID);
@@ -69,6 +70,5 @@ void loop() {
             Serial.println("Doesn't exist in db.");
             blinkFail(lastReaderID);
         }
-        generateLog(lastReaderID, lastCardID, authorized, getTime());
     }
 }
