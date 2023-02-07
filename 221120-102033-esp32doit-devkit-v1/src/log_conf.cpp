@@ -19,6 +19,7 @@ namespace LOGNS {
                             bool authorized, unsigned long time);
 
         private:
+            const static constexpr char* TAG = "Logger";
             const char* filename = "/sd/log.db"; // FIXME: hardcoded?
             int openlogDB();
             sqlite3 *logdb;
@@ -31,6 +32,7 @@ namespace LOGNS {
             void update(unsigned long time);
 
         private:
+            const static constexpr char* TAG = "LogBkp";
             bool doingBackup = false;
             bool doingChecksum = false;
             unsigned long lastBackupTime = 0; // TODO: remove after implement alarm
