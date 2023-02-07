@@ -50,8 +50,11 @@ namespace LOGNS {
     int logmessage(const char* format, va_list ap);
 
     inline void Log::initLog() {
+        // check the comment near Authorizer::closeDB()
         sqlitelog = NULL;
         logquery = NULL;
+        logBackup = NULL;
+        sqlitebackup = NULL;
 
         int rc = openlogDB();
         if (rc != SQLITE_OK){
