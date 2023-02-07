@@ -40,7 +40,6 @@ namespace DBNS {
             sqlite3 *sqlitebackup;
 
             int openlogDB();
-            inline void closelogDB();
             sqlite3 *sqlitelog;
             sqlite3_stmt *logquery;
 
@@ -216,17 +215,9 @@ namespace DBNS {
         return rc;
     }
 
-    inline void Log::closelogDB(){
-        sqlite3_finalize(logquery);
-        logquery = NULL;
-    }
-
-
     void Log::generateLog(const char* readerID, unsigned long cardID, 
                                  bool authorized, unsigned long time) {
         //TODO: create error column in db 
-        openlogDB();
-
         sqlite3_int64 card = cardID;
         sqlite3_int64 unixTime = time;
 
@@ -245,8 +236,6 @@ namespace DBNS {
         if (rc != SQLITE_DONE) {
             log_e("Error querying DB: %s", sqlite3_errmsg(sqlitelog));
         }
-
-        closelogDB();
     }
 
     int logmessage(const char* format, va_list ap) {
