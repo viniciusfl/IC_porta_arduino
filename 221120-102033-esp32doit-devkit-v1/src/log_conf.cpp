@@ -87,10 +87,6 @@ namespace LOGNS {
             return;
         }
 
-        if (f.available() <= 0) {
-            finishChecksum();
-            return;
-        }
         processChecksum();
     }
 
@@ -179,6 +175,10 @@ namespace LOGNS {
     inline void Log::processChecksum() {
         int size = f.read(buffer, 512);
         mbedtls_md_update(&ctx, (const unsigned char *) buffer, size);
+
+        if (f.available() <= 0) {
+            finishChecksum();
+        }
     }
 
     inline void Log::finishChecksum() {
