@@ -58,10 +58,11 @@ namespace LOGNS {
 
         int rc = openlogDB();
         if (rc != SQLITE_OK){
-            log_e("Couldn't open log db: %s, aborting...", sqlite3_errmsg(sqlitebackup));
+            log_e("Couldn't open log db: %s, aborting...",
+                  sqlite3_errmsg(sqlitebackup));
             while (true) delay(10);
         }
-        log_e("Openned log db");
+        log_v("Openned log db");
 
         // Do not change this! Instead, define the desired level in log_conf.h
         esp_log_level_set("*", ESP_LOG_VERBOSE);
@@ -182,7 +183,8 @@ namespace LOGNS {
 
     inline void Log::finishChecksum() {
         doingChecksum = false;
-        log_e("Finished logDB checksum");
+        log_v("Finished logDB checksum");
+
         mbedtls_md_finish(&ctx, shaResult);
         mbedtls_md_free(&ctx);
         f.close();
@@ -196,7 +198,7 @@ namespace LOGNS {
         f.print(calculatedHash);
         f.close();
 
-        log_e("Checksum: %s", calculatedHash);
+        log_i("Checksum: %s", calculatedHash);
     }
 
 
