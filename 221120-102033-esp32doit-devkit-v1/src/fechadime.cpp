@@ -53,10 +53,9 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    checkNetConnection();
+    //checkNetConnection();
     //updateDB();
     //checkTimeSync();
-    updateServer();
     updateLogBackup();
     
     const char* lastReaderID;
