@@ -163,11 +163,8 @@ namespace TimeNS {
     }
 
     inline unsigned long TimeManager::getCurrentTime() {
-        if (HWClockExists) return rtc.now().unixtime();
-
         time_t now;
         time(&now);
-
         return now;
     }
 
