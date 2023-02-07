@@ -43,7 +43,8 @@ namespace DBNS {
             sqlite3 *sqlitelog;
             sqlite3_stmt *logquery;
 
-        };
+    };
+
     int logmessage(const char* format, va_list ap);
 
     inline void Log::initLog() {
@@ -51,7 +52,7 @@ namespace DBNS {
         logquery = NULL;
 
         int rc = openlogDB();
-        if (!rc == SQLITE_OK){
+        if (rc != SQLITE_OK){
             log_e("Couldn't open log db: %s, aborting...", sqlite3_errmsg(sqlitebackup));
             while (true) delay(10);
         }
@@ -91,43 +92,48 @@ namespace DBNS {
     inline void Log::startBackup(unsigned long time) {
         log_v("Started log DB backup");
 
-        doingBackup = true;
         logCreationTime = time;
         char buffer[50];
         sprintf(buffer, "/sd/%lu.db", logCreationTime);
 
-        int rc = sqlite3_open_v2(buffer, &sqlitebackup, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+        int rc = sqlite3_open_v2(buffer, &sqlitebackup,
+                 SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
 
-        if (!rc == SQLITE_OK){
-            log_e("Aborting update... Couldn't open backup db: %s", sqlite3_errmsg(sqlitebackup));
+        if (rc != SQLITE_OK) {
+            log_w("Aborting update... Couldn't open backup db: %s",
+                  sqlite3_errmsg(sqlitebackup));
 
-            doingBackup = false;
             lastBackupTime += RETRY_TIME;
+            sqlite3_close(sqlitebackup);
+            sqlitebackup = NULL;
             return;
         }
 
-        logBackup = sqlite3_backup_init(sqlitebackup, "main", sqlitelog, "main");
+        logBackup = sqlite3_backup_init(sqlitebackup, "main",
+                                        sqlitelog, "main");
 
         if (!logBackup) {
-            log_v("Problem with backup init");
+            log_w("Problem with backup init");
 
-            doingBackup = false;
             lastBackupTime += RETRY_TIME;
-
+            sqlite3_backup_finish(logBackup);
+            logBackup = NULL;
             sqlite3_close(sqlitebackup);
-
+            sqlitebackup = NULL;
             return;
         }
+
+        doingBackup = true;
     }
 
     inline void Log::finishBackup() {
-        (void)sqlite3_backup_finish(logBackup);
-        (void)sqlite3_close(sqlitebackup);
+        sqlite3_backup_finish(logBackup);
+        sqlite3_close(sqlitebackup);
+        logBackup = NULL;
+        sqlitebackup = NULL;
 
         log_e("Finished log DB backup");
         doingBackup = false;
-
-        sqlite3_close(sqlitebackup);
 
         f = SD.open("/lastBackup", FILE_WRITE);
         char buffer[50];
