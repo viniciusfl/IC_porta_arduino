@@ -78,7 +78,6 @@ namespace LOGNS {
 
         if(doingBackup) {
             if (processBackup()) {
-                finishBackup();
                 startChecksum();
             }
             return;
@@ -106,8 +105,7 @@ namespace LOGNS {
                   sqlite3_errmsg(sqlitebackup));
 
             lastBackupTime += RETRY_TIME;
-            sqlite3_close(sqlitebackup);
-            sqlitebackup = NULL;
+            finishBackup();
             return;
         }
 
@@ -118,10 +116,7 @@ namespace LOGNS {
             log_w("Problem with backup init");
 
             lastBackupTime += RETRY_TIME;
-            sqlite3_backup_finish(logBackup);
-            logBackup = NULL;
-            sqlite3_close(sqlitebackup);
-            sqlitebackup = NULL;
+            finishBackup();
             return;
         }
 
@@ -133,15 +128,7 @@ namespace LOGNS {
         sqlite3_close(sqlitebackup);
         logBackup = NULL;
         sqlitebackup = NULL;
-
-        log_e("Finished log DB backup");
         doingBackup = false;
-
-        f = SD.open("/lastBackup", FILE_WRITE);
-        char buffer[50];
-        sprintf(buffer, "%lu", logCreationTime);
-        f.print(buffer);
-        f.close();
     }
 
     inline bool Log::processBackup() {
@@ -151,15 +138,24 @@ namespace LOGNS {
             return false; // all is good, continue on the next iteration
         }
 
+        finishBackup();
+
         if (rc == SQLITE_DONE) {
             log_v("Finished log DB backup");
             lastBackupTime = currentMillis;
+
+            f = SD.open("/lastBackup", FILE_WRITE);
+            char buffer[50];
+            sprintf(buffer, "%lu", logCreationTime);
+            f.print(buffer);
+            f.close();
+
+            return true;
         } else {
             log_w("Error generating log backup!");
             lastBackupTime += RETRY_TIME;
+            return false;
         }
-
-        return true;
     }
 
     inline void Log::startChecksum() {
