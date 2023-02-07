@@ -14,7 +14,7 @@ static const char *TAG = "log";
 namespace LOGNS {
     class Log { // TODO: better name
         public:
-            inline void initLog();
+            inline void init();
             void updateBackup(unsigned long time);
             void generateLog(const char* readerID, unsigned long cardID,
                             bool authorized, unsigned long time);
@@ -47,7 +47,7 @@ namespace LOGNS {
 
     int logmessage(const char* format, va_list ap);
 
-    inline void Log::initLog() {
+    inline void Log::init() {
         // check the comment near Authorizer::closeDB()
         logdb = NULL;
         logquery = NULL;
@@ -267,7 +267,7 @@ namespace LOGNS {
 }
 
 void initLog() {
-    LOGNS::logging.initLog();
+    LOGNS::logging.init();
 }
 
 void updateLogBackup(unsigned long time) {
