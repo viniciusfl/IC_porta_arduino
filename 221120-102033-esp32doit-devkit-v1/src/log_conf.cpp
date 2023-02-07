@@ -20,8 +20,7 @@ namespace DBNS {
         private:
             inline void startBackup(unsigned long time);
             inline void finishBackup();
-            inline bool backupEnded();
-            inline void processBackup();
+            inline bool processBackup();
             bool doingBackup = false;
             const char* filename = "/sd/log.db"; // FIXME: hardcoded?
             unsigned long lastBackupTime = 0; // TODO: remove after implement alarm
@@ -37,7 +36,6 @@ namespace DBNS {
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
 
             File f;
-            int rc;
             sqlite3_backup *logBackup;
             sqlite3 *sqlitebackup;
 
@@ -53,7 +51,7 @@ namespace DBNS {
         sqlitelog = NULL;
         logquery = NULL;
 
-        rc = openlogDB();
+        int rc = openlogDB();
         if (!rc == SQLITE_OK){
             log_e("Couldn't open log db: %s, aborting...", sqlite3_errmsg(sqlitebackup));
             while (true) delay(10);
@@ -77,13 +75,10 @@ namespace DBNS {
         }
 
         if(doingBackup) {
-            if (backupEnded()) {
+            if (processBackup()) {
                 finishBackup();
                 startChecksum();
-                return;
             }
-
-            processBackup();
             return;
         }
 
@@ -102,7 +97,7 @@ namespace DBNS {
         char buffer[50];
         sprintf(buffer, "/sd/%lu.db", logCreationTime);
 
-        rc = sqlite3_open_v2(buffer, &sqlitebackup, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+        int rc = sqlite3_open_v2(buffer, &sqlitebackup, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
 
         if (!rc == SQLITE_OK){
             log_e("Aborting update... Couldn't open backup db: %s", sqlite3_errmsg(sqlitebackup));
@@ -135,8 +130,6 @@ namespace DBNS {
 
         sqlite3_close(sqlitebackup);
 
-        lastBackupTime = currentMillis;
-
         f = SD.open("/lastBackup", FILE_WRITE);
         char buffer[50];
         sprintf(buffer, "%lu", logCreationTime);
@@ -144,13 +137,21 @@ namespace DBNS {
         f.close();
     }
 
-    inline void Log::processBackup() {
-        rc = sqlite3_backup_step(logBackup, 5);
-    }
+    inline bool Log::processBackup() {
+        int rc = sqlite3_backup_step(logBackup, 5);
 
-    inline bool Log::backupEnded() {
-        if (rc == SQLITE_OK || rc == SQLITE_BUSY || rc == SQLITE_LOCKED) 
-            return false;
+        if (rc == SQLITE_OK || rc == SQLITE_BUSY || rc == SQLITE_LOCKED) {
+            return false; // all is good, continue on the next iteration
+        }
+
+        if (rc == SQLITE_DONE) {
+            log_v("Finished log DB backup");
+            lastBackupTime = currentMillis;
+        } else {
+            log_w("Error generating log backup!");
+            lastBackupTime += RETRY_TIME;
+        }
+
         return true;
     }
 
