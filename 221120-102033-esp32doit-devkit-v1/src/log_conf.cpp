@@ -20,7 +20,7 @@ namespace LOGNS {
                             bool authorized, unsigned long time);
 
         private:
-            inline void startBackup(unsigned long time);
+            inline void startBackup();
             inline void finishBackup();
             inline bool processBackup();
             bool doingBackup = false;
@@ -73,7 +73,8 @@ namespace LOGNS {
         if (!doingBackup && !doingChecksum) {
             // TODO: Change to alarm
             if (currentMillis - lastBackupTime > BACKUP_INTERVAL) {
-                startBackup(time);
+                sprintf(backupFilename, "/sd/%lu.db", time);
+                startBackup();
             }
             return;
         }
@@ -88,10 +89,8 @@ namespace LOGNS {
         processChecksum();
     }
 
-    inline void Log::startBackup(unsigned long time) {
+    inline void Log::startBackup() {
         log_v("Started log DB backup");
-
-        sprintf(backupFilename, "/sd/%lu.db", time);
 
         int rc = sqlite3_open_v2(backupFilename, &backupdb,
                  SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
