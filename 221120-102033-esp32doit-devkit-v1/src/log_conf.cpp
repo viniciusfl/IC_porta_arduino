@@ -5,6 +5,7 @@ static const char *TAG = "log";
 #include <sqlite3.h>
 #include <SD.h>
 #include "esp_tls.h"
+#include <timemanager.h>
 
 #define BACKUP_INTERVAL 60000
 
@@ -13,12 +14,12 @@ namespace DBNS {
     class Log { // TODO: better name
         public:
             inline void initLog();
-            void updateBackup(unsigned long time);
+            void updateBackup();
             void generateLog(const char* readerID, unsigned long cardID, 
-                            bool authorized, unsigned long time);
+                            bool authorized);
 
         private:
-            inline void startBackup(unsigned long time);
+            inline void startBackup();
             inline void finishBackup();
             inline bool backupEnded();
             inline void processBackup();
@@ -67,11 +68,11 @@ namespace DBNS {
         esp_log_set_vprintf(logmessage);
     }
 
-    void Log::updateBackup(unsigned long time) {
+    void Log::updateBackup() {
         if (!doingBackup && !doingChecksum) {
             // TODO: Change to alarm
             if (currentMillis - lastBackupTime > BACKUP_INTERVAL) {
-                startBackup(time);
+                startBackup();
             }
             return;
         }
@@ -94,11 +95,11 @@ namespace DBNS {
         processChecksum();
     }
 
-    inline void Log::startBackup(unsigned long time) {
+    inline void Log::startBackup() {
         log_v("Started log DB backup");
 
         doingBackup = true;
-        logCreationTime = time;
+        logCreationTime = getTime();
         char buffer[50];
         sprintf(buffer, "/sd/%lu.db", logCreationTime);
 
@@ -222,12 +223,12 @@ namespace DBNS {
 
 
     void Log::generateLog(const char* readerID, unsigned long cardID, 
-                                 bool authorized, unsigned long time) {
+                                 bool authorized) {
         //TODO: create error column in db 
         openlogDB();
 
         sqlite3_int64 card = cardID;
-        sqlite3_int64 unixTime = time;
+        sqlite3_int64 unixTime = getTime();
 
         sqlite3_reset(logquery);
         sqlite3_bind_int64(logquery, 1, card);
@@ -277,11 +278,11 @@ void initLog() {
     DBNS::logging.initLog(); 
 }
 
-void updateLogBackup(unsigned long time) { 
-    DBNS::logging.updateBackup(time); 
+void updateLogBackup() { 
+    DBNS::logging.updateBackup(); 
 }
 
 void generateLog(const char* readerID, unsigned long cardID, 
-                    bool authorized, unsigned long time) {
-    DBNS::logging.generateLog(readerID, cardID, authorized, time);
+                    bool authorized) {
+    DBNS::logging.generateLog(readerID, cardID, authorized);
 }

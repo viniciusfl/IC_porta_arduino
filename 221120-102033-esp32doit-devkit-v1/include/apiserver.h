@@ -3,6 +3,6 @@
 
 void initServer();
 
-void updateServer();
+
 
 #endif

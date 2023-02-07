@@ -44,20 +44,20 @@ void setup() {
     //       us a record of generated logs, even if their timestamps are
     //       wrong before initTime().
     initWiFi();
-    initLog();
-    initDBMan();
     initTime();
+    initDBMan();
+    initLog();
     initCardReaders();
     initServer();
 }
 
 void loop() {
     currentMillis = millis();
-    checkNetConnection();
+    //checkNetConnection();
     //updateDB();
     //checkTimeSync();
-    updateServer();
-    updateLogBackup(getTime());
+    updateLogBackup();
+    
     const char* lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
@@ -69,6 +69,6 @@ void loop() {
             Serial.println("Doesn't exist in db.");
             blinkFail(lastReaderID);
         }
-        generateLog(lastReaderID, lastCardID, authorized, getTime());
+        generateLog(lastReaderID, lastCardID, authorized);
     }
 }
