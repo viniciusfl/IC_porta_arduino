@@ -32,8 +32,6 @@ namespace LOGNS {
             inline void processChecksum();
             inline void finishChecksum();
             bool doingChecksum;
-            unsigned char buffer[512];
-            byte shaResult[32];
             mbedtls_md_context_t ctx;
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
 
@@ -173,6 +171,7 @@ namespace LOGNS {
     }
 
     inline void Log::processChecksum() {
+        unsigned char buffer[512];
         int size = f.read(buffer, 512);
         mbedtls_md_update(&ctx, (const unsigned char *) buffer, size);
 
@@ -185,6 +184,7 @@ namespace LOGNS {
         doingChecksum = false;
         log_v("Finished logDB checksum");
 
+        byte shaResult[32];
         mbedtls_md_finish(&ctx, shaResult);
         mbedtls_md_free(&ctx);
         f.close();
