@@ -44,9 +44,9 @@ void setup() {
     //       us a record of generated logs, even if their timestamps are
     //       wrong before initTime().
     initWiFi();
-    initLog();
-    initDBMan();
     initTime();
+    initDBMan();
+    initLog();
     initCardReaders();
     initServer();
 }
