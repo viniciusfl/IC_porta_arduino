@@ -57,12 +57,13 @@ void loop() {
     //updateDB();
     //checkTimeSync();
     updateServer();
-    updateLogBackup(getTime());
+    updateLogBackup();
+    
     const char* lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
         bool authorized = userAuthorized(lastReaderID, lastCardID);
-        generateLog(lastReaderID, lastCardID, authorized, getTime());
+        generateLog(lastReaderID, lastCardID, authorized);
         if (authorized) {
             openDoor(lastReaderID);
         } else {

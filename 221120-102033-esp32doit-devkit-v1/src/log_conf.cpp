@@ -5,6 +5,7 @@ static const char *TAG = "log";
 #include <sqlite3.h>
 #include <SD.h>
 #include "esp_tls.h"
+#include <timemanager.h>
 
 #define BACKUP_INTERVAL 60000
 
@@ -16,7 +17,7 @@ namespace LOGNS {
         public:
             inline sqlite3* init();
             void generateLog(const char* readerID, unsigned long cardID,
-                            bool authorized, unsigned long time);
+                            bool authorized);
 
         private:
             const static constexpr char* TAG = "Logger";
@@ -29,7 +30,7 @@ namespace LOGNS {
     class LogBackup {
         public:
             void init(sqlite3* logdb);
-            void update(unsigned long time);
+            void update();
 
         private:
             const static constexpr char* TAG = "LogBkp";
@@ -93,11 +94,11 @@ namespace LOGNS {
     }
 
     void Logger::generateLog(const char* readerID, unsigned long cardID,
-                                 bool authorized, unsigned long time) {
+                                 bool authorized) {
         //TODO: create error column in db
 
         sqlite3_int64 card = cardID;
-        sqlite3_int64 unixTime = time;
+        sqlite3_int64 unixTime = getTime();
 
         sqlite3_reset(logquery);
         sqlite3_bind_int64(logquery, 1, card);
@@ -123,11 +124,10 @@ namespace LOGNS {
         this->logdb = logdb;
     }
 
-    void LogBackup::update(unsigned long time) {
+    void LogBackup::update() {
         if (!doingBackup && !doingChecksum) {
             // TODO: Change to alarm
             if (currentMillis - lastBackupTime > BACKUP_INTERVAL) {
-                sprintf(backupFilename, "/sd/%lu.db", time);
                 startBackup();
             }
             return;
@@ -145,6 +145,8 @@ namespace LOGNS {
 
     inline void LogBackup::startBackup() {
         log_v("Starting log DB backup");
+
+        sprintf(backupFilename, "/sd/%lu.db", getTime());
 
         int rc = sqlite3_open_v2(backupFilename, &backupdb,
                  SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
@@ -284,11 +286,11 @@ void initLog() {
     esp_log_set_vprintf(LOGNS::logmessage);
 }
 
-void updateLogBackup(unsigned long time) {
-    LOGNS::logBackupManager.update(time);
+void updateLogBackup() {
+    LOGNS::logBackupManager.update();
 }
 
 void generateLog(const char* readerID, unsigned long cardID,
-                    bool authorized, unsigned long time) {
-    LOGNS::logger.generateLog(readerID, cardID, authorized, time);
+                    bool authorized) {
+    LOGNS::logger.generateLog(readerID, cardID, authorized);
 }
