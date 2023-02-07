@@ -43,8 +43,7 @@ namespace NetNS {
     // https://randomnerdtutorials.com/esp32-useful-wi-fi-functions-arduino/#10 
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
         log_v("Connected to WiFi successfully! IP address: %s",
-              WiFi.localIP());
-        Serial.println(WiFi.localIP()); // FIXME: Printing IP address with log_v is not working. Garbage characters
+              WiFi.localIP().toString().c_str());
 
         configNTP();
     }
@@ -97,7 +96,7 @@ namespace NetNS {
         }
 
         log_v("The IP address is %s and the wifi net is %s",
-              WiFi.localIP(), WiFi.SSID());
+              WiFi.localIP().toString().c_str(), WiFi.SSID());
 
 #       endif
     }
