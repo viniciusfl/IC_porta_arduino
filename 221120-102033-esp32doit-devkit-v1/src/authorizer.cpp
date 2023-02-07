@@ -12,7 +12,8 @@ namespace DBNS {
         int openDB(const char *filename);
         inline void closeDB();
         inline bool userAuthorized(const char* readerID, unsigned long cardID);
-        inline bool openDoor();
+        inline bool openDoor(); // TODO: I added something like this to
+                                //       cardreader.cpp, let's think about this
     private:
         // check the comment near Authorizer::closeDB()
         sqlite3 *sqlitedb = NULL;
