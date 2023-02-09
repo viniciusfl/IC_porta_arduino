@@ -2,7 +2,8 @@
 
  * REST API
 
-   - open door, update the DB, reboot, what else?
+   - open door, update the DB, reboot, recent log messages, recent
+     authorization successes and failures, what else?
 
  * When a backup of the log database is created successfully, we should
    empty the log database. No entries will be lost because, when the
@@ -12,8 +13,6 @@
    as is used by the backup operation, then the backup database is
    automatically updated at the same time." -
    <https://www.sqlite.org/c3ref/backup_finish.html>
-
- * Generate checksum for the backups of the log DB
 
  * Upload and purge logs
 
@@ -27,6 +26,18 @@
 
  * Save system log messages (not just door access messages) to an sqlite
    log DB.
+
+ * Smarter logs: we should have an in-memory circular buffer for the log
+   messages. During startup, before the log db is available, messages are
+   kept there and and then flushed to the DB. During normal operation,
+   they are flushed immediately, but the buffer is accessible over REST
+   so that we can see the latest messages even if something goes wrong
+   with the log db.
+
+ * Master key: insert a hardcoded ID that is always able to open any
+   door without the need to check the DB. This should work even if the
+   MCU crashes for some reason (SD not accessible, unable to set the
+   clock etc.).
 
  * Draw printed circuit board
 
