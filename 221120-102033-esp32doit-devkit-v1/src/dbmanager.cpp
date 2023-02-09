@@ -32,27 +32,6 @@ static const char *TAG = "dbman";
 #define DOWNLOAD_INTERVAL 30000
 
 namespace DBNS {
-    // This is an auxiliary class to UpdateDBManager. It processes small
-    // chunks of data at a time to prevent blocking and writes what is
-    // received to disk, minus the HTTP headers.
-    class FileWriter {
-    public:
-        inline void open(const char*);
-#       ifdef USE_SOCKETS
-        inline void write(WiFiClient&);
-#       else
-        inline void write(byte* buffer, int size);
-#       endif
-        inline void close();
-    private:
-        File file;
-#       ifdef USE_SOCKETS
-        const static int bufsize = 512;
-        byte buf[bufsize];
-        int position = 0;
-#       endif
-    };
-   
     // This class periodically downloads a new version of the database
     // and sets this new version as the "active" db file in the Authorizer
     // when downloading is successful. It alternates between two filenames
@@ -63,10 +42,12 @@ namespace DBNS {
         inline void init();
         void update();
 
-        FileWriter writer;
-
-        void mbedtlsUpdate(byte* buffer, int size);
+#       ifndef USE_SOCKETS
+        void processCallback(byte*, int);
+#       endif
     private:
+        File file;
+
         const char *currentFile;
         const char *otherFile;
         const char *currentTimestampFile;
@@ -89,16 +70,16 @@ namespace DBNS {
         inline void startChecksumDownload();
         inline bool finishChecksumDownload();
         inline bool verifyChecksum();
-        inline bool verifyOldChecksum();
+        inline bool checksumDidNotChange();
 
-        bool downloadingDB = false; 
+        bool downloadingDB = false;
         void startDBDownload();
         inline bool downloadEnded();
         inline bool finishDBDownload();
 
         bool startDownload(const char*);
         inline bool finishCurrentDownload();
-        inline void activateNewDBFile();
+        inline bool activateNewDBFile();
 
 #       ifdef USE_SOCKETS
         WiFiClient netclient;
@@ -144,14 +125,14 @@ namespace DBNS {
         // If we did not return above, we are currently downloading something
         // (either the DB or the checksum)
 
-        if (downloadingChecksum) { 
+        if (downloadingChecksum) {
             // If we finished downloading the checksum, check whether the
             // download was successful;
             if(downloadEnded()){
                 if (finishChecksumDownload()) {
                     // If old DB checksum and current DB checksum matches,
-                    // it means DB didn't change and we don't need to update 
-                    if (verifyOldChecksum()){
+                    // it means DB didn't change and we don't need to update
+                    if (checksumDidNotChange()){
                         lastDownloadTime = currentMillis;
                         return;
                     }
@@ -175,8 +156,11 @@ namespace DBNS {
         if(downloadEnded()) {
             if (finishDBDownload()) {
                 // Both downloads successful, update the timestamp
-                activateNewDBFile();
-                lastDownloadTime = currentMillis;
+                if (activateNewDBFile()) {
+                    lastDownloadTime = currentMillis;
+                } else {
+                    lastDownloadTime += RETRY_DOWNLOAD_TIME;
+                }
             }
         } else {
             // still downloading the DB
@@ -197,13 +181,22 @@ namespace DBNS {
         // remove old DB files
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
-        writer.open(otherFile);
+
+        file = SD.open(otherFile, FILE_WRITE);
+        if(!file) {
+            log_e("Error openning file.");
+        }
+        log_v("Writing to %s", otherFile);
 
         mbedtls_md_init(&ctx);
         mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
         mbedtls_md_starts(&ctx);
     }
 
+    // TODO: the logic around the checksum file is wrong; if we delete
+    //       the file here and download fails later on, we lose the
+    //       old checksum. However, here we assume the file is always
+    //       available.
     inline void UpdateDBManager::startChecksumDownload() {
         log_v("Starting checksum download");
         if (!startDownload("/checksum")) {
@@ -214,12 +207,16 @@ namespace DBNS {
         log_v("Started checksum download");
         downloadingChecksum = true;
 
-        File f = SD.open("/checksum");
-        f.readString().toCharArray(oldChecksum, 65);
-        f.close();
+        file = SD.open("/checksum");
+        file.readString().toCharArray(oldChecksum, 65);
+        file.close();
 
         SD.remove("/checksum");
-        writer.open("/checksum");
+        file = SD.open("/checksum", FILE_WRITE);
+        if(!file) {
+            log_e("Error openning file.");
+        }
+        log_v("Writing to /checksum");
     }
 
     inline bool UpdateDBManager::finishDBDownload() {
@@ -256,6 +253,7 @@ namespace DBNS {
 
 
 #   ifdef USE_SOCKETS
+
     bool UpdateDBManager::startDownload(const char* filename) {
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
@@ -279,44 +277,15 @@ namespace DBNS {
         return true;
     }
 
-
-    inline void UpdateDBManager::processCurrentDownload() {
-        writer.write(netclient);
-    }
-
     inline bool UpdateDBManager::finishCurrentDownload() {
         netclient.flush();
         netclient.stop();
-        writer.close();
+        file.close();
         // we do not really check whether the download succeeded here
         return true;
     }
 
-    // TODO: receiving WiFiClient as a parameter here feels very hackish...
-    inline void FileWriter::write(WiFiClient& netclient) {
-        int avail = netclient.available();
-        if (avail <= 0) return;
-
-            int length;
-            if (avail <= bufsize - position) {
-                length = avail;
-            } else {
-                length = bufsize - position;
-            }
-
-            int check = netclient.read(buf + position, length);
-            if (! check == length) {
-                log_i("Something bad happened reading from network");
-            }
-            position += length;
-
-            if (position >= bufsize) {
-                file.write(buf, position);
-                position = 0;
-            }
-    }
-
-#   else // USE_SOCKETS is undefined
+#   else
 
     bool UpdateDBManager::startDownload(const char* filename) {
         // If WiFI is disconnected, pretend nothing
@@ -368,21 +337,37 @@ namespace DBNS {
             finishedOK = false;
         };
 
-        writer.close();
+        file.close();
         esp_http_client_cleanup(httpclient);
 
         return finishedOK;
     }
 
-    // Nothing to do here, all work is done by the callback function
-    inline void UpdateDBManager::processCurrentDownload() { }
+    void UpdateDBManager::processCallback(byte* data, int length) {
+        file.write(data, length);
 
-    inline void FileWriter::write(byte* buffer, int size) {
-        file.write(buffer, size);
+        if (downloadingDB) {
+            mbedtls_md_update(&ctx, (const unsigned char *) data, length);
+        }
     }
 
-#   endif // USE_SOCKETS
+#   endif
 
+    inline void UpdateDBManager::processCurrentDownload() {
+        // With http, all work is done by the callback function
+#       ifdef USE_SOCKETS
+        byte buf[512];
+        int avail = netclient->available();
+        if (avail <= 0) { return; }
+        if (avail > 512) { avail = 512; }
+
+        int check = netclient.read(buf, avail);
+        if (check != avail) {
+            log_i("Something bad happened reading from network");
+        }
+        file.write(buf, avail);
+#       endif
+    }
 
     inline bool UpdateDBManager::downloadEnded() {
 #       ifdef USE_SOCKETS
@@ -396,16 +381,16 @@ namespace DBNS {
         return false;
     }
 
-    inline bool UpdateDBManager::verifyOldChecksum(){
+    inline bool UpdateDBManager::checksumDidNotChange(){
         char serverHash[65];
 
         // If checksum file doesn't exist, there is no
         // reason to proceed
         if(SD.exists("/checksum")) return false;
 
-        File f = SD.open("/checksum");
-        f.readString().toCharArray(serverHash, 65);
-        f.close();
+        file = SD.open("/checksum");
+        file.readString().toCharArray(serverHash, 65);
+        file.close();
 
         Serial.println(serverHash);
 
@@ -421,17 +406,17 @@ namespace DBNS {
 
     inline bool UpdateDBManager::verifyChecksum() {
         // calculates hash from local recent downloaded db
-        log_v("Finished downloading hash");
+        log_v("Finished calculating hash");
 
         char calculatedHash[65];
         for (int i = 0; i < 32; ++i) {
             snprintf(calculatedHash + 2*i, 3,"%02hhx", shaResult[i]);
         }
 
-        File f = SD.open("/checksum");
+        file = SD.open("/checksum");
         char downloadedHash[65];
-        f.readString().toCharArray(downloadedHash, 65);
-        f.close();
+        file.readString().toCharArray(downloadedHash, 65);
+        file.close();
 
         log_v("Hash from local file: %s; \nHash from server file: %s",
               calculatedHash, downloadedHash);
@@ -443,25 +428,31 @@ namespace DBNS {
         }
     }
 
-    inline void UpdateDBManager::activateNewDBFile() {
+    inline bool UpdateDBManager::activateNewDBFile() {
+        bool ok = true;
+
         if (!verifyChecksum()) {
-            log_i("Downloaded DB file is corrupted (checksums are not equal), ignoring.");
+            ok = false;
+            log_i("Downloaded DB file is corrupted "
+                  "(checksums are not equal), ignoring.");
             SD.remove(otherFile);
             SD.remove("/checksum"); // TODO: there may be better ways to manage this
-            return;
-        }
-
-        swapFiles();
-        closeDB();
-
-        if (openDB(currentFile) != SQLITE_OK) {
-            log_w("Error opening the updated DB, reverting to old one");
+        } else {
             swapFiles();
-            if(openDB(currentFile) != SQLITE_OK){ // FIXME: in the unlikely event that this fails too, we are doomed
-                SD.remove("/checksum");
-                // TODO:
+            closeDB();
+
+            if (openDB(currentFile) != SQLITE_OK) {
+                ok = false;
+                log_w("Error opening the updated DB, reverting to old one");
+                swapFiles();
+                if(openDB(currentFile) != SQLITE_OK){ // FIXME: in the unlikely event that this fails too, we are doomed
+                    SD.remove("/checksum");
+                    // TODO:
+                }
             }
         }
+
+        return ok;
     }
 
     void UpdateDBManager::swapFiles() {
@@ -477,13 +468,13 @@ namespace DBNS {
         // use the new version of the DB. If we crash in the middle (with
         // both files containing "1"), on restart we will use "bancoA.db",
         // which may be either.
-        File f = SD.open(currentTimestampFile, FILE_WRITE);
-        f.print(1);
-        f.close();
+        file = SD.open(currentTimestampFile, FILE_WRITE);
+        file.print(1);
+        file.close();
 
-        f = SD.open(otherTimestampFile, FILE_WRITE);
-        f.print(0);
-        f.close();
+        file = SD.open(otherTimestampFile, FILE_WRITE);
+        file.print(0);
+        file.close();
     }
 
     bool UpdateDBManager::checkFileFreshness(const char *tsfile) {
@@ -537,36 +528,6 @@ namespace DBNS {
         }
     }
 
-    void UpdateDBManager::mbedtlsUpdate(byte* buffer, int size) {
-        if (!downloadingDB) {
-            return;
-        }
-
-        mbedtls_md_update(&ctx, (const unsigned char *) buffer, size);
-    }
-
-    inline void FileWriter::open(const char *filename) {
-        file = SD.open(filename, FILE_WRITE);
-        if(!file) { 
-            log_e("Error openning file.");
-        }
-
-#       ifdef USE_SOCKETS
-        buf[0] = 0;
-        position = 0;
-#       endif
-
-        log_v("Writing to %s", filename);
-    }
-
-
-    inline void FileWriter::close() {
-#       ifdef USE_SOCKETS
-        file.write(buf, position);
-#       endif
-        file.close();
-    }
-
     UpdateDBManager updateDBManager;
 
 #   ifndef USE_SOCKETS
@@ -590,9 +551,7 @@ namespace DBNS {
             case HTTP_EVENT_ON_DATA:
                 log_v("HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
                 if (!esp_http_client_is_chunked_response(evt->client)) {
-                    updateDBManager.writer.write((byte*) evt->data,
-                                                 evt->data_len);
-                    updateDBManager.mbedtlsUpdate((byte*) evt->data,
+                    updateDBManager.processCallback((byte*) evt->data,
                                                     evt->data_len);
                 } else {log_e("CHUNKED!");}
                 break;
