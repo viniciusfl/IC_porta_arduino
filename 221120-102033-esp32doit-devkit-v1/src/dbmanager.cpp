@@ -50,9 +50,6 @@ namespace DBNS {
         const static int bufsize = 512;
         byte buf[bufsize];
         int position = 0;
-        char previous;
-        bool headerDone = false;
-        bool beginningOfLine = true;
 #       endif
     };
    
@@ -309,7 +306,6 @@ namespace DBNS {
         int avail = netclient.available();
         if (avail <= 0) return;
 
-        if (headerDone) {
             int length;
             if (avail <= bufsize - position) {
                 length = avail;
@@ -327,22 +323,6 @@ namespace DBNS {
                 file.write(buf, position);
                 position = 0;
             }
-        } else {
-            char c = netclient.read();
-            if (c == '\n') {
-                if (beginningOfLine && previous == '\r') {
-                    headerDone = true;
-                    log_v("Header done!");
-                } else {
-                    previous = 0;
-                }
-                beginningOfLine = true;
-            } else {
-                previous = c;
-                if (c != '\r')
-                    beginningOfLine = false;
-            }
-        }
     }
 
 #   else // USE_SOCKETS is undefined
@@ -581,11 +561,8 @@ namespace DBNS {
         }
 
 #       ifdef USE_SOCKETS
-        headerDone = false;
-        beginningOfLine = true;
         buf[0] = 0;
         position = 0;
-        previous = 0;
 #       endif
 
         log_v("Writing to %s", filename);
