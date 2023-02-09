@@ -43,7 +43,7 @@ namespace DBNS {
         void update();
 
 #       ifndef USE_SOCKETS
-        void processCallback(byte*, int);
+        esp_err_t processCallback(esp_http_client_event_t*);
 #       endif
     private:
         File file;
@@ -87,10 +87,6 @@ namespace DBNS {
         esp_http_client_handle_t httpclient;
 #       endif
     };
-
-#   ifndef USE_SOCKETS
-    esp_err_t handler(esp_http_client_event_t *evt);
-#   endif
 
     // This should be called from setup()
     inline void UpdateDBManager::init() {
@@ -287,6 +283,12 @@ namespace DBNS {
 
 #   else
 
+    // The callback for the HTTP client
+    esp_err_t handler(esp_http_client_event_t *evt) {
+        UpdateDBManager* obj = (UpdateDBManager*) evt->user_data;
+        return obj->processCallback(evt);
+    }
+
     bool UpdateDBManager::startDownload(const char* filename) {
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
@@ -307,6 +309,7 @@ namespace DBNS {
             .event_handler = handler,
             .transport_type = HTTP_TRANSPORT_OVER_SSL,
             .buffer_size = 4096,
+            .user_data = this,
             .is_async = true,
             .skip_cert_common_name_check = true,
         };
@@ -343,12 +346,52 @@ namespace DBNS {
         return finishedOK;
     }
 
-    void UpdateDBManager::processCallback(byte* data, int length) {
-        file.write(data, length);
-
-        if (downloadingDB) {
-            mbedtls_md_update(&ctx, (const unsigned char *) data, length);
+    esp_err_t UpdateDBManager::processCallback(esp_http_client_event_t *evt) {
+        const char* TAG = "http_callback";
+        switch(evt->event_id) {
+            case HTTP_EVENT_ERROR:
+                log_i("HTTP_EVENT_ERROR");
+                break;
+            case HTTP_EVENT_ON_CONNECTED:
+                log_d("HTTP_EVENT_ON_CONNECTED");
+                break;
+            case HTTP_EVENT_HEADER_SENT:
+                log_v("HTTP_EVENT_HEADER_SENT");
+                break;
+            case HTTP_EVENT_ON_HEADER:
+                log_v("HTTP_EVENT_ON_HEADER, key=%s, value=%s",
+                         evt->header_key, evt->header_value);
+                break;
+            case HTTP_EVENT_ON_DATA:
+                log_v("HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+                if (!esp_http_client_is_chunked_response(evt->client)) {
+                    file.write((byte*) evt->data, evt->data_len);
+                    if (downloadingDB) {
+                        mbedtls_md_update(&ctx,
+                                          (const unsigned char *) evt->data,
+                                          evt->data_len);
+                    }
+                } else {log_e("CHUNKED!");}
+                break;
+            case HTTP_EVENT_ON_FINISH:
+                log_d("HTTP_EVENT_ON_FINISH");
+                break;
+            case HTTP_EVENT_DISCONNECTED:
+                log_i("HTTP_EVENT_DISCONNECTED");
+                int mbedtls_err = 0;
+                esp_err_t err = esp_tls_get_and_clear_last_error(
+                                (esp_tls_error_handle_t)evt->data,
+                                &mbedtls_err, NULL);
+                if (err != 0) {
+                    log_i("Last esp error code: 0x%x", err);
+                    log_i("Last mbedtls failure: 0x%x", mbedtls_err);
+                }
+                break;
+            //case HTTP_EVENT_REDIRECT:
+            //    log_d("HTTP_EVENT_REDIRECT");
+            //    break;
         }
+        return ESP_OK;
     }
 
 #   endif
@@ -529,53 +572,6 @@ namespace DBNS {
     }
 
     UpdateDBManager updateDBManager;
-
-#   ifndef USE_SOCKETS
-    // The callback for the HTTP client
-    esp_err_t handler(esp_http_client_event_t *evt) {
-        const char* TAG = "http_callback";
-        switch(evt->event_id) {
-            case HTTP_EVENT_ERROR:
-                log_i("HTTP_EVENT_ERROR");
-                break;
-            case HTTP_EVENT_ON_CONNECTED:
-                log_d("HTTP_EVENT_ON_CONNECTED");
-                break;
-            case HTTP_EVENT_HEADER_SENT:
-                log_v("HTTP_EVENT_HEADER_SENT");
-                break;
-            case HTTP_EVENT_ON_HEADER:
-                log_v("HTTP_EVENT_ON_HEADER, key=%s, value=%s",
-                         evt->header_key, evt->header_value);
-                break;
-            case HTTP_EVENT_ON_DATA:
-                log_v("HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-                if (!esp_http_client_is_chunked_response(evt->client)) {
-                    updateDBManager.processCallback((byte*) evt->data,
-                                                    evt->data_len);
-                } else {log_e("CHUNKED!");}
-                break;
-            case HTTP_EVENT_ON_FINISH:
-                log_d("HTTP_EVENT_ON_FINISH");
-                break;
-            case HTTP_EVENT_DISCONNECTED:
-                log_i("HTTP_EVENT_DISCONNECTED");
-                int mbedtls_err = 0;
-                esp_err_t err = esp_tls_get_and_clear_last_error(
-                                (esp_tls_error_handle_t)evt->data,
-                                &mbedtls_err, NULL);
-                if (err != 0) {
-                    log_i("Last esp error code: 0x%x", err);
-                    log_i("Last mbedtls failure: 0x%x", mbedtls_err);
-                }
-                break;
-            //case HTTP_EVENT_REDIRECT:
-            //    log_d("HTTP_EVENT_REDIRECT");
-            //    break;
-        }
-        return ESP_OK;
-    }
-#   endif
 }
 
 
