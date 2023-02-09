@@ -51,8 +51,10 @@ namespace DBNS {
     // search element through current database
     inline bool Authorizer::userAuthorized(const char* readerID, unsigned long cardID) {
 
-        if (sqlitedb == NULL)
+        if (sqlitedb == NULL) {
+            log_w("Cannot read DB, denying access");
             return false;
+        }
 
         log_v("Card reader %s was used. Received card ID %lu",
               readerID, cardID);
