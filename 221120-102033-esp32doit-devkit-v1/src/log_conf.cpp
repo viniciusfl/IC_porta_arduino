@@ -36,7 +36,8 @@ namespace LOGNS {
             const static constexpr char* TAG = "LogBkp";
             bool doingBackup = false;
             bool doingChecksum = false;
-            unsigned long lastBackupTime = 0; // TODO: remove after implement alarm
+            unsigned long lastBackupTime = 0; // TODO: remove after
+                                              //       implementing alarms
             char backupFilename[50];
 
             sqlite3 *logdb; // copy of the pointer in the "Logger" class
@@ -80,7 +81,9 @@ namespace LOGNS {
             log_v("Opened database successfully");
 
             rc = sqlite3_prepare_v2(logdb,
-                                    "INSERT INTO log(cardID, doorID, readerID, unixTimestamp, authorized) VALUES(?, ?, ?, ?, ?)",
+                                    "INSERT INTO log(cardID, doorID, "
+                                    "readerID, unixTimestamp, authorized) "
+                                    "VALUES(?, ?, ?, ?, ?)",
                                     -1, &logquery, NULL);
 
             if (rc != SQLITE_OK) {
