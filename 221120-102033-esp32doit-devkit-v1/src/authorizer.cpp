@@ -30,10 +30,10 @@ namespace DBNS {
         {
             log_e("Can't open database: %s", sqlite3_errmsg(sqlitedb));
         } else {
-
             log_v("Opened database successfully %s", filename);
             rc = sqlite3_prepare_v2(sqlitedb,
-                                    "SELECT EXISTS(SELECT * FROM auth WHERE userID=? AND doorID=?)",
+                                    "SELECT EXISTS(SELECT * FROM auth "
+                                    "WHERE userID=? AND doorID=?)",
                                     -1, &dbquery, NULL);
 
             if (rc != SQLITE_OK) {
@@ -49,7 +49,8 @@ namespace DBNS {
     }
 
     // search element through current database
-    inline bool Authorizer::userAuthorized(const char* readerID, unsigned long cardID) {
+    inline bool Authorizer::userAuthorized(const char* readerID,
+                                           unsigned long cardID) {
 
         if (sqlitedb == NULL) {
             log_w("Cannot read DB, denying access");
@@ -78,11 +79,7 @@ namespace DBNS {
             log_e("Error querying DB: %s", sqlite3_errmsg(sqlitedb));
         }
 
-        if (authorized) {
-            return true;
-        } else {
-            return false;
-        }
+        return authorized;
     }
 
 
