@@ -88,10 +88,20 @@
      that collects the data from the user, encrypts it, and returns an
      encrypted file for the user, who does not need to trust any third-
      party with their credentials. We may even store the private key in
-     the NVS, which allows us to use different keys if necessary.
+     the NVS, which allows us to use different keys for different MCUs.
+
+   - When starting for the first time (or after pressing a specific
+     button), connect to a default wifi access point and download the
+     encrypted data from a default server and URL (the access point,
+     the pre-shared key to access it, the server, and the URL may be
+     set in the NVS). This alleviates the need for an SD card, but
+     involves providing a temporary access point and having a server
+     to host the files (it may be a temporary server, maybe something
+     in the local network).
 
    - A combination of the above: if the data is not in the NVS or SPIFFS,
-     check the SD card; if it is not there, start as an access point.
+     check the SD card; if it is not there, try to connect to the default
+     access point; if it is not available, start as an access point.
 
  * `*TimestampFile` is not a good name for the files with the metadata
    about the DB files (but check the next item)
