@@ -276,15 +276,6 @@ namespace DBNS {
 
         log_v("Connected to server.");
 
-        char buf[192];
-        buf[0] = 0;
-        snprintf(buf, 192,
-                      "GET %s HTTP/1.1\n"
-                      "Host: %s\n"
-                      "Connection: close\n\n",
-                 filename, SERVER);
-        netclient.print(buf);
-
         return true;
     }
 
