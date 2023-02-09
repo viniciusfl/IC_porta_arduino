@@ -452,8 +452,6 @@ namespace DBNS {
         // calculates hash from local recent downloaded db
         log_v("Finished downloading hash");
 
-        String name = (String) "/sd" + otherFile; // FIXME:
-
         char calculatedHash[65];
         for (int i = 0; i < 32; ++i) {
             snprintf(calculatedHash + 2*i, 3,"%02hhx", shaResult[i]);

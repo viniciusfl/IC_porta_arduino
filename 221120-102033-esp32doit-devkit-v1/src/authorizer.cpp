@@ -22,9 +22,10 @@ namespace DBNS {
 
     int Authorizer::openDB(const char *filename) {
         closeDB();
-        String name = (String) "/sd" + filename; // FIXME: 
+        char name[50];
+        sprintf(name, "/sd%s", filename);
 
-        int rc = sqlite3_open(name.c_str(), &sqlitedb);
+        int rc = sqlite3_open(name, &sqlitedb);
         if (rc != SQLITE_OK)
         {
             log_e("Can't open database: %s", sqlite3_errmsg(sqlitedb));
