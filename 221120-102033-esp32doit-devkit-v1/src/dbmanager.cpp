@@ -412,10 +412,10 @@ namespace DBNS {
         log_v("Hash from server: %s; Hash from old db: %s",
               serverHash, oldChecksum);
 
-        if(strcmp(serverHash, oldChecksum)) {
-            return false;
-        } else {
+        if(strcmp(serverHash, oldChecksum) == 0) {
             return true;
+        } else {
+            return false;
         }
     }
 
