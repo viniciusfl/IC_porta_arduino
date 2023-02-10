@@ -46,8 +46,6 @@ namespace DBNS {
         esp_err_t processCallback(esp_http_client_event_t*);
 #       endif
     private:
-        File file;
-
         const char *currentFile;
         const char *otherFile;
         const char *currentTimestampFile;
@@ -59,28 +57,30 @@ namespace DBNS {
 
         const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
-        inline void processCurrentDownload();
-
-        byte shaResult[32];
-        mbedtls_md_context_t ctx;
-        mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
-
-        char oldChecksum[65];
-        bool downloadingChecksum = false;
-        inline void startChecksumDownload();
-        inline bool finishChecksumDownload();
-        inline bool verifyChecksum();
-        inline bool checksumDidNotChange();
 
         bool downloadingDB = false;
         void startDBDownload();
-        inline bool downloadEnded();
         inline bool finishDBDownload();
 
+        bool downloadingHash = false;
+        inline void startHashDownload();
+        inline bool finishHashDownload();
+
         bool startDownload(const char*);
+        inline void processCurrentDownload();
         inline bool finishCurrentDownload();
+        inline bool downloadEnded();
         inline bool activateNewDBFile();
 
+        char currentHash[65];
+        char calculatedHash[65];
+        char downloadedHash[65];
+        inline bool verifyHash();
+        inline bool hashChanged();
+        mbedtls_md_context_t ctx;
+        mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+
+        File file;
 #       ifdef USE_SOCKETS
         WiFiClient netclient;
 #       else
@@ -101,7 +101,7 @@ namespace DBNS {
         //FIXME: what if download stops working in the middle and never ends?
 
         // We start a download only if we are not already downloading
-        if (!downloadingDB && !downloadingChecksum) {
+        if (!downloadingDB && !downloadingHash) {
             // millis() wraps every ~49 days, but
             // wrapping does not cause problems here
             // TODO: we might prefer to use dates,
@@ -112,32 +112,30 @@ namespace DBNS {
             // I believe the nodeMCU RTC might also have this feature
 
             if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
-                startChecksumDownload();
+                startHashDownload();
             }
 
             return;
         }
 
         // If we did not return above, we are currently downloading something
-        // (either the DB or the checksum)
+        // (either the DB or the hash)
 
-        if (downloadingChecksum) {
-            // If we finished downloading the checksum, check whether the
+        if (downloadingHash) {
+            // If we finished downloading the hash, check whether the
             // download was successful;
             if(downloadEnded()){
-                if (finishChecksumDownload()) {
-                    // If old DB checksum and current DB checksum matches,
+                if (finishHashDownload()) {
+                    // If old DB hash and current DB hash matches,
                     // it means DB didn't change and we don't need to update
-                    if (checksumDidNotChange()){
+                    if (hashChanged()){
+                        startDBDownload();
+                    } else {
                         lastDownloadTime = currentMillis;
-                        return;
                     }
-                    // else, starts downloading DB
-                    startDBDownload();
-
                 }
             } else {
-                // still downloading the checksum
+                // still downloading the hash
                 processCurrentDownload();
             }
 
@@ -147,15 +145,13 @@ namespace DBNS {
         // If we did not return above, we are still downloading the DB
 
         // If we finished downloading the DB, check whether the
-        // download was successful; if so and the checksum matches,
+        // download was successful; if so and the hash matches,
         // start using the new DB
         if(downloadEnded()) {
             if (finishDBDownload()) {
                 // Both downloads successful, update the timestamp
                 if (activateNewDBFile()) {
                     lastDownloadTime = currentMillis;
-                } else {
-                    lastDownloadTime += RETRY_DOWNLOAD_TIME;
                 }
             }
         } else {
@@ -166,9 +162,12 @@ namespace DBNS {
 
     void UpdateDBManager::startDBDownload() {
         log_v("Starting DB download");
+
+        calculatedHash[0] = 0;
+
         if (!startDownload("/dataBaseIME.db")) {
             log_i("Network failure, cancelling DB download");
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+            lastDownloadTime += RETRY_DOWNLOAD_TIME;
             return;
         }
         log_v("Started DB download");
@@ -189,30 +188,29 @@ namespace DBNS {
         mbedtls_md_starts(&ctx);
     }
 
-    // TODO: the logic around the checksum file is wrong; if we delete
-    //       the file here and download fails later on, we lose the
-    //       old checksum. However, here we assume the file is always
-    //       available.
-    inline void UpdateDBManager::startChecksumDownload() {
-        log_v("Starting checksum download");
-        if (!startDownload("/checksum")) {
-            log_i("Network failure, cancelling checksum download");
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
+    inline void UpdateDBManager::startHashDownload() {
+        log_v("Starting hash download");
+
+        downloadedHash[0] = 0;
+
+        if (!startDownload("/hash")) {
+            log_i("Network failure, cancelling hash download");
+            lastDownloadTime += RETRY_DOWNLOAD_TIME;
             return;
         }
-        log_v("Started checksum download");
-        downloadingChecksum = true;
+        log_v("Started hash download");
+        downloadingHash = true;
 
-        file = SD.open("/checksum");
-        file.readString().toCharArray(oldChecksum, 65);
+        file = SD.open("/hash");
+        file.readString().toCharArray(currentHash, 65);
         file.close();
 
-        SD.remove("/checksum");
-        file = SD.open("/checksum", FILE_WRITE);
+        SD.remove("/downloaded-hash");
+        file = SD.open("/downloaded-hash", FILE_WRITE);
         if(!file) {
             log_e("Error openning file.");
         }
-        log_v("Writing to /checksum");
+        log_v("Writing to /downloaded-hash");
     }
 
     inline bool UpdateDBManager::finishDBDownload() {
@@ -220,29 +218,38 @@ namespace DBNS {
 
         bool finishedOK = finishCurrentDownload();
 
+        byte buf[32];
+        mbedtls_md_finish(&ctx, buf);
+        mbedtls_md_free(&ctx);
+
         if (finishedOK) {
             log_v("DB download finished, disconnecting from server.");
+            for (int i = 0; i < 32; ++i) {
+                snprintf(calculatedHash + 2*i, 3,"%02hhx", buf[i]);
+            }
         } else {
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
             log_v("DB download finished with error, ignoring file.");
+            lastDownloadTime += RETRY_DOWNLOAD_TIME;
         }
-
-        mbedtls_md_finish(&ctx, shaResult);
-        mbedtls_md_free(&ctx);
 
         return finishedOK;
     }
 
-    inline bool UpdateDBManager::finishChecksumDownload() {
-        downloadingChecksum = false;
+    inline bool UpdateDBManager::finishHashDownload() {
+        downloadingHash = false;
         bool finishedOK = finishCurrentDownload();
 
         if (finishedOK) {
-            log_v("Checksum download finished, disconnecting from server.");
+            log_v("Hash download finished, disconnecting from server.");
+            file = SD.open("/downloaded-hash");
+            file.readString().toCharArray(downloadedHash, 65);
+            file.close();
         } else {
-            lastDownloadTime = lastDownloadTime + RETRY_DOWNLOAD_TIME;
-            log_v("Checksum download finished with error, ignoring file.");
+            log_v("Hash download finished with error, ignoring file.");
+            lastDownloadTime += RETRY_DOWNLOAD_TIME;
         }
+
+        SD.remove("/downloaded-hash");
 
         return finishedOK;
     }
@@ -424,62 +431,41 @@ namespace DBNS {
         return false;
     }
 
-    inline bool UpdateDBManager::checksumDidNotChange(){
-        char serverHash[65];
-
-        // If checksum file doesn't exist, there is no
-        // reason to proceed
-        if(SD.exists("/checksum")) return false;
-
-        file = SD.open("/checksum");
-        file.readString().toCharArray(serverHash, 65);
-        file.close();
-
-        Serial.println(serverHash);
-
+    inline bool UpdateDBManager::hashChanged(){
         log_v("Hash from server: %s; Hash from old db: %s",
-              serverHash, oldChecksum);
+              downloadedHash, currentHash);
 
-        if(strcmp(serverHash, oldChecksum) == 0) {
-            return true;
-        } else {
+        if(strcmp(downloadedHash, currentHash) == 0) {
             return false;
+        } else {
+            return true;
         }
     }
 
-    inline bool UpdateDBManager::verifyChecksum() {
+    inline bool UpdateDBManager::verifyHash() {
         // calculates hash from local recent downloaded db
         log_v("Finished calculating hash");
 
-        char calculatedHash[65];
-        for (int i = 0; i < 32; ++i) {
-            snprintf(calculatedHash + 2*i, 3,"%02hhx", shaResult[i]);
-        }
-
-        file = SD.open("/checksum");
-        char downloadedHash[65];
-        file.readString().toCharArray(downloadedHash, 65);
-        file.close();
-
-        log_v("Hash from local file: %s; \nHash from server file: %s",
+        log_v("Hash calculated from local file: %s;\n"
+              "Hash downloaded from server: %s",
               calculatedHash, downloadedHash);
 
-        if(strcmp(calculatedHash, downloadedHash)) {
-            return false;
-        } else {
+        if(strcmp(calculatedHash, downloadedHash) == 0) {
             return true;
+        } else {
+            return false;
         }
     }
 
     inline bool UpdateDBManager::activateNewDBFile() {
         bool ok = true;
 
-        if (!verifyChecksum()) {
+        if (!verifyHash()) {
             ok = false;
             log_i("Downloaded DB file is corrupted "
-                  "(checksums are not equal), ignoring.");
+                  "(hashs are not equal), ignoring.");
             SD.remove(otherFile);
-            SD.remove("/checksum"); // TODO: there may be better ways to manage this
+            SD.remove("/downloaded-hash"); // TODO: there may be better ways to manage this
         } else {
             swapFiles();
             closeDB();
@@ -489,12 +475,13 @@ namespace DBNS {
                 log_w("Error opening the updated DB, reverting to old one");
                 swapFiles();
                 if(openDB(currentFile) != SQLITE_OK){ // FIXME: in the unlikely event that this fails too, we are doomed
-                    SD.remove("/checksum");
+                    SD.remove("/downloaded-hash");
                     // TODO:
                 }
             }
         }
 
+        if (!ok) { lastDownloadTime += RETRY_DOWNLOAD_TIME; }
         return ok;
     }
 
@@ -517,6 +504,14 @@ namespace DBNS {
 
         file = SD.open(otherTimestampFile, FILE_WRITE);
         file.print(0);
+        file.close();
+
+        // TODO: figure out how to fix this :)
+        char* tmp2 = downloadedHash;
+        downloadedHash = currentHash;
+        currentHash = tmp2;
+        file = SD.open("/hash", FILE_WRITE);
+        file.write((byte*)currentHash, 65);
         file.close();
     }
 
@@ -546,9 +541,9 @@ namespace DBNS {
             } else if (checkFileFreshness(otherTimestampFile)) {
                 swapFiles();
                 dbFileOK = true;
-            } else if (!downloadingDB && !downloadingChecksum) {
+            } else if (!downloadingDB && !downloadingHash) {
                 log_i("Downloading DB for the first time...");
-                startChecksumDownload();
+                startHashDownload();
             } else {
                 update();
             }
