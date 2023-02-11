@@ -150,6 +150,9 @@
 
  * Update the DB using alarms instead of time intervals?
 
+ * It does not make much sense to save the downloaded hash to a file;
+   we should just save it to a buffer
+
  * Add some sort of timeout for the download
 
  * What to do if `openDB()` fails?
