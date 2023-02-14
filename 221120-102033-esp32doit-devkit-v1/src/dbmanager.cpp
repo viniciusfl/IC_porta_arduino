@@ -72,9 +72,9 @@ namespace DBNS {
         inline bool downloadEnded();
         inline bool activateNewDBFile();
 
-        char currentHash[65];
+        char *currentHash;
         char calculatedHash[65];
-        char downloadedHash[65];
+        char *downloadedHash;
         inline bool verifyHash();
         inline bool hashChanged();
         mbedtls_md_context_t ctx;
@@ -98,7 +98,6 @@ namespace DBNS {
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
     void UpdateDBManager::update() {
-        //FIXME: what if download stops working in the middle and never ends?
 
         // We start a download only if we are not already downloading
         if (!downloadingDB && !downloadingHash) {
@@ -114,7 +113,6 @@ namespace DBNS {
             if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
                 startHashDownload();
             }
-
             return;
         }
 
@@ -138,7 +136,6 @@ namespace DBNS {
                 // still downloading the hash
                 processCurrentDownload();
             }
-
             return;
         }
 
@@ -147,7 +144,7 @@ namespace DBNS {
         // If we finished downloading the DB, check whether the
         // download was successful; if so and the hash matches,
         // start using the new DB
-        if(downloadEnded()) {
+        if (downloadEnded()) {
             if (finishDBDownload()) {
                 // Both downloads successful, update the timestamp
                 if (activateNewDBFile()) {
@@ -189,9 +186,6 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::startHashDownload() {
-        log_v("Starting hash download");
-
-        downloadedHash[0] = 0;
 
         if (!startDownload("/hash")) {
             log_i("Network failure, cancelling hash download");
@@ -201,16 +195,25 @@ namespace DBNS {
         log_v("Started hash download");
         downloadingHash = true;
 
-        file = SD.open("/hash");
-        file.readString().toCharArray(currentHash, 65);
-        file.close();
+        if (SD.exists("/hash")) {
+            file = SD.open("/hash");
+            int fileSize = file.size();
+            currentHash = (char *)malloc(65);
+            currentHash[64] = '\0';
+            file.readBytes(currentHash, 65);
+            file.close();
+        } else {
+            log_v("old hash doesnt exist");
+            currentHash = "xd";
+        }
 
-        SD.remove("/downloaded-hash");
-        file = SD.open("/downloaded-hash", FILE_WRITE);
-        if(!file) {
+        SD.remove("/serverhash");
+        file = SD.open("/serverhash", FILE_WRITE);
+        if (!file) {
             log_e("Error openning file.");
         }
-        log_v("Writing to /downloaded-hash");
+
+        log_v("Writing to /serverhash");
     }
 
     inline bool UpdateDBManager::finishDBDownload() {
@@ -225,7 +228,7 @@ namespace DBNS {
         if (finishedOK) {
             log_v("DB download finished, disconnecting from server.");
             for (int i = 0; i < 32; ++i) {
-                snprintf(calculatedHash + 2*i, 3,"%02hhx", buf[i]);
+                snprintf(calculatedHash + 2*i, 3, "%02hhx", buf[i]);
             }
         } else {
             log_v("DB download finished with error, ignoring file.");
@@ -238,22 +241,24 @@ namespace DBNS {
     inline bool UpdateDBManager::finishHashDownload() {
         downloadingHash = false;
         bool finishedOK = finishCurrentDownload();
+        file.close();
 
         if (finishedOK) {
             log_v("Hash download finished, disconnecting from server.");
-            file = SD.open("/downloaded-hash");
-            file.readString().toCharArray(downloadedHash, 65);
+            file = SD.open("/serverhash");
+            downloadedHash = (char *)malloc(65);
+            file.readBytes(downloadedHash, 65);
+            downloadedHash[64] = '\0';
             file.close();
         } else {
             log_v("Hash download finished with error, ignoring file.");
             lastDownloadTime += RETRY_DOWNLOAD_TIME;
         }
 
-        SD.remove("/downloaded-hash");
+        // SD.remove("/serverhash");
 
         return finishedOK;
     }
-
 
 #   ifdef USE_SOCKETS
 
@@ -292,11 +297,11 @@ namespace DBNS {
 
     // The callback for the HTTP client
     esp_err_t handler(esp_http_client_event_t *evt) {
-        UpdateDBManager* obj = (UpdateDBManager*) evt->user_data;
+        UpdateDBManager *obj = (UpdateDBManager *)evt->user_data;
         return obj->processCallback(evt);
     }
 
-    bool UpdateDBManager::startDownload(const char* filename) {
+    bool UpdateDBManager::startDownload(const char *filename) {
         // If WiFI is disconnected, pretend nothing
         // ever happened and try again later
         if (!connected()) {
@@ -354,8 +359,8 @@ namespace DBNS {
     }
 
     esp_err_t UpdateDBManager::processCallback(esp_http_client_event_t *evt) {
-        const char* TAG = "http_callback";
-        switch(evt->event_id) {
+        const char *TAG = "http_callback";
+        switch (evt->event_id) {
             case HTTP_EVENT_ERROR:
                 log_i("HTTP_EVENT_ERROR");
                 break;
@@ -367,18 +372,20 @@ namespace DBNS {
                 break;
             case HTTP_EVENT_ON_HEADER:
                 log_v("HTTP_EVENT_ON_HEADER, key=%s, value=%s",
-                         evt->header_key, evt->header_value);
+                    evt->header_key, evt->header_value);
                 break;
             case HTTP_EVENT_ON_DATA:
                 log_v("HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
                 if (!esp_http_client_is_chunked_response(evt->client)) {
-                    file.write((byte*) evt->data, evt->data_len);
+                    file.write((byte *)evt->data, evt->data_len);
                     if (downloadingDB) {
                         mbedtls_md_update(&ctx,
-                                          (const unsigned char *) evt->data,
-                                          evt->data_len);
+                                        (const unsigned char *)evt->data,
+                                        evt->data_len);
                     }
-                } else {log_e("CHUNKED!");}
+                } else {
+                    log_e("CHUNKED!");
+                }
                 break;
             case HTTP_EVENT_ON_FINISH:
                 log_d("HTTP_EVENT_ON_FINISH");
@@ -387,36 +394,40 @@ namespace DBNS {
                 log_i("HTTP_EVENT_DISCONNECTED");
                 int mbedtls_err = 0;
                 esp_err_t err = esp_tls_get_and_clear_last_error(
-                                (esp_tls_error_handle_t)evt->data,
-                                &mbedtls_err, NULL);
+                    (esp_tls_error_handle_t)evt->data,
+                    &mbedtls_err, NULL);
                 if (err != 0) {
                     log_i("Last esp error code: 0x%x", err);
                     log_i("Last mbedtls failure: 0x%x", mbedtls_err);
                 }
-                break;
-            //case HTTP_EVENT_REDIRECT:
-            //    log_d("HTTP_EVENT_REDIRECT");
-            //    break;
+            break;
+            // case HTTP_EVENT_REDIRECT:
+            //     log_d("HTTP_EVENT_REDIRECT");
+            //     break;
         }
         return ESP_OK;
     }
 
-#   endif
+#endif
 
     inline void UpdateDBManager::processCurrentDownload() {
         // With http, all work is done by the callback function
 #       ifdef USE_SOCKETS
         byte buf[512];
         int avail = netclient->available();
-        if (avail <= 0) { return; }
-        if (avail > 512) { avail = 512; }
+        if (avail <= 0) {
+            return;
+        }
+        if (avail > 512) {
+            avail = 512;
+        }
 
         int check = netclient.read(buf, avail);
         if (check != avail) {
             log_i("Something bad happened reading from network");
         }
         file.write(buf, avail);
-#       endif
+#endif
     }
 
     inline bool UpdateDBManager::downloadEnded() {
@@ -431,11 +442,11 @@ namespace DBNS {
         return false;
     }
 
-    inline bool UpdateDBManager::hashChanged(){
-        log_v("Hash from server: %s; Hash from old db: %s",
-              downloadedHash, currentHash);
+    inline bool UpdateDBManager::hashChanged() {
+        log_v("Hash from server: %s;", downloadedHash);
+        log_v("Hash from old db: %s", currentHash);
 
-        if(strcmp(downloadedHash, currentHash) == 0) {
+        if (strcmp(downloadedHash, currentHash) == 0) {
             return false;
         } else {
             return true;
@@ -446,11 +457,10 @@ namespace DBNS {
         // calculates hash from local recent downloaded db
         log_v("Finished calculating hash");
 
-        log_v("Hash calculated from local file: %s;\n"
-              "Hash downloaded from server: %s",
+        log_v("Hash calculated from local file: %s;\n Hash from server: %s",
               calculatedHash, downloadedHash);
 
-        if(strcmp(calculatedHash, downloadedHash) == 0) {
+        if (strcmp(calculatedHash, downloadedHash) == 0) {
             return true;
         } else {
             return false;
@@ -465,7 +475,6 @@ namespace DBNS {
             log_i("Downloaded DB file is corrupted "
                   "(hashs are not equal), ignoring.");
             SD.remove(otherFile);
-            SD.remove("/downloaded-hash"); // TODO: there may be better ways to manage this
         } else {
             swapFiles();
             closeDB();
@@ -474,14 +483,15 @@ namespace DBNS {
                 ok = false;
                 log_w("Error opening the updated DB, reverting to old one");
                 swapFiles();
-                if(openDB(currentFile) != SQLITE_OK){ // FIXME: in the unlikely event that this fails too, we are doomed
-                    SD.remove("/downloaded-hash");
+                if (openDB(currentFile) != SQLITE_OK) { // FIXME: in the unlikely event that this fails too, we are doomed
                     // TODO:
                 }
             }
         }
 
-        if (!ok) { lastDownloadTime += RETRY_DOWNLOAD_TIME; }
+        if (!ok) {
+            lastDownloadTime += RETRY_DOWNLOAD_TIME;
+        }
         return ok;
     }
 
@@ -506,12 +516,9 @@ namespace DBNS {
         file.print(0);
         file.close();
 
-        // TODO: figure out how to fix this :)
-        char* tmp2 = downloadedHash;
-        downloadedHash = currentHash;
-        currentHash = tmp2;
+        SD.remove("/hash");
         file = SD.open("/hash", FILE_WRITE);
-        file.write((byte*)currentHash, 65);
+        file.write((byte *) downloadedHash, 65);
         file.close();
     }
 
@@ -535,7 +542,7 @@ namespace DBNS {
         otherTimestampFile = "/TSB.TXT";
         bool dbFileOK = false;
 
-         while (!dbFileOK) {
+        while (!dbFileOK) {
             if (checkFileFreshness(currentTimestampFile)) {
                 dbFileOK = true;
             } else if (checkFileFreshness(otherTimestampFile)) {
@@ -568,7 +575,6 @@ namespace DBNS {
 
     UpdateDBManager updateDBManager;
 }
-
 
 void initDBMan() { DBNS::updateDBManager.init(); }
 
