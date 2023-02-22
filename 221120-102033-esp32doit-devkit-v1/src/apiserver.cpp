@@ -65,7 +65,8 @@ namespace webServer {
 
 
     static esp_err_t download_get_handler(httpd_req_t *req) {
-        File f = SD.open("/lastBackup", FILE_READ);
+        File f = SD.open("/latestBackup", FILE_READ);
+        log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
         if (!f) {
             log_v("Failed to read backup file");
             /* Respond with 500 Internal Server Error */
@@ -76,7 +77,8 @@ namespace webServer {
         f.close();
 
         char filepath[50];
-        sprintf(filepath, "/%lu.db", timestamp);
+        sprintf(filepath, "/%lu", timestamp);
+
         f = SD.open(filepath, FILE_READ);
         if (!f) {
             log_v("Failed to read backup file");
@@ -84,15 +86,17 @@ namespace webServer {
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read existing file");
             return ESP_FAIL;
         }
-
+        log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
         log_v("Sending file : %s (%ld bytes)...", filepath, f.size());
-        httpd_resp_set_type(req, "application/database");
-
+        httpd_resp_set_type(req, "text/txt");
+        httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=log.txt");
+        log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
         /* Retrieve the pointer to scratch buffer for temporary storage */
 
         char chunk[SCRATCH_BUFSIZE];
         size_t chunksize;
         do {
+            log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
             /* Read file in chunks into the scratch buffer */
             chunksize = f.readBytes(chunk, SCRATCH_BUFSIZE);
             if (chunksize > 0) {

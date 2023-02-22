@@ -96,7 +96,7 @@ namespace NetNS {
         }
 
         log_v("The IP address is %s and the wifi net is %s",
-              WiFi.localIP().toString().c_str(), WiFi.SSID());
+              WiFi.localIP().toString().c_str(), WiFi.SSID().c_str());
 
 #       endif
     }

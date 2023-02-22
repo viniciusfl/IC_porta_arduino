@@ -14,8 +14,8 @@ static const char* TAG = "main";
 #include <sqlite3.h>
 
 unsigned long currentMillis;
-
 int doorID = 1;
+
 
 void setup() {
     Serial.begin(115200);
@@ -43,21 +43,20 @@ void setup() {
     //       making initLog run right after sqlite3_initialize would give
     //       us a record of generated logs, even if their timestamps are
     //       wrong before initTime().
+    initLog();
     initWiFi();
     initTime();
     initDBMan();
-    initLog();
     initCardReaders();
     initServer();
 }
 
 void loop() {
     currentMillis = millis();
-    //checkNetConnection();
-    //updateDB();
-    //checkTimeSync();
+    checkNetConnection();
+    updateDB();
+    checkTimeSync();
     updateLogBackup();
-    
     const char* lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {

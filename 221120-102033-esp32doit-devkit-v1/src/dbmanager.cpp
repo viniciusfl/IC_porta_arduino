@@ -520,6 +520,8 @@ namespace DBNS {
         file = SD.open("/hash", FILE_WRITE);
         file.write((byte *) downloadedHash, 65);
         file.close();
+        free(downloadedHash);
+        free(currentHash);
     }
 
     bool UpdateDBManager::checkFileFreshness(const char *tsfile) {
