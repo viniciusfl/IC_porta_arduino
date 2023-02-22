@@ -7,13 +7,15 @@ static const char* TAG = "server";
 #include <authorizer.h>
 #include <timemanager.h>
 #include <SD.h>
+
+//TODO: Need to see which of these libraries we are using
 #include "esp_err.h"
 #include "esp_log.h"
-
-
+#include <keysserver.h>
 #include "esp_vfs.h"
 #include "esp_spiffs.h"
-#include "esp_http_server.h"
+#include <esp_https_server.h>
+#include "esp_tls.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -31,14 +33,29 @@ namespace webServer {
     static esp_err_t open_door_handler(httpd_req_t *req);
 
     esp_err_t start_webserver(void) {
+        // Command to make request:
+        // curl -v -GET --key client.key --cert client.crt https://10.0.2.101/open --cacert rootCA.crt
+
         /* Generate default configuration */
-        httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+        httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
 
         /* Empty handle to esp_http_server */
         httpd_handle_t server = NULL;
 
+        // CA certificate (here it is treated as server cert, documentation is wrong)
+        config.cacert_pem = server_pem;
+        config.cacert_len = sizeof(server_pem)/sizeof(server_pem[0]);
+
+        // Private key
+        config.prvtkey_pem = key;
+        config.prvtkey_len = sizeof(key)/sizeof(key[0]);
+
+        // Client verify authority certificate (CA used to sign clients, or client cert itself
+        config.client_verify_cert_pem = test_ca_cert;
+        config.client_verify_cert_len = sizeof(test_ca_cert)/sizeof(test_ca_cert[0]);
+
         /* Start the httpd server */
-        if (httpd_start(&server, &config) != ESP_OK) {
+        if (httpd_ssl_start(&server, &config) != ESP_OK) {
             // Set URI handlers
             log_v("Failed to start file server!");
             return ESP_FAIL;
@@ -59,6 +76,8 @@ namespace webServer {
             };
 
         httpd_register_uri_handler(server, &open_door);
+
+        log_d("Finished setting up server");
 
         return ESP_OK;
     }

@@ -13,7 +13,10 @@ static const char* TAG = "main";
 #include <SD.h>
 #include <sqlite3.h>
 
+#define HEAP_CHECK_INTERVAL 1000
+
 unsigned long currentMillis;
+unsigned long lastHeapCheck;
 int doorID = 1;
 
 
@@ -35,14 +38,8 @@ void setup() {
     sqlite3_initialize();
 
     currentMillis = millis();
+    lastHeapCheck = currentMillis;
 
-    // TODO: I think initTime() should come right after WiFi, otherwise
-    //       any attempts to get the time during initialization of the
-    //       DB, as well as any log messages with timestamps, will yield
-    //       wrong results. Any reason for this order? At the same time,
-    //       making initLog run right after sqlite3_initialize would give
-    //       us a record of generated logs, even if their timestamps are
-    //       wrong before initTime().
     initLog();
     initWiFi();
     initTime();
@@ -53,6 +50,10 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
+    if(currentMillis - lastHeapCheck > HEAP_CHECK_INTERVAL){
+        lastHeapCheck = currentMillis;
+        log_i("[APP] Free memory: %d bytes", esp_get_free_heap_size());
+    }
     checkNetConnection();
     updateDB();
     checkTimeSync();
