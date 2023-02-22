@@ -7,128 +7,69 @@ static const char *TAG = "log";
 #include "esp_tls.h"
 #include <timemanager.h>
 
-#define BACKUP_INTERVAL 60000
+#define BACKUP_INTERVAL 120000
 
-#define RETRY_TIME 10000 // TODO: if we switch to alarms instead of
+#define RETRY_TIME 60000 // TODO: if we switch to alarms instead of
                          //       time intervals, how to handle this?
 
 namespace LOGNS {
     class Logger {
         public:
-            inline sqlite3* init();
+            inline void init();
             void generateLog(const char* readerID, unsigned long cardID,
                             bool authorized);
 
         private:
-            const static constexpr char* TAG = "Logger";
-            const char* filename = "/sd/log.db"; // FIXME: hardcoded?
             int openlogDB();
-            sqlite3 *logdb;
-            sqlite3_stmt *logquery;
+            const static constexpr char* TAG = "Logger";
+            const char* filename = "/log"; // FIXME: hardcoded?
+            File logfile;
+            char bufferFile[100];
     };
 
     class LogBackup {
         public:
-            void init(sqlite3* logdb);
+            void init();
             void update();
 
         private:
             const static constexpr char* TAG = "LogBkp";
             bool doingBackup = false;
-            bool doingChecksum = false;
             unsigned long lastBackupTime = 0; // TODO: remove after
                                               //       implementing alarms
-            char backupFilename[50];
+            const char* filename = "/log"; // FIXME: hardcoded?
 
-            sqlite3 *logdb; // copy of the pointer in the "Logger" class
-            sqlite3 *backupdb;
-            sqlite3_backup *backupHandler;
-            File f;
+            char bufferFile[100];
+            byte buffer[512];
+            File logbackup;
+            File backup;
 
             inline void startBackup();
-            inline bool processBackup();
+            inline void processBackup();
             inline void finishBackup();
 
-            inline void startChecksum();
-            inline void processChecksum();
-            inline void finishChecksum();
             mbedtls_md_context_t ctx;
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
     };
 
-    inline sqlite3* Logger::init() {
-        // check the comment near Authorizer::closeDB()
-        logdb = NULL;
-        logquery = NULL;
+    inline void Logger::init() {}
 
-        int rc = openlogDB();
-        if (rc != SQLITE_OK){
-            log_e("Couldn't open log db: %s, aborting...",
-                  sqlite3_errmsg(logdb));
-            while (true) delay(10);
-        }
-        log_v("Openned log db");
-
-        return logdb;
-    }
-
-    int Logger::openlogDB() {
-        int rc = sqlite3_open(filename, &logdb);
-
-        if (rc != SQLITE_OK) {
-            log_e("Can't open database: %s", sqlite3_errmsg(logdb));
-        } else {
-            log_v("Opened database successfully");
-
-            rc = sqlite3_prepare_v2(logdb,
-                                    "INSERT INTO log(cardID, doorID, "
-                                    "readerID, unixTimestamp, authorized) "
-                                    "VALUES(?, ?, ?, ?, ?)",
-                                    -1, &logquery, NULL);
-
-            if (rc != SQLITE_OK) {
-                log_e("Can't generate prepared statement for log DB: %s",
-                              sqlite3_errmsg(logdb));
-            } else {
-                log_v("Prepared statement created for log DB");
-            }
-        }
-        return rc;
-    }
+    int Logger::openlogDB() {}
 
     void Logger::generateLog(const char* readerID, unsigned long cardID,
                                  bool authorized) {
         //TODO: create error column in db
-
-        sqlite3_int64 card = cardID;
-        sqlite3_int64 unixTime = getTime();
-
-        sqlite3_reset(logquery);
-        sqlite3_bind_int64(logquery, 1, card);
-        sqlite3_bind_int(logquery, 2, doorID);
-        sqlite3_bind_text(logquery, 3, readerID, -1, SQLITE_STATIC);
-        sqlite3_bind_int64(logquery, 4, unixTime);
-        sqlite3_bind_int(logquery, 5, authorized);
-
-        int rc = sqlite3_step(logquery);
-        while (rc == SQLITE_ROW) {
-            rc = sqlite3_step(logquery);
-        }
-
-        if (rc != SQLITE_DONE) {
-            log_e("Error adding entry to DB: %s", sqlite3_errmsg(logdb));
-        }
+        logfile = SD.open(filename, FILE_APPEND);
+        sprintf(bufferFile, "%d %s %d %lu %lu\n", doorID, readerID, authorized, cardID, getTime());
+        logfile.print(bufferFile);
+        logfile.close();
+        log_d("Writing in log file: %s ", bufferFile);
     }
 
-    void LogBackup::init(sqlite3* logdb) {
-        // check the comment near Authorizer::closeDB()
-        backupHandler = NULL;
-        backupdb = NULL;
-        this->logdb = logdb;
-    }
+    void LogBackup::init() {}
 
     void LogBackup::update() {
-        if (!doingBackup && !doingChecksum) {
+        if (!doingBackup) {
             // TODO: Change to alarm
             if (currentMillis - lastBackupTime > BACKUP_INTERVAL) {
                 startBackup();
@@ -136,106 +77,28 @@ namespace LOGNS {
             return;
         }
 
-        if(doingBackup) {
-            if (processBackup()) {
-                startChecksum();
-            }
-            return;
-        }
-
-        processChecksum();
+        processBackup();
     }
 
     inline void LogBackup::startBackup() {
-        log_v("Starting log DB backup");
-
-        sprintf(backupFilename, "/sd/%lu.db", getTime());
-
-        int rc = sqlite3_open_v2(backupFilename, &backupdb,
-                 SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
-
-        if (rc != SQLITE_OK) {
-            log_w("Aborting backup, couldn't open log backup db: %s",
-                  sqlite3_errmsg(backupdb));
-
-            lastBackupTime += RETRY_TIME;
-            finishBackup();
-            return;
-        }
-
-        backupHandler = sqlite3_backup_init(backupdb, "main",
-                                        logdb, "main");
-
-        if (!backupHandler) {
-            log_w("Aborting backup, could not initialize");
-            lastBackupTime += RETRY_TIME;
-            finishBackup();
-            return;
-        }
-
+        log_d("Started log backup");
         doingBackup = true;
-    }
-
-    inline void LogBackup::finishBackup() {
-        sqlite3_backup_finish(backupHandler);
-        sqlite3_close(backupdb);
-        backupHandler = NULL;
-        backupdb = NULL;
-        doingBackup = false;
-    }
-
-    inline bool LogBackup::processBackup() {
-        int rc = sqlite3_backup_step(backupHandler, 5);
-
-        if (rc == SQLITE_OK || rc == SQLITE_BUSY || rc == SQLITE_LOCKED) {
-            return false; // all is good, continue on the next iteration
-        }
-
-        // Whatever the reason, we're done
-        finishBackup();
-
-        if (rc == SQLITE_DONE) {
-            log_v("Finished log DB backup");
-            lastBackupTime = currentMillis;
-
-            f = SD.open("/lastBackup", FILE_WRITE);
-            f.print(backupFilename);
-            f.close();
-
-            return true;
-        } else {
-            log_w("Error generating log backup!");
-            lastBackupTime += RETRY_TIME;
-            return false;
-        }
-    }
-
-    inline void LogBackup::startChecksum() {
-        log_v("Starting checksum of logDB backup");
-        doingChecksum = true;
-
-        f = SD.open(backupFilename);
+        logbackup = SD.open(filename, FILE_READ);
+        sprintf(bufferFile, "/%lu", getTime()); // FIXME: Better filename
+        backup = SD.open(bufferFile, FILE_WRITE);
 
         mbedtls_md_init(&ctx);
         mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
         mbedtls_md_starts(&ctx);
     }
 
-    inline void LogBackup::processChecksum() {
-        unsigned char buffer[512];
-        int size = f.read(buffer, 512);
-        mbedtls_md_update(&ctx, (const unsigned char *) buffer, size);
-
-        if (f.available() <= 0) {
-            finishChecksum();
-        }
-    }
-
-    inline void LogBackup::finishChecksum() {
-        log_v("Finished logDB checksum");
-        doingChecksum = false;
-        f.close();
-
+    inline void LogBackup::finishBackup() {
+        log_d("Finished log backup");
+        lastBackupTime = currentMillis;
+        logbackup.close();
+        backup.close();
+        doingBackup = false;
+    
         byte shaResult[32];
         mbedtls_md_finish(&ctx, shaResult);
         mbedtls_md_free(&ctx);
@@ -244,12 +107,25 @@ namespace LOGNS {
         for (int i = 0; i < 32; ++i) {
             snprintf(calculatedHash + 2*i, 3,"%02hhx", shaResult[i]);
         }
+        log_d("Backup hash: %s", calculatedHash);
+        backup = SD.open("/hashBackup", FILE_WRITE);
+        backup.print(calculatedHash);
+        backup.close();
 
-        f = SD.open("/checksumBackup", FILE_WRITE);
-        f.print(calculatedHash);
-        f.close();
+        backup = SD.open("/latestBackup", FILE_WRITE);
+        backup.print(bufferFile);
+        backup.close();
+    }
 
-        log_i("Checksum: %s", calculatedHash);
+    inline void LogBackup::processBackup() {
+        int size = logbackup.read(buffer, 512);
+        backup.write(buffer, size);
+
+        mbedtls_md_update(&ctx, (const unsigned char *) buffer, size);
+
+        if (logbackup.available() <= 0) {
+            finishBackup();
+        }
     }
 
     int logmessage(const char* format, va_list ap) {
@@ -279,14 +155,14 @@ namespace LOGNS {
 }
 
 void initLog() {
-    sqlite3* logdb = LOGNS::logger.init();
-    LOGNS::logBackupManager.init(logdb);
-
     // Do not change this! Instead, define the desired level in log_conf.h
     esp_log_level_set("*", ESP_LOG_VERBOSE);
 
     // Log messages will be processed by the function defined above
     esp_log_set_vprintf(LOGNS::logmessage);
+
+    LOGNS::logger.init();
+    LOGNS::logBackupManager.init();
 }
 
 void updateLogBackup() {
