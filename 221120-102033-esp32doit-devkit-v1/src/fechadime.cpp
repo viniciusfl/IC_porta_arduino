@@ -14,25 +14,27 @@ static const char* TAG = "main";
 #include <sqlite3.h>
 
 #define HEAP_CHECK_INTERVAL 1000
-
-unsigned long currentMillis;
 unsigned long lastHeapCheck;
+
 int doorID = 1;
 
+unsigned long currentMillis;
+bool sdPresent = false;
+bool WiFiConnected = false;
 
 void setup() {
     Serial.begin(115200);
     // wait for serial port to connect. Needed for native USB port only
     while (!Serial) { ; }
-    delay(100);
+    delay(2000);
 
     log_v("Start program");
 
-    if (!SD.begin()) {
-        log_e("Card Mount Failed, aborting");
-        while (true) delay(10);
+    if (!SD.begin()) { 
+        log_e("Card Mount Failed...");
     } else {
         log_v("SD connected.");
+        sdPresent = true;
     }
 
     sqlite3_initialize();
@@ -45,15 +47,16 @@ void setup() {
     initTime();
     initDBMan();
     initCardReaders();
-    initServer();
 }
 
 void loop() {
     currentMillis = millis();
+#   ifdef PRINT_HEAP
     if(currentMillis - lastHeapCheck > HEAP_CHECK_INTERVAL){
         lastHeapCheck = currentMillis;
         log_i("[APP] Free memory: %d bytes", esp_get_free_heap_size());
     }
+#   endif
     checkNetConnection();
     updateDB();
     checkTimeSync();

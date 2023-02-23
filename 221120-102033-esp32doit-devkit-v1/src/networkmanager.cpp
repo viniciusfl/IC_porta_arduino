@@ -4,6 +4,7 @@ static const char* TAG = "network";
 #include <WiFi.h>
 #include <networkmanager.h>
 #include <timemanager.h>
+#include <apiserver.h>
 
 # define CHECK_NET_INTERVAL 5000 // 5s
 # define NET_TIMEOUT 30000 // 30s
@@ -13,17 +14,28 @@ namespace NetNS {
     unsigned long lastNetCheck;
     unsigned long lastNetOK;
 
+    static httpd_handle_t server = NULL;
+
     //char ssid[] = "Rede IME";
     char ssid[] = "Familia Ferraz 2.4G";
     char password[] = "dogtor1966";
 
-    // callback
+    // ESP IP did change in my house, so i had to do this because
+    // different IP causes problem with the certificates
+    IPAddress local_IP(10, 0, 2, 101);
+    IPAddress gateway(192, 168, 1, 1);
+    IPAddress subnet(255, 255, 0, 0);
+
+    // Events callback
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
+
+    void WiFiLostIP(WiFiEvent_t event, WiFiEventInfo_t info);
 
     void printNetStatus();
 
     inline void netReset() {
         WiFi.disconnect(true);
+        WiFi.config(local_IP, gateway, subnet);
         WiFi.begin(ssid, password);
         //WiFi.begin(ssid);
     }
@@ -35,6 +47,7 @@ namespace NetNS {
 
         // register WiFi event handlers
         WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+        WiFi.onEvent(WiFiLostIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED); 
 
         netReset();
     }
@@ -44,8 +57,23 @@ namespace NetNS {
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
         log_v("Connected to WiFi successfully! IP address: %s",
               WiFi.localIP().toString().c_str());
+        WiFiConnected = true;
+
+        if (server == NULL) {
+            server = initServer();
+        }
 
         configNTP();
+    }
+
+    void WiFiLostIP(WiFiEvent_t event, WiFiEventInfo_t info) {
+        log_e("Disconnected from WiFi...");
+        WiFiConnected = false;
+
+        if (server != NULL){
+            disconnectServer(server);
+            server = NULL;
+        }
     }
 
     // This should be called from loop()

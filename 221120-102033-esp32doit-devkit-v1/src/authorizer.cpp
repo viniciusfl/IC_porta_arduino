@@ -52,6 +52,17 @@ namespace DBNS {
     inline bool Authorizer::userAuthorized(const char* readerID,
                                            unsigned long cardID) {
 
+        // MASTER's ID is defined in common.h. Maybe there is a better way to manage this.
+        if (cardID == MASTER_KEY) {
+            log_d("MASTER card used, openning door. ");
+            return true;
+        }
+
+        if (!sdPresent) {
+            log_w("Cannot read SD, denying access");
+            return false;
+        }
+
         if (sqlitedb == NULL) {
             log_w("Cannot read DB, denying access");
             return false;

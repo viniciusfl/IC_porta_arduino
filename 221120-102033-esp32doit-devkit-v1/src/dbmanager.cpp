@@ -90,7 +90,9 @@ namespace DBNS {
 
     // This should be called from setup()
     inline void UpdateDBManager::init() {
-        chooseInitialFile();
+        if (sdPresent) {
+            chooseInitialFile();
+        }
     }
 
     // This should be called from loop()
@@ -98,6 +100,9 @@ namespace DBNS {
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
     void UpdateDBManager::update() {
+        if (!sdPresent || !WiFiConnected) {
+            return;
+        }
 
         // We start a download only if we are not already downloading
         if (!downloadingDB && !downloadingHash) {

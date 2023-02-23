@@ -3,7 +3,6 @@ static const char* TAG = "server";
 #include <common.h>
 #include <Arduino.h>
 #include <apiserver.h>
-#include <esp_http_server.h>
 #include <authorizer.h>
 #include <timemanager.h>
 #include <SD.h>
@@ -32,7 +31,7 @@ namespace webServer {
 
     static esp_err_t open_door_handler(httpd_req_t *req);
 
-    esp_err_t start_webserver(void) {
+    httpd_handle_t start_webserver(void) {
         // Command to make request:
         // curl -v -GET --key client.key --cert client.crt https://10.0.2.101/open --cacert rootCA.crt
 
@@ -58,7 +57,7 @@ namespace webServer {
         if (httpd_ssl_start(&server, &config) != ESP_OK) {
             // Set URI handlers
             log_v("Failed to start file server!");
-            return ESP_FAIL;
+            return NULL;
         }
         /* If server failed to start, handle will be NULL */
         httpd_uri_t file_download = {
@@ -79,11 +78,20 @@ namespace webServer {
 
         log_d("Finished setting up server");
 
-        return ESP_OK;
+        return server;
+    }
+
+    void disconnect_webserver (httpd_handle_t server) {
+        httpd_ssl_stop(server);
     }
 
 
     static esp_err_t download_get_handler(httpd_req_t *req) {
+        if (!sdPresent) {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start SD reader.");
+            return ESP_FAIL;
+        }
+
         File f = SD.open("/latestBackup", FILE_READ);
         log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
         if (!f) {
@@ -160,7 +168,10 @@ namespace webServer {
         asprintf(&basic_auth_resp, "{\"opened\": true,\"doorID\": \"%d\"}", doorID);
         httpd_resp_send(req, basic_auth_resp, strlen(basic_auth_resp));
         free(basic_auth_resp);
+        return ESP_OK;
     }
 }
 
-void initServer() { webServer::start_webserver(); }
+httpd_handle_t initServer() { return webServer::start_webserver(); }
+
+void disconnectServer(httpd_handle_t server) { webServer::disconnect_webserver(server); }

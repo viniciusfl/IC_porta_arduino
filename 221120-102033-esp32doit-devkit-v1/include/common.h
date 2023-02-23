@@ -1,6 +1,8 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#define MASTER_KEY 12345678 
+
 // On every loop, we check for the amount of time passed since we last
 // did some operations. Instead of calling millis() everywhere, we call
 // it only once per loop and store the value here. This *might* save
@@ -9,6 +11,10 @@
 extern unsigned long currentMillis;
 
 extern int doorID;
+
+extern bool sdPresent;
+
+extern bool WiFiConnected;
 
 #include <log_conf.h>
 
