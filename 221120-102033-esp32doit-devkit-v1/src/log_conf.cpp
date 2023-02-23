@@ -18,29 +18,20 @@ namespace LOGNS {
             inline void init();
             void generateLog(const char* readerID, unsigned long cardID,
                             bool authorized);
+            void update();
 
         private:
             int openlogDB();
             const static constexpr char* TAG = "Logger";
             const char* filename = "/log"; // FIXME: hardcoded?
-            File logfile;
-            char bufferFile[100];
-    };
 
-    class LogBackup {
-        public:
-            void init();
-            void update();
-
-        private:
-            const static constexpr char* TAG = "LogBkp";
             bool doingBackup = false;
             unsigned long lastBackupTime = 0; // TODO: remove after
                                               //       implementing alarms
-            const char* filename = "/log"; // FIXME: hardcoded?
 
-            char bufferFile[100];
+            char bufferFileName[100];
             byte buffer[512];
+            File logfile;
             File logbackup;
             File backup;
 
@@ -52,23 +43,23 @@ namespace LOGNS {
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
     };
 
-    inline void Logger::init() {}
-
-    int Logger::openlogDB() {}
+    inline void Logger::init(){}
 
     void Logger::generateLog(const char* readerID, unsigned long cardID,
                                  bool authorized) {
         //TODO: create error column in db
         logfile = SD.open(filename, FILE_APPEND);
-        sprintf(bufferFile, "%d %s %d %lu %lu\n", doorID, readerID, authorized, cardID, getTime());
-        logfile.print(bufferFile);
+        sprintf(bufferFileName, "%d %s %d %lu %lu\n", doorID, readerID, authorized, cardID, getTime());
+        logfile.print(bufferFileName);
         logfile.close();
-        log_d("Writing in log file: %s ", bufferFile);
+        log_d("Writing in log file: %s ", bufferFileName);
     }
 
-    void LogBackup::init() {}
+    void Logger::update() {
+        if (!sdPresent || !WiFiConnected) {
+            return;
+        }
 
-    void LogBackup::update() {
         if (!doingBackup) {
             // TODO: Change to alarm
             if (currentMillis - lastBackupTime > BACKUP_INTERVAL) {
@@ -80,19 +71,19 @@ namespace LOGNS {
         processBackup();
     }
 
-    inline void LogBackup::startBackup() {
+    inline void Logger::startBackup() {
         log_d("Started log backup");
         doingBackup = true;
         logbackup = SD.open(filename, FILE_READ);
-        sprintf(bufferFile, "/%lu", getTime()); // FIXME: Better filename
-        backup = SD.open(bufferFile, FILE_WRITE);
+        sprintf(bufferFileName, "/%lu", getTime()); // FIXME: Better filename
+        backup = SD.open(bufferFileName, FILE_WRITE);
 
         mbedtls_md_init(&ctx);
         mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
         mbedtls_md_starts(&ctx);
     }
 
-    inline void LogBackup::finishBackup() {
+    inline void Logger::finishBackup() {
         log_d("Finished log backup");
         lastBackupTime = currentMillis;
         logbackup.close();
@@ -113,11 +104,11 @@ namespace LOGNS {
         backup.close();
 
         backup = SD.open("/latestBackup", FILE_WRITE);
-        backup.print(bufferFile);
+        backup.print(bufferFileName);
         backup.close();
     }
 
-    inline void LogBackup::processBackup() {
+    inline void Logger::processBackup() {
         int size = logbackup.read(buffer, 512);
         backup.write(buffer, size);
 
@@ -151,7 +142,6 @@ namespace LOGNS {
     }
 
     Logger logger;
-    LogBackup logBackupManager;
 }
 
 void initLog() {
@@ -162,11 +152,10 @@ void initLog() {
     esp_log_set_vprintf(LOGNS::logmessage);
 
     LOGNS::logger.init();
-    LOGNS::logBackupManager.init();
 }
 
 void updateLogBackup() {
-    LOGNS::logBackupManager.update();
+    LOGNS::logger.update();
 }
 
 void generateLog(const char* readerID, unsigned long cardID,
