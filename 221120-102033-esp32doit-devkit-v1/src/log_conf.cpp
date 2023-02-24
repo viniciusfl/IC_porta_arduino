@@ -56,7 +56,7 @@ namespace LOGNS {
     }
 
     void Logger::update() {
-        if (!sdPresent || !WiFiConnected) {
+        if (!sdPresent || !connected()) {
             return;
         }
 

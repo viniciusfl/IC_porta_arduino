@@ -14,8 +14,6 @@ extern int doorID;
 
 extern bool sdPresent;
 
-extern bool WiFiConnected;
-
 #include <log_conf.h>
 
 #endif

@@ -20,7 +20,6 @@ int doorID = 1;
 
 unsigned long currentMillis;
 bool sdPresent = false;
-bool WiFiConnected = false;
 
 void setup() {
     Serial.begin(115200);

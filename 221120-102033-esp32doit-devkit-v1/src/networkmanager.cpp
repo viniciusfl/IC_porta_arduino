@@ -57,7 +57,6 @@ namespace NetNS {
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
         log_v("Connected to WiFi successfully! IP address: %s",
               WiFi.localIP().toString().c_str());
-        WiFiConnected = true;
 
         if (server == NULL) {
             server = initServer();
@@ -68,7 +67,6 @@ namespace NetNS {
 
     void WiFiLostIP(WiFiEvent_t event, WiFiEventInfo_t info) {
         log_e("Disconnected from WiFi...");
-        WiFiConnected = false;
 
         if (server != NULL){
             disconnectServer(server);

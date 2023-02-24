@@ -100,7 +100,7 @@ namespace DBNS {
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
     void UpdateDBManager::update() {
-        if (!sdPresent || !WiFiConnected) {
+        if (!sdPresent || !connected()) {
             return;
         }
 
@@ -340,6 +340,7 @@ namespace DBNS {
             // nothing ever happened and try again later
             log_i("Network connection failed.");
             esp_http_client_cleanup(httpclient);
+            lastDownloadTime += RETRY_DOWNLOAD_TIME;
             return false;
         }
 
