@@ -5,15 +5,6 @@
    - open door, update the DB, reboot, recent log messages, recent
      authorization successes and failures, what else?
 
- * When a backup of the log database is created successfully, we should
-   empty the log database. No entries will be lost because, when the
-   backup is complete, both databases are guaranteed to be the same if we
-   are using the same connection for access and for the backup: "If the
-   source database is modified by the using the same database connection
-   as is used by the backup operation, then the backup database is
-   automatically updated at the same time." -
-   <https://www.sqlite.org/c3ref/backup_finish.html>
-
  * Upload and purge logs
 
    - We may periodically PUT the log files to a server and delete them
@@ -34,11 +25,6 @@
    so that we can see the latest messages even if something goes wrong
    with the log db.
 
- * Master key: insert a hardcoded ID that is always able to open any
-   door without the need to check the DB. This should work even if the
-   MCU crashes for some reason (SD not accessible, unable to set the
-   clock etc.).
-
  * Draw printed circuit board
 
  * Actually open the door; we may use an ordinary logic level converter
@@ -47,6 +33,12 @@
    BSS138 allows for up to 50V Drain-Source and +-20V Gate-Source DDP)
 
 # Non-critical TODOs
+
+ * The server is turned on or off based on WiFi events. When the system
+   gets an IP, we turn on the server, and when it disconnects from WiFi,
+   we turn of the server. This is necessary because if we disconnect from
+   WiFi and don't do this, the server stops working.
+   (https://github.com/espressif/esp-idf/tree/778aeae99ebe7d0fe437ae4aa73a9f74c5a83668/examples/protocols/https_server/simple)
 
  * Better error handling everywhere (crashing is not really an option,
    in extreme situations we should at least try restarting the MCU)
