@@ -246,7 +246,6 @@ namespace DBNS {
     inline bool UpdateDBManager::finishHashDownload() {
         downloadingHash = false;
         bool finishedOK = finishCurrentDownload();
-        file.close();
 
         if (finishedOK) {
             log_v("Hash download finished, disconnecting from server.");
