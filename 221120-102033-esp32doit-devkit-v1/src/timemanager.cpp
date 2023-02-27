@@ -114,10 +114,7 @@ namespace TimeNS {
 
     // This should be called from loop()
     inline void TimeManager::checkSync() {
-        if (currentMillis - lastClockAdjustment > READJUST_CLOCK_INTERVAL && connected()) {
-            // Actually, this is the time of the last *attempt* to adjust
-            // the clock, but that's ok: If it fails, we do nothing special,
-            // just wait for READJUST_CLOCK_INTERVAL again.
+        if (currentMillis - lastClockAdjustment > READJUST_CLOCK_INTERVAL) {
             lastClockAdjustment = currentMillis;
             update();
         }
