@@ -100,7 +100,7 @@ namespace DBNS {
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
     void UpdateDBManager::update() {
-        if (!sdPresent || !connected()) {
+        if (!sdPresent) {
             return;
         }
 
