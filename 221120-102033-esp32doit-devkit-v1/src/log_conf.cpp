@@ -6,6 +6,7 @@ static const char *TAG = "log";
 #include <SD.h>
 #include "esp_tls.h"
 #include <timemanager.h>
+#include <networkmanager.h>
 
 #define BACKUP_INTERVAL 120000
 
