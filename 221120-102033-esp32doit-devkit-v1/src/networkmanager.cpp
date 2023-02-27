@@ -66,7 +66,7 @@ namespace NetNS {
     }
 
     void WiFiLostIP(WiFiEvent_t event, WiFiEventInfo_t info) {
-        log_e("Disconnected from WiFi...");
+        log_i("Disconnected from WiFi...");
 
         if (server != NULL){
             disconnectServer(server);
