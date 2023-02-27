@@ -72,9 +72,9 @@ namespace DBNS {
         inline bool downloadEnded();
         inline bool activateNewDBFile();
 
-        char *currentHash;
+        char currentHash[65];
         char calculatedHash[65];
-        char *downloadedHash;
+        char downloadedHash[65];
         inline bool verifyHash();
         inline bool hashChanged();
         mbedtls_md_context_t ctx;
@@ -192,6 +192,8 @@ namespace DBNS {
 
     inline void UpdateDBManager::startHashDownload() {
 
+        downloadedHash[0] = 0;
+
         if (!startDownload("/hash")) {
             log_i("Network failure, cancelling hash download");
             lastDownloadTime += RETRY_DOWNLOAD_TIME;
@@ -200,16 +202,14 @@ namespace DBNS {
         log_v("Started hash download");
         downloadingHash = true;
 
+        currentHash[0] = 0;
         if (SD.exists("/hash")) {
             file = SD.open("/hash");
-            int fileSize = file.size();
-            currentHash = (char *)malloc(65);
-            currentHash[64] = '\0';
-            file.readBytes(currentHash, 65);
+            int n = file.readBytes(currentHash, 65);
+            currentHash[n] = 0;
             file.close();
         } else {
             log_v("old hash doesnt exist");
-            currentHash = "xd";
         }
 
         SD.remove("/serverhash");
@@ -250,9 +250,8 @@ namespace DBNS {
         if (finishedOK) {
             log_v("Hash download finished, disconnecting from server.");
             file = SD.open("/serverhash");
-            downloadedHash = (char *)malloc(65);
-            file.readBytes(downloadedHash, 65);
-            downloadedHash[64] = '\0';
+            int n = file.readBytes(downloadedHash, 65);
+            downloadedHash[n] = 0;
             file.close();
         } else {
             log_v("Hash download finished with error, ignoring file.");
@@ -525,8 +524,6 @@ namespace DBNS {
         file = SD.open("/hash", FILE_WRITE);
         file.write((byte *) downloadedHash, 65);
         file.close();
-        free(downloadedHash);
-        free(currentHash);
     }
 
     bool UpdateDBManager::checkFileFreshness(const char *tsfile) {
