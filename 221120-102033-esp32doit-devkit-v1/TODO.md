@@ -166,3 +166,8 @@
    create a class to wrap around a "door", i.e., the internal and external
    card readers + the pin that controls the relay that actually opens the
    door, and then call `somedoor.open()` etc. instead.
+
+ * `Authorizer::userAuthorized()` calls `sqlite3_reset()`; if authorization
+   latency becomes a problem, we might call that after the door is opened,
+   so the query is ready to run on the next iteration. This, however, is
+   not trivial, because the DB may be updated at some point.
