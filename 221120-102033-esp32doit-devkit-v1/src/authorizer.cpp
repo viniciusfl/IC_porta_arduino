@@ -4,7 +4,7 @@ static const char *TAG = "authorizer";
 #include <Arduino.h>
 #include <sqlite3.h>
 
-namespace DBNS {
+namespace AUTHNS {
     // This is a wrapper around SQLite which allows us
     // to query whether a user is authorized to enter.
     class Authorizer {
@@ -108,13 +108,13 @@ namespace DBNS {
 
 
 int openDB(const char* filename) {
-    return DBNS::authorizer.openDB(filename);
+    return AUTHNS::authorizer.openDB(filename);
 }
 
 void closeDB() {
-    DBNS::authorizer.closeDB();
+    AUTHNS::authorizer.closeDB();
 }
 
 bool userAuthorized(const char* readerID, unsigned long cardID) {
-    return DBNS::authorizer.userAuthorized(readerID, cardID);
+    return AUTHNS::authorizer.userAuthorized(readerID, cardID);
 }
