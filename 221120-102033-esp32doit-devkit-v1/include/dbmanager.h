@@ -3,5 +3,6 @@
 
 void initDBMan();
 void updateDB();
+void startUpdateDB();
 
 #endif

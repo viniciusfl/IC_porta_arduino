@@ -41,6 +41,7 @@ namespace DBNS {
     public:
         inline void init();
         void update();
+        inline void startUpdate();
 
 #       ifndef USE_SOCKETS
         esp_err_t processCallback(esp_http_client_event_t*);
@@ -93,6 +94,10 @@ namespace DBNS {
         if (sdPresent) {
             chooseInitialFile();
         }
+    }
+
+    inline void UpdateDBManager::startUpdate() {
+        startHashDownload();
     }
 
     // This should be called from loop()
@@ -583,3 +588,5 @@ namespace DBNS {
 void initDBMan() { DBNS::updateDBManager.init(); }
 
 void updateDB() { DBNS::updateDBManager.update(); }
+
+void startUpdateDB() { DBNS::updateDBManager.startUpdate(); }

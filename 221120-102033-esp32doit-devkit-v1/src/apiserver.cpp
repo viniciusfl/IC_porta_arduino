@@ -6,7 +6,8 @@ static const char* TAG = "server";
 #include <authorizer.h>
 #include <timemanager.h>
 #include <RTClib.h>
-#include <chrono>
+#include <dbmanager.h>
+
 //TODO: Need to see which of these libraries we are using
 #include "esp_err.h"
 #include "esp_log.h"
@@ -19,6 +20,7 @@ static const char* TAG = "server";
 
 #include "esp_vfs.h"
 #include "esp_spiffs.h"
+
 #define SCRATCH_BUFSIZE  512
 
 namespace webServer {
@@ -268,7 +270,26 @@ namespace webServer {
         return ESP_OK;
     }
 
-        httpd_handle_t start_webserver() {
+    static esp_err_t update_handler(httpd_req_t *req) {
+        if (!sdPresent) {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start SD reader, aborting update.");
+            return ESP_FAIL;
+        }
+        char *basic_auth_resp = NULL;
+
+        startUpdateDB();
+
+        // FIXME: What should i do here?
+        httpd_resp_set_status(req, HTTPD_200);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Connection", "keep-alive");
+        asprintf(&basic_auth_resp, "{\"update\": true}", doorID);
+        httpd_resp_send(req, basic_auth_resp, strlen(basic_auth_resp));
+
+        free(basic_auth_resp);
+    }
+
+    httpd_handle_t start_webserver() {
         // Command to make request:
         // curl -v -GET --key client.key --cert client.crt https://10.0.2.101/open --cacert rootCA.crt
         const char *base_path = "/";
@@ -308,14 +329,6 @@ namespace webServer {
             log_v("Failed to start file server!");
             return NULL;
         }
-        /* If server failed to start, handle will be NULL */
-/*         httpd_uri_t file_download = {
-            .uri       = "/getLogs",  // Match all URIs of type /path/to/file
-            .method    = HTTP_GET,
-            .handler   = download_get_handler,
-        };
-
-        httpd_register_uri_handler(server, &file_download); */
 
         httpd_uri_t open_door = {
                 .uri       = "/open",  // Match all URIs of type /path/to/file
@@ -341,6 +354,14 @@ namespace webServer {
         };
 
         httpd_register_uri_handler(server, &download);
+
+        httpd_uri_t update = {
+            .uri       = "/update",
+            .method    = HTTP_POST,
+            .handler   = update_handler,
+        };
+
+        httpd_register_uri_handler(server, &update);
 
         log_d("Finished setting up server");
 
