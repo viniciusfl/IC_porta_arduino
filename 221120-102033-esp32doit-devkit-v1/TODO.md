@@ -1,5 +1,7 @@
 # Short-term TODOs
 
+ * Choose and set license
+
  * REST API
 
    - open door, update the DB, reboot, recent log messages, recent
