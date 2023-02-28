@@ -3,7 +3,7 @@ static const char* TAG = "server";
 #include <common.h>
 #include <Arduino.h>
 #include <apiserver.h>
-#include <authorizer.h>
+#include <cardreader.h>
 #include <timemanager.h>
 #include <RTClib.h>
 #include <dbmanager.h>
@@ -71,7 +71,7 @@ namespace webServer {
 
     static esp_err_t open_door_handler(httpd_req_t *req) {
         char *basic_auth_resp = NULL;
-        if (!openDoor()) {
+        if (!openDoor(NULL)) {
             log_v("Failed to open door");
             /* Respond with 500 Internal Server Error */
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open door");

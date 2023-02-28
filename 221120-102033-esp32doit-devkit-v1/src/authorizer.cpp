@@ -12,8 +12,6 @@ namespace DBNS {
         int openDB(const char *filename);
         inline void closeDB();
         inline bool userAuthorized(const char* readerID, unsigned long cardID);
-        inline bool openDoor(); // TODO: I added something like this to
-                                //       cardreader.cpp, let's think about this
     private:
         // check the comment near Authorizer::closeDB()
         sqlite3 *sqlitedb = NULL;
@@ -105,11 +103,6 @@ namespace DBNS {
         sqlitedb = NULL;
     }
 
-    inline bool Authorizer::openDoor() {
-        log_v("Opened door...");
-        return true;
-    }
-
     Authorizer authorizer;
 }
 
@@ -124,8 +117,4 @@ void closeDB() {
 
 bool userAuthorized(const char* readerID, unsigned long cardID) {
     return DBNS::authorizer.userAuthorized(readerID, cardID);
-}
-
-bool openDoor() {
-    return DBNS::authorizer.openDoor();
 }

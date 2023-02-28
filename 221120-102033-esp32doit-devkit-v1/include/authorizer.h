@@ -4,6 +4,5 @@
 int openDB(const char*);
 void closeDB();
 bool userAuthorized(const char* readerID, unsigned long cardID);
-bool openDoor();
 
 #endif

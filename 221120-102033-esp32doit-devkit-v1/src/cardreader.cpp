@@ -271,12 +271,18 @@ void blinkFail(const char* reader) {
     digitalWrite(pin, HIGH);
 };
 
-void openDoor(const char* reader) {
-    Serial.println("Exists in db.");
-    blinkOk(reader);
+bool openDoor(const char* reader) {
+    log_v("Opened door");
+    if (NULL != reader) {
+        blinkOk(reader);
+    }
+    return true;
 }
 
-void denyToOpenDoor(const char* reader) {
-    Serial.println("Doesn't exist in db.");
-    blinkFail(reader);
+bool denyToOpenDoor(const char* reader) {
+    log_v("Denied to open door");
+    if (NULL != reader) {
+        blinkFail(reader);
+    }
+    return true;
 }
