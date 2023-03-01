@@ -21,6 +21,8 @@ int doorID = 1;
 unsigned long currentMillis;
 bool sdPresent = false;
 
+#define PRINT_HEAP
+
 void setup() {
     Serial.begin(115200);
     // wait for serial port to connect. Needed for native USB port only
@@ -40,10 +42,11 @@ void setup() {
 
     currentMillis = millis();
     lastHeapCheck = currentMillis;
-
-    initLog();
+    initLogSystem();
     initWiFi();
     initTime();
+    initLog(); // Log init must initiate here because we need getTime() function working for naming log file. 
+    // FIXME: What if both hw clock and wifi are not working properly? 
     initDBMan();
     initCardReaders();
 }
@@ -59,7 +62,6 @@ void loop() {
     checkNetConnection();
     updateDB();
     checkTimeSync();
-    updateLogBackup();
     const char* lastReaderID;
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
