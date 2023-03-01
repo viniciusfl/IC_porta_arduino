@@ -81,7 +81,7 @@ ARDUHAL_LOG_LEVEL_VERBOSE (5)
 
 void initLog();
 
-void updateLogBackup();
+void initLogSystem();
 
 void generateLog(const char* readerID, unsigned long cardID, 
                   bool authorized);
