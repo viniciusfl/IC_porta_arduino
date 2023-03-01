@@ -24,17 +24,12 @@ static const char* TAG = "server";
 #define SCRATCH_BUFSIZE  512
 
 namespace webServer {
-    #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
-
-    /* Max size of an individual file. Make sure this
-    * value is same as that set in upload_script.html */
-    #define MAX_FILE_SIZE   (200*1024) // 200 KB
-    #define MAX_FILE_SIZE_STR "200KB"
 
     #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
 
     /* Scratch buffer size */
     #define SCRATCH_BUFSIZE  8192
+
     struct file_server_data {
         /* Base path of file storage */
         char base_path[ESP_VFS_PATH_MAX + 1];
@@ -69,27 +64,6 @@ namespace webServer {
         return dest + base_pathlen;
     }
 
-    static esp_err_t open_door_handler(httpd_req_t *req) {
-        char *basic_auth_resp = NULL;
-        if (!openDoor(NULL)) {
-            log_v("Failed to open door");
-            /* Respond with 500 Internal Server Error */
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open door");
-            return ESP_FAIL;
-        }
-        log_e("Openned door");
-
-        // TODO: What should i return here?
-        httpd_resp_set_status(req, HTTPD_200);
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_set_hdr(req, "Connection", "keep-alive");
-        asprintf(&basic_auth_resp, "{\"opened\": true,\"doorID\": \"%d\"}", doorID);
-        httpd_resp_send(req, basic_auth_resp, strlen(basic_auth_resp));
-        free(basic_auth_resp);
-        return ESP_OK;
-    }
-
-
     static esp_err_t logs_handler(httpd_req_t *req) {
         log_d("[APP1] Free memory: %d bytes", esp_get_free_heap_size());
         const char* dirpath = "/sd/"; 
@@ -121,13 +95,18 @@ namespace webServer {
         /* Send HTML file header */
         httpd_resp_sendstr_chunk(req, "<!DOCTYPE html><html><body>");
 
-        /* Get handle to embedded file upload script */
-        extern const unsigned char upload_script_start[] asm("_binary_src_upload_script_html_start");
-        extern const unsigned char upload_script_end[]   asm("_binary_src_upload_script_html_end");
-        const size_t upload_script_size = (upload_script_end - upload_script_start);
         log_d("[APP6] Free memory: %d bytes", esp_get_free_heap_size());
+
         /* Add file upload form and script which on execution sends a POST request to /upload */
-        httpd_resp_send_chunk(req, (const char *)upload_script_start, upload_script_size);
+        httpd_resp_sendstr_chunk(req,
+        "<table class=\"fixed\" border=\"0\">"
+        "<col width=\"1000px\" /><col width=\"500px\" />"
+        "<tr><td><h2>PROJETO TRAMELA</h2></td><td>"
+        "<table border=\"0\"><tr>"
+        "<td><form method=\"get\" action=\"/open\"><button type=\"submit\">Open</button></form></td>"
+        "<td><form method=\"post\" action=\"/update\"><button type=\"submit\">Update</button></form></td>"
+        "<td><form method=\"get\" action=\"/reboot\"><button type=\"submit\">Reboot</button></form></td>"
+        "</tr></table></td></tr></table>");
 
         /* Send file-list table definition and column labels */
         httpd_resp_sendstr_chunk(req,
@@ -167,14 +146,12 @@ namespace webServer {
                     moment.hour(), moment.minute(), moment.second());
 
             /* Send chunk of HTML file containing table entries with file name and size */
-            httpd_resp_sendstr_chunk(req, "<tr><td><a href=\"");
+            httpd_resp_sendstr_chunk(req, "<tr><td><a>");
             httpd_resp_sendstr_chunk(req, req->uri);
             httpd_resp_sendstr_chunk(req, entry->d_name);
             if (entry->d_type == DT_DIR) {
                 httpd_resp_sendstr_chunk(req, "/");
             }
-            httpd_resp_sendstr_chunk(req, "\">");
-            httpd_resp_sendstr_chunk(req, entry->d_name);
             httpd_resp_sendstr_chunk(req, "</a></td><td>");
             httpd_resp_sendstr_chunk(req, buf);
             httpd_resp_sendstr_chunk(req, "</td><td>");
@@ -223,26 +200,23 @@ namespace webServer {
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Filename too long");
             return ESP_FAIL;
         }
-        log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
-        char buf[100];
 
-        Serial.println(buf);
+        char buf[100];
+        sprintf(buf, "/sd/%s", filename);
         fd = fopen(buf, "r");
         if (!fd) {
-            ESP_LOGE(TAG, "Failed to read existing file : %s", buf);
+            ESP_LOGE(TAG, "Failed to read existing file : %s", filename);
             /* Respond with 500 Internal Server Error */
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read existing file");
             return ESP_FAIL;
         }
         log_v("Sending file : %s (%ld bytes)...", filepath, file_stat.st_size);
         httpd_resp_set_type(req, "text/txt");
-        log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
-        /* Retrieve the pointer to scratch buffer for temporary storage */
 
+        /* Retrieve the pointer to scratch buffer for temporary storage */
         char *chunk = ((struct file_server_data *)req->user_ctx)->scratch;
         size_t chunksize;
         do {
-            log_d("[APP] Free memory: %d bytes", esp_get_free_heap_size());
             /* Read file in chunks into the scratch buffer */
             chunksize = fread(chunk, 1, SCRATCH_BUFSIZE, fd);
             if (chunksize > 0) {
@@ -270,6 +244,39 @@ namespace webServer {
         return ESP_OK;
     }
 
+    static esp_err_t open_door_handler(httpd_req_t *req) {
+        char *basic_auth_resp = NULL;
+        if (!openDoor(NULL)) {
+            log_v("Failed to open door");
+            /* Respond with 500 Internal Server Error */
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open door");
+            return ESP_FAIL;
+        }
+        log_e("Openned door");
+
+        // TODO: What should i return here?
+        httpd_resp_set_status(req, HTTPD_200);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Connection", "keep-alive");
+        asprintf(&basic_auth_resp, "{\"opened\": true,\"doorID\": \"%d\"}", doorID);
+        httpd_resp_send(req, basic_auth_resp, strlen(basic_auth_resp));
+        free(basic_auth_resp);
+        return ESP_OK;
+    }
+
+    static esp_err_t reboot_handler(httpd_req_t *req) {
+        char *basic_auth_resp = NULL;
+
+        httpd_resp_set_status(req, HTTPD_200);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Connection", "keep-alive");
+        asprintf(&basic_auth_resp, "{\"rebooted\": true}");
+        httpd_resp_send(req, basic_auth_resp, strlen(basic_auth_resp));
+        free(basic_auth_resp);
+
+        ESP.restart();
+    }
+
     static esp_err_t update_handler(httpd_req_t *req) {
         if (!sdPresent) {
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start SD reader, aborting update.");
@@ -290,19 +297,12 @@ namespace webServer {
     }
 
     httpd_handle_t start_webserver() {
-        // Command to make request:
-        // curl -v -GET --key client.key --cert client.crt https://10.0.2.101/open --cacert rootCA.crt
         const char *base_path = "/";
 
-        static struct file_server_data *server_data = NULL;
+        static struct file_server_data server_data;
 
-        server_data = (file_server_data *) calloc(1, sizeof(struct file_server_data));
-        if (!server_data) {
-            ESP_LOGE(TAG, "Failed to allocate memory for server data");
-            return 0;
-        }
-        strlcpy(server_data->base_path, base_path,
-                sizeof(server_data->base_path));
+        strlcpy(server_data.base_path, base_path,
+                sizeof(server_data.base_path));
 
         /* Generate default configuration */
         httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
@@ -330,27 +330,28 @@ namespace webServer {
             return NULL;
         }
 
-        httpd_uri_t open_door = {
-                .uri       = "/open",  // Match all URIs of type /path/to/file
-                .method    = HTTP_GET,
-                .handler   = open_door_handler,
-            };
-
-        httpd_register_uri_handler(server, &open_door);
-
-        httpd_uri_t teste = {
-            .uri       = "/",  // Match all URIs of type /path/to/file
+        httpd_uri_t root = {
+            .uri       = "/",  
             .method    = HTTP_GET,
             .handler   = logs_handler,
         };
 
-        httpd_register_uri_handler(server, &teste);
+        httpd_register_uri_handler(server, &root);
 
+        httpd_uri_t open_door = {
+            .uri       = "/open",  
+            .method    = HTTP_GET,
+            .handler   = open_door_handler,
+        };
+
+        httpd_register_uri_handler(server, &open_door);
+
+        // Request for downloading files in sd card
         httpd_uri_t download = {
-            .uri       = "/download/*",   // Match all URIs of type /delete/path/to/file
+            .uri       = "/download/*",   // Match all URIs of type /delete/*
             .method    = HTTP_POST,
             .handler   = download_handler,
-            .user_ctx  = server_data    // Pass server data as context
+            .user_ctx  = &server_data    // Pass server data as context
         };
 
         httpd_register_uri_handler(server, &download);
@@ -362,6 +363,14 @@ namespace webServer {
         };
 
         httpd_register_uri_handler(server, &update);
+
+        httpd_uri_t reboot = {
+            .uri       = "/reboot",
+            .method    = HTTP_POST,
+            .handler   = reboot_handler,
+        };
+
+        httpd_register_uri_handler(server, &reboot);
 
         log_d("Finished setting up server");
 
