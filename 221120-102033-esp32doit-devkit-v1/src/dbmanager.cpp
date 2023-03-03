@@ -385,16 +385,12 @@ namespace DBNS {
                 break;
             case HTTP_EVENT_ON_DATA:
                 log_v("HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-                if (!esp_http_client_is_chunked_response(evt->client)) {
                     file.write((byte *)evt->data, evt->data_len);
                     if (downloadingDB) {
                         mbedtls_md_update(&ctx,
                                         (const unsigned char *)evt->data,
                                         evt->data_len);
                     }
-                } else {
-                    log_e("CHUNKED!");
-                }
                 break;
             case HTTP_EVENT_ON_FINISH:
                 log_d("HTTP_EVENT_ON_FINISH");
