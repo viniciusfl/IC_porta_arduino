@@ -53,45 +53,39 @@
      it's enough: since the code itself is the same for all MCUs, future
      code upgrades (including OTA) are easy.
 
-   - When starting for the first time (or after pressing a specific
-     button), prompt the user over USB/Serial to provide the necessary
-     data. This is a little simpler for the user than the previous
-     option, but still involves having specific tools in a computer
-     and may present difficulties with nodeMCUs that fail to communicate
-     over USB in some circumstances. Probably not worth it.
+   - Store this info in an encrypted file in the SD card. We save a pair
+     of public and private keys to each nodeMCU NVS and provide the user
+     with a program, phone app or javascript-based web page that collects
+     the data from the user (including the MCU's public key), encrypts it,
+     and returns an encrypted file for the user to save to the SD card.
+     This forces us to always have an SD card (or maybe we could connect
+     an SD card just for this initial step), to know the public key of
+     each nodeMCU (or use the same for all, which is not a great idea),
+     and to create a (admittedly, very simple) dedicated program just for
+     the initial configuration.
 
-   - When starting for the first time (or after pressing a specific
-     button), work as an access point for the user to connect to; the
-     user then loads and fills up a web form. This would not work so
-     well for phones: they would reject the connection because it does
-     not route to the Internet.
+   - When starting for the first time (or after pressing a specific button),
+     initiate some form of network access; either start as an access point
+     (which may pose difficulties if we want to interact with a phone app,
+     as the phone would probably reject the connection because it does not
+     route to the Internet) or connect to a predefined wifi network (the
+     network name and pre-shared key may be stored in the NVS), which the
+     user may easily create using their phone. Either way, after the network
+     connection is operational, either:
 
-   - Something similar, but using bluetooth (maybe with a dedicated
-     phone app).
+     * Provide a web form for the user to fill in (the form should also
+       inform the user about the MCU's public key);
 
-   - Store this info in an encrypted file in the SD card. We may have
-     a web server somewhere with a form the user fills in; the server
-     then returns an encrypted file that the user writes to the SD card.
-     This involves trusting this server (it has the shared key used by the
-     MCU and sees the unencrypted data), but is reasonably user-friendly.
-     Another problem is that this forces us to always have an SD card
-     (or maybe we could connect an SD card just for this initial step).
+     * Use mDNS to download the data from a hardcoded local URL and also
+       to upload the MCU's public key;
 
-   - We may do something similar, but with asymetric keys. In this case,
-     we could provide a program, phone app or javascript-based web page
-     that collects the data from the user, encrypts it, and returns an
-     encrypted file for the user, who does not need to trust any third-
-     party with their credentials. We may even store the private key in
-     the NVS, which allows us to use different keys for different MCUs.
+     * Use mDNS to connect to a local MQTT broker and exchange the data.
 
-   - When starting for the first time (or after pressing a specific
-     button), connect to a default wifi access point and download the
-     encrypted data from a default server and URL (the access point,
-     the pre-shared key to access it, the server, and the URL may be
-     set in the NVS). This alleviates the need for an SD card, but
-     involves providing a temporary access point and having a server
-     to host the files (it may be a temporary server, maybe something
-     in the local network).
+     * This alleviates the need for an SD card. While it involves creating
+       a dedicated program or phone app, that program is needed anyway if
+       we are to interact with the MCU over the network.
+
+   - Something similar, but using bluetooth.
 
    - A combination of the above: if the data is not in the NVS or SPIFFS,
      check the SD card; if it is not there, try to connect to the default
