@@ -24,11 +24,9 @@ static const char *TAG = "dbman";
 #include <dbmanager.h>
 #include <keys.h>
 
-#define MAX_HTTP_RECV_BUFFER 512
-
 #define RETRY_DOWNLOAD_TIME 60000
 
-#define DOWNLOAD_INTERVAL 180000
+#define DOWNLOAD_INTERVAL 120000
 
 namespace DBNS {
     // This class periodically downloads a new version of the database
@@ -105,8 +103,7 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::startUpdate() {
-        if (connected() && serverStarted)
-            startDBDownload();
+        startDBDownload();
     }
 
     // This should be called from loop()
@@ -155,7 +152,6 @@ namespace DBNS {
             return;
 
         log_v("Starting DB download");
-        downloadingDB = true;
 
         if (!connected() || !serverStarted) {
             lastDownloadTime += RETRY_DOWNLOAD_TIME;
@@ -173,12 +169,13 @@ namespace DBNS {
         }
         log_v("Writing to %s", otherFile);
 
+        downloadingDB = true;
         startDownload("database");
         log_v("Started DB download");
     }
 
     inline bool UpdateDBManager::finishDBDownload() {
-        downloadingDB = false;
+
 
         bool finishedOK = finishCurrentDownload("/topic/database");
 
@@ -269,9 +266,6 @@ namespace DBNS {
         if (openDB(currentFile) != SQLITE_OK) {
             ok = false;
             log_w("Error opening the updated DB, reverting to old one");
-            while(true){
-
-            }
             swapFiles();
             if (openDB(currentFile) != SQLITE_OK) { // FIXME: in the unlikely event that this fails too, we are doomed
                 // TODO:
@@ -282,6 +276,8 @@ namespace DBNS {
         if (!ok) {
             lastDownloadTime += RETRY_DOWNLOAD_TIME;
         }
+
+        downloadingDB = false;
         return ok;
     }
 
@@ -343,7 +339,7 @@ namespace DBNS {
                 if (downloadingDB) {
                     update();
                 } else if (connected() && serverStarted) {
-                    startDBDownload();
+                    startUpdate();
                 }
             }
         }
