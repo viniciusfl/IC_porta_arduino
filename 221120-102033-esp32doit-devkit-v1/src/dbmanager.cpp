@@ -2,16 +2,15 @@ static const char *TAG = "dbman";
 
 #include <common.h>
 
+#include <mqtt_client.h>
+
 #include "SPI.h"
 #include "SD.h"
 #include <sqlite3.h> // Just to check for SQLITE_OK
 
-#include "mbedtls/md.h" // SHA256
-
 #ifdef USE_SOCKETS
 #include <WiFi.h>
 #else
-#include "esp_http_client.h"
 #include "esp_tls.h"
 // TODO: I think we do not need these, we should check
 //#include "esp_system.h"
@@ -29,7 +28,7 @@ static const char *TAG = "dbman";
 
 #define RETRY_DOWNLOAD_TIME 60000
 
-#define DOWNLOAD_INTERVAL 30000
+#define DOWNLOAD_INTERVAL 180000
 
 namespace DBNS {
     // This class periodically downloads a new version of the database
@@ -42,10 +41,9 @@ namespace DBNS {
         inline void init();
         void update();
         inline void startUpdate();
+        void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
+                                int32_t event_id, esp_mqtt_event_handle_t event);
 
-#       ifndef USE_SOCKETS
-        esp_err_t processCallback(esp_http_client_event_t*);
-#       endif
     private:
         const char *currentFile;
         const char *otherFile;
@@ -63,41 +61,52 @@ namespace DBNS {
         void startDBDownload();
         inline bool finishDBDownload();
 
-        bool downloadingHash = false;
-        inline void startHashDownload();
-        inline bool finishHashDownload();
-
         bool startDownload(const char*);
         inline void processCurrentDownload();
-        inline bool finishCurrentDownload();
-        inline bool downloadEnded();
+        inline bool finishCurrentDownload(const char* topic);
         inline bool activateNewDBFile();
-
-        char currentHash[65];
-        char calculatedHash[65];
-        char downloadedHash[65];
-        inline bool verifyHash();
-        inline bool hashChanged();
-        mbedtls_md_context_t ctx;
-        mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+        bool finishedDownload = false;
 
         File file;
-#       ifdef USE_SOCKETS
-        WiFiClient netclient;
-#       else
-        esp_http_client_handle_t httpclient;
-#       endif
-    };
+        esp_mqtt_client_handle_t client;
+        bool serverStarted = false;
+
+        bool sendLogs = false;
+        bool openDoor = false;
+    };  
+
+    static void callback_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+        esp_mqtt_event_handle_t event = (esp_mqtt_event_t *) event_data;
+        UpdateDBManager *obj = (UpdateDBManager *)event->user_context;
+        obj->mqtt_event_handler(handler_args, base, event_id, event);
+    }
 
     // This should be called from setup()
     inline void UpdateDBManager::init() {
+        const esp_mqtt_client_config_t mqtt_cfg = {
+            .host = "10.0.2.109",
+            .port = 8883, 
+            .user_context = this,
+            .cert_pem = (const char*) brokerCert,
+            .client_cert_pem = espCertPem,
+            .client_key_pem = espCertKey,  
+            .transport = MQTT_TRANSPORT_OVER_SSL,
+            .skip_cert_common_name_check = true,
+        };
+
+        ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+        client = esp_mqtt_client_init(&mqtt_cfg);
+        esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t) ESP_EVENT_ANY_ID, callback_handler, NULL);
+        esp_mqtt_client_start(client);
+
         if (sdPresent) {
             chooseInitialFile();
         }
     }
 
     inline void UpdateDBManager::startUpdate() {
-        startHashDownload();
+        if (connected() && serverStarted)
+            startDBDownload();
     }
 
     // This should be called from loop()
@@ -105,12 +114,10 @@ namespace DBNS {
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
     void UpdateDBManager::update() {
-        if (!sdPresent) {
+        if (!sdPresent || !connected() || !serverStarted)
             return;
-        }
-
         // We start a download only if we are not already downloading
-        if (!downloadingDB && !downloadingHash) {
+        if (!downloadingDB) {
             // millis() wraps every ~49 days, but
             // wrapping does not cause problems here
             // TODO: we might prefer to use dates,
@@ -121,40 +128,16 @@ namespace DBNS {
             // I believe the nodeMCU RTC might also have this feature
 
             if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
-                startHashDownload();
+                startDBDownload();
             }
             return;
         }
-
-        // If we did not return above, we are currently downloading something
-        // (either the DB or the hash)
-
-        if (downloadingHash) {
-            // If we finished downloading the hash, check whether the
-            // download was successful;
-            if(downloadEnded()){
-                if (finishHashDownload()) {
-                    // If old DB hash and current DB hash matches,
-                    // it means DB didn't change and we don't need to update
-                    if (hashChanged()){
-                        startDBDownload();
-                    } else {
-                        lastDownloadTime = currentMillis;
-                    }
-                }
-            } else {
-                // still downloading the hash
-                processCurrentDownload();
-            }
-            return;
-        }
-
         // If we did not return above, we are still downloading the DB
 
         // If we finished downloading the DB, check whether the
         // download was successful; if so and the hash matches,
         // start using the new DB
-        if (downloadEnded()) {
+        if (finishedDownload) {
             if (finishDBDownload()) {
                 // Both downloads successful, update the timestamp
                 if (activateNewDBFile()) {
@@ -168,331 +151,133 @@ namespace DBNS {
     }
 
     void UpdateDBManager::startDBDownload() {
-        log_v("Starting DB download");
-
-        calculatedHash[0] = 0;
-
-        if (!startDownload("/dataBaseIME.db")) {
-            log_i("Network failure, cancelling DB download");
-            lastDownloadTime += RETRY_DOWNLOAD_TIME;
+        if (!sdPresent) 
             return;
-        }
-        log_v("Started DB download");
+
+        log_v("Starting DB download");
         downloadingDB = true;
 
-        // remove old DB files
+        if (!connected() || !serverStarted) {
+            lastDownloadTime += RETRY_DOWNLOAD_TIME;
+            log_i("Internet failure, cancelling DB download");
+            return;
+        }
+
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
 
         file = SD.open(otherFile, FILE_WRITE);
         if(!file) {
-            log_e("Error openning file.");
+            log_e("Error openning file, cancelling DB Download.");
+            return;
         }
         log_v("Writing to %s", otherFile);
 
-        mbedtls_md_init(&ctx);
-        mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
-        mbedtls_md_starts(&ctx);
-    }
-
-    inline void UpdateDBManager::startHashDownload() {
-
-        downloadedHash[0] = 0;
-
-        if (!startDownload("/hash")) {
-            log_i("Network failure, cancelling hash download");
-            lastDownloadTime += RETRY_DOWNLOAD_TIME;
-            return;
-        }
-        log_v("Started hash download");
-        downloadingHash = true;
-
-        currentHash[0] = 0;
-        if (SD.exists("/hash")) {
-            file = SD.open("/hash");
-            int n = file.readBytes(currentHash, 65);
-            currentHash[n] = 0;
-            file.close();
-        } else {
-            log_v("old hash doesnt exist");
-        }
-
-        SD.remove("/serverhash");
-        file = SD.open("/serverhash", FILE_WRITE);
-        if (!file) {
-            log_e("Error openning file.");
-        }
-
-        log_v("Writing to /serverhash");
+        startDownload("database");
+        log_v("Started DB download");
     }
 
     inline bool UpdateDBManager::finishDBDownload() {
         downloadingDB = false;
 
-        bool finishedOK = finishCurrentDownload();
+        bool finishedOK = finishCurrentDownload("/topic/database");
 
-        byte buf[32];
-        mbedtls_md_finish(&ctx, buf);
-        mbedtls_md_free(&ctx);
-
-        if (finishedOK) {
-            log_v("DB download finished, disconnecting from server.");
-            for (int i = 0; i < 32; ++i) {
-                snprintf(calculatedHash + 2*i, 3, "%02hhx", buf[i]);
-            }
-        } else {
-            log_v("DB download finished with error, ignoring file.");
-            lastDownloadTime += RETRY_DOWNLOAD_TIME;
-        }
+        log_v("DB download finished, disconnecting from server.");
 
         return finishedOK;
-    }
-
-    inline bool UpdateDBManager::finishHashDownload() {
-        downloadingHash = false;
-        bool finishedOK = finishCurrentDownload();
-
-        if (finishedOK) {
-            log_v("Hash download finished, disconnecting from server.");
-            file = SD.open("/serverhash");
-            int n = file.readBytes(downloadedHash, 65);
-            downloadedHash[n] = 0;
-            file.close();
-        } else {
-            log_v("Hash download finished with error, ignoring file.");
-            lastDownloadTime += RETRY_DOWNLOAD_TIME;
-        }
-
-        // SD.remove("/serverhash");
-
-        return finishedOK;
-    }
-
-#   ifdef USE_SOCKETS
-
-    bool UpdateDBManager::startDownload(const char* filename) {
-        // If WiFI is disconnected, pretend nothing
-        // ever happened and try again later
-        if (!connected()) {
-            log_i("No internet available.");
-            return false;
-        }
-
-        netclient.connect(SERVER, 80);
-
-        // If connection failed, pretend nothing
-        // ever happened and try again later
-        if (!netclient.connected()) {
-            log_i("Connection failed.");
-            netclient.stop();
-            return false;
-        }
-
-        log_v("Connected to server.");
-
-        return true;
-    }
-
-    inline bool UpdateDBManager::finishCurrentDownload() {
-        netclient.flush();
-        netclient.stop();
-        file.close();
-        // we do not really check whether the download succeeded here
-        return true;
-    }
-
-#   else
-
-    // The callback for the HTTP client
-    esp_err_t handler(esp_http_client_event_t *evt) {
-        UpdateDBManager *obj = (UpdateDBManager *)evt->user_data;
-        return obj->processCallback(evt);
     }
 
     bool UpdateDBManager::startDownload(const char *filename) {
-        // If WiFI is disconnected, pretend nothing
-        // ever happened and try again later
-        if (!connected()) {
-            log_i("No internet available.");
-            return false;
-        }
-
-        esp_http_client_config_t config = {
-            .host = "10.0.2.106",
-            .port = 443,
-            .path = filename,
-            .cert_pem = rootCA,
-            .client_cert_pem = clientCertPem,
-            .client_key_pem = clientKeyPem,
-            .method = HTTP_METHOD_GET,
-            .timeout_ms = 60000,
-            .event_handler = handler,
-            .transport_type = HTTP_TRANSPORT_OVER_SSL,
-            .buffer_size = 4096,
-            .user_data = this,
-            .is_async = true,
-            .skip_cert_common_name_check = true,
-        };
-
-        httpclient = esp_http_client_init(&config);
-
-        esp_err_t err = esp_http_client_perform(httpclient);
-
-        if (err != ESP_ERR_HTTP_EAGAIN and err != ESP_OK) {
-            // Connection failed. No worries, just pretend
-            // nothing ever happened and try again later
-            log_i("Network connection failed.");
-            esp_http_client_cleanup(httpclient);
-            lastDownloadTime += RETRY_DOWNLOAD_TIME;
-            return false;
-        }
-
-        // Download started ok! Normally "err" should be EAGAIN,
-        // meaning the download started but has not yet finished,
-        // but maybe the file is very small and download ended
-        // already. If this happens, we do nothing special here.
+        char buffer[50];
+        sprintf(buffer, "/topic/%s", filename);
+        esp_mqtt_client_subscribe(client, buffer, 0);
 
         return true;
     }
 
-    inline bool UpdateDBManager::finishCurrentDownload() {
-        bool finishedOK = true;
-        if (!esp_http_client_is_complete_data_received(httpclient)) {
-            finishedOK = false;
-        };
-
+    inline bool UpdateDBManager::finishCurrentDownload(const char* topic) {
+        log_d("Disconnecting from DB topic...");
+        esp_mqtt_client_unsubscribe(client, topic); 
         file.close();
-        esp_http_client_cleanup(httpclient);
-
-        return finishedOK;
+        return true;
     }
 
-    esp_err_t UpdateDBManager::processCallback(esp_http_client_event_t *evt) {
-        const char *TAG = "http_callback";
-        switch (evt->event_id) {
-            case HTTP_EVENT_ERROR:
-                log_i("HTTP_EVENT_ERROR");
-                break;
-            case HTTP_EVENT_ON_CONNECTED:
-                log_d("HTTP_EVENT_ON_CONNECTED");
-                break;
-            case HTTP_EVENT_HEADER_SENT:
-                log_v("HTTP_EVENT_HEADER_SENT");
-                break;
-            case HTTP_EVENT_ON_HEADER:
-                log_v("HTTP_EVENT_ON_HEADER, key=%s, value=%s",
-                    evt->header_key, evt->header_value);
-                break;
-            case HTTP_EVENT_ON_DATA:
-                log_v("HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-                    file.write((byte *)evt->data, evt->data_len);
-                    if (downloadingDB) {
-                        mbedtls_md_update(&ctx,
-                                        (const unsigned char *)evt->data,
-                                        evt->data_len);
-                    }
-                break;
-            case HTTP_EVENT_ON_FINISH:
-                log_d("HTTP_EVENT_ON_FINISH");
-                break;
-            case HTTP_EVENT_DISCONNECTED:
-                log_i("HTTP_EVENT_DISCONNECTED");
-                int mbedtls_err = 0;
-                esp_err_t err = esp_tls_get_and_clear_last_error(
-                    (esp_tls_error_handle_t)evt->data,
-                    &mbedtls_err, NULL);
-                if (err != 0) {
-                    log_i("Last esp error code: 0x%x", err);
-                    log_i("Last mbedtls failure: 0x%x", mbedtls_err);
-                }
+    void UpdateDBManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
+                                int32_t event_id, esp_mqtt_event_handle_t event) {
+        esp_mqtt_client_handle_t client = event->client;
+        switch ((esp_mqtt_event_id_t)event_id) {
+        case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            serverStarted = true;
+            esp_mqtt_client_subscribe(client, "/topic/getLogs", 0);
+            esp_mqtt_client_subscribe(client, "/topic/openDoor", 0);
             break;
-            // case HTTP_EVENT_REDIRECT:
-            //     log_d("HTTP_EVENT_REDIRECT");
-            //     break;
-        }
-        return ESP_OK;
-    }
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            break;
+        case MQTT_EVENT_SUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_UNSUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_PUBLISHED:
+            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_DATA:
+            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+            printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+            if (event->topic == "/topic/getLogs") {
+                sendLogs = true;
+                return;
+            } else if (event->topic == "/topic/openDoor") {
+                openDoor = true;
+                return;
+            } 
+            // If topic isn't the ones above, then we are downloading DB
+            // NOTE (maybe FIXME): When downloading retained messages, just the first
+            // block of data comes with "topic", and the others blocks have empty topic.    
+            file.write((byte *)event->data, event->data_len);
+            if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
+                finishedDownload = true;
+            }
+            break;
+        case MQTT_EVENT_ERROR:
+            ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
+            if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+                ESP_LOGI(TAG, "-> ", event->error_handle->esp_tls_last_esp_err);
+                ESP_LOGI(TAG, "reported from tls stack", event->error_handle->esp_tls_stack_err);
+                ESP_LOGI(TAG, "captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
+                ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
 
-#endif
+            }
+            break;
+        default:
+            ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+            break;
+        }
+    }
 
     inline void UpdateDBManager::processCurrentDownload() {
-        // With http, all work is done by the callback function
-#       ifdef USE_SOCKETS
-        byte buf[512];
-        int avail = netclient->available();
-        if (avail <= 0) {
-            return;
-        }
-        if (avail > 512) {
-            avail = 512;
-        }
-
-        int check = netclient.read(buf, avail);
-        if (check != avail) {
-            log_i("Something bad happened reading from network");
-        }
-        file.write(buf, avail);
-#endif
-    }
-
-    inline bool UpdateDBManager::downloadEnded() {
-#       ifdef USE_SOCKETS
-        if (!netclient.available() && !netclient.connected()) {
-#       else
-        esp_err_t err = esp_http_client_perform(httpclient);
-        if (err != ESP_ERR_HTTP_EAGAIN) {
-#       endif
-            return true;
-        }
-        return false;
-    }
-
-    inline bool UpdateDBManager::hashChanged() {
-        log_v("Hash from server: %s;", downloadedHash);
-        log_v("Hash from old db: %s", currentHash);
-
-        if (strcmp(downloadedHash, currentHash) == 0) {
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    inline bool UpdateDBManager::verifyHash() {
-        // calculates hash from local recent downloaded db
-        log_v("Finished calculating hash");
-
-        log_v("Hash calculated from local file: %s;\n Hash from server: %s",
-              calculatedHash, downloadedHash);
-
-        if (strcmp(calculatedHash, downloadedHash) == 0) {
-            return true;
-        } else {
-            return false;
-        }
     }
 
     inline bool UpdateDBManager::activateNewDBFile() {
         bool ok = true;
+        swapFiles();
+        closeDB();
 
-        if (!verifyHash()) {
+        if (openDB(currentFile) != SQLITE_OK) {
             ok = false;
-            log_i("Downloaded DB file is corrupted "
-                  "(hashs are not equal), ignoring.");
-            SD.remove(otherFile);
-        } else {
-            swapFiles();
-            closeDB();
+            log_w("Error opening the updated DB, reverting to old one");
+            while(true){
 
-            if (openDB(currentFile) != SQLITE_OK) {
-                ok = false;
-                log_w("Error opening the updated DB, reverting to old one");
-                swapFiles();
-                if (openDB(currentFile) != SQLITE_OK) { // FIXME: in the unlikely event that this fails too, we are doomed
-                    // TODO:
-                }
+            }
+            swapFiles();
+            if (openDB(currentFile) != SQLITE_OK) { // FIXME: in the unlikely event that this fails too, we are doomed
+                // TODO:
             }
         }
+    
 
         if (!ok) {
             lastDownloadTime += RETRY_DOWNLOAD_TIME;
@@ -520,17 +305,15 @@ namespace DBNS {
         file = SD.open(otherTimestampFile, FILE_WRITE);
         file.print(0);
         file.close();
-
-        SD.remove("/hash");
-        file = SD.open("/hash", FILE_WRITE);
-        file.write((byte *) downloadedHash, 65);
-        file.close();
     }
 
     bool UpdateDBManager::checkFileFreshness(const char *tsfile) {
         // In some exceptional circumstances, we might end up writing
         // "1" to the file more than once; that's ok, 11 > 0 too :) .
         File f = SD.open(tsfile);
+
+        if (!f) return false;
+
         int t = 0;
         if (f.available()) {
             t = f.parseInt(); // If reading fails, this returns 0
@@ -540,6 +323,9 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::chooseInitialFile() {
+        if (!sdPresent)
+            return;
+
         START_OF_FUNCTION: // We will use goto further below
         currentFile = "/bancoA.db";
         otherFile = "/bancoB.db";
@@ -553,11 +339,12 @@ namespace DBNS {
             } else if (checkFileFreshness(otherTimestampFile)) {
                 swapFiles();
                 dbFileOK = true;
-            } else if (!downloadingDB && !downloadingHash) {
-                log_i("Downloading DB for the first time...");
-                startHashDownload();
             } else {
-                update();
+                if (downloadingDB) {
+                    update();
+                } else if (connected() && serverStarted) {
+                    startDBDownload();
+                }
             }
         }
 
@@ -580,6 +367,7 @@ namespace DBNS {
 
     UpdateDBManager updateDBManager;
 }
+    
 
 void initDBMan() { DBNS::updateDBManager.init(); }
 
