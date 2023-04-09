@@ -23,6 +23,7 @@ static const char *TAG = "dbman";
 #include <authorizer.h>
 #include <dbmanager.h>
 #include <keys.h>
+#include <cardreader.h>
 
 #define RETRY_DOWNLOAD_TIME 60000
 
@@ -61,16 +62,13 @@ namespace DBNS {
 
         bool startDownload(const char*);
         inline void processCurrentDownload();
-        inline bool finishCurrentDownload(const char* topic);
+        inline void finishCurrentDownload(const char* topic);
         inline bool activateNewDBFile();
         bool finishedDownload = false;
 
         File file;
         esp_mqtt_client_handle_t client;
         bool serverStarted = false;
-
-        bool sendLogs = false;
-        bool openDoor = false;
     };  
 
     static void callback_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -177,13 +175,9 @@ namespace DBNS {
     }
 
     inline bool UpdateDBManager::finishDBDownload() {
-
-
-        bool finishedOK = finishCurrentDownload("/topic/database");
+        finishCurrentDownload("/topic/database");
 
         log_v("DB download finished, disconnecting from server.");
-
-        return finishedOK;
     }
 
     bool UpdateDBManager::startDownload(const char *filename) {
@@ -194,11 +188,10 @@ namespace DBNS {
         return true;
     }
 
-    inline bool UpdateDBManager::finishCurrentDownload(const char* topic) {
+    inline void UpdateDBManager::finishCurrentDownload(const char* topic) {
         log_d("Disconnecting from DB topic...");
         esp_mqtt_client_unsubscribe(client, topic); 
         file.close();
-        return true;
     }
 
     void UpdateDBManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
@@ -212,6 +205,7 @@ namespace DBNS {
             esp_mqtt_client_subscribe(client, "/topic/openDoor", 0);
             break;
         case MQTT_EVENT_DISCONNECTED:
+            serverStarted = false;
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
             break;
         case MQTT_EVENT_SUBSCRIBED:
@@ -227,10 +221,10 @@ namespace DBNS {
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
             if (event->topic == "/topic/getLogs") {
-                sendLogs = true;
                 return;
             } else if (event->topic == "/topic/openDoor") {
-                openDoor = true;
+                // Both card readers should blink in this case
+                openDoor("external");
                 return;
             } 
             // If topic isn't the ones above, then we are downloading DB
@@ -274,7 +268,6 @@ namespace DBNS {
             }
         }
     
-
         if (!ok) {
             lastDownloadTime += RETRY_DOWNLOAD_TIME;
         }
