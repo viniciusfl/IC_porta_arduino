@@ -170,6 +170,8 @@ namespace DBNS {
         log_v("Writing to %s", otherFile);
 
         downloadingDB = true;
+        finishedDownload = false;
+
         startDownload("database");
         log_v("Started DB download");
     }
