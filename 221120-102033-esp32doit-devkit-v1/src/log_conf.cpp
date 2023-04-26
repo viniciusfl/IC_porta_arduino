@@ -36,29 +36,22 @@ namespace LOGNS {
             void generateLog(const char* readerID, unsigned long cardID,
                             bool authorized);
             void finishLog();
-
             void checkLogs();
         private:
-            char buffer[100];
 
-            unsigned long logCreationTime;
+            File logfile;
+            char logfilename[100]; // Keeps track of the current log file we're using
+            unsigned long logfileCreationTime;
             int numberOfRecords;
-            char logWeAreSending[100]; // Keeps track of the current log we're sending
-            char latestLog[100]; // Keeps track of the current log file we're using
-            File logFile;
 
-            void send(const char* file);
+            char inTransitFilename[100]; // Keeps track of the current log file we're sending
+
             void startNewLog();
-            void searchForLogs();
-            void eraseLogs();
+            void sendNextLog();
 
             unsigned long lastLogCheck = 0;
             bool sendingLog = false;
-            // When ESP initiates, there might be some logs in the system that
-            // were not sent to the server. So, this variable is used to search
-            // and send logs while they are in the system.
-            bool isThereLogs = true;
-            unsigned long lastMessage = 0;
+            unsigned long lastLogSentTime = 0;
     };
 
     inline void Logger::init() {
@@ -68,13 +61,19 @@ namespace LOGNS {
     inline void Logger::startNewLog() {
         log_d("Creating new log file...");
 
-        unsigned long data = getTime();
-        logCreationTime = millis();
-        sprintf(latestLog, "/log_%lu", data);
+        // FIXME: when this remains open we need to close it
+        //if (logfile) {
+        //    logfile.close();
+        //}
 
-        log_d("Name of new log: %s\n", latestLog);
+        unsigned long date = getTime();
+        logfileCreationTime = millis();
+        sprintf(logfilename, "/log_%lu", date);
 
-        logFile = SD.open(latestLog, "w", 1);
+        log_d("Name of new log: %s\n", logfilename);
+
+        logfile = SD.open(logfilename, "w", 1);
+        logfile.close(); // FIXME it should remain open
         numberOfRecords = 0;
     }
 
@@ -82,88 +81,92 @@ namespace LOGNS {
                             bool authorized) {
         // If i let the file open the write method doesn't work...
         // I dont know why, but i will test when we finish this stuff
-        logFile = SD.open(latestLog, "aw");
+        logfile = SD.open(logfilename, "aw");
 
-        sprintf(buffer, "%d %s %d %lu %lu\n", doorID, readerID, authorized, cardID, getTime());
-        logFile.print(buffer);
-        logFile.close();
+        char buffer[100];
+        sprintf(buffer, "%lu: %d %s %d %lu\n",
+                getTime(), doorID, readerID, authorized, cardID);
+
+        log_d("Writing to log file: %s", buffer);
+        logfile.print(buffer);
+        logfile.close(); // FIXME
 
         numberOfRecords++;
-
-        log_d("Writing in log file: %s ", buffer);
     }
 
     void Logger::checkLogs() {
-        // If we are sending a log already, there is no reason to start a new log
-        // or send keepAliveMessage.
+        // We create a new logfile if:
+        //
+        // 1. There are more than MAXRECORDS in the current file
+        //    (it has to fit in the device memory)
+        //
+        // OR
+        //
+        // 2. The file is non-empty and created too long ago
+        //    (this will force the file to be sent, which
+        //    serves as a notification that we are alive)
+        if (
+                numberOfRecords > MAXRECORDS
+                or
+                (
+                    currentMillis - logfileCreationTime > MAXLOGLIFETIME
+                    and
+                    numberOfRecords > 0
+                )
+           ) { startNewLog(); }
+
+        // If we are sending a log already or are offline,
+        // we should wait before sending anything else
         if (sendingLog || !isClientConnected()) return;
 
-        if (isThereLogs && currentMillis - lastLogCheck > LOG_SEARCH_INTERVAL) {
+        if (currentMillis - lastLogCheck > LOG_SEARCH_INTERVAL) {
             lastLogCheck = currentMillis;
-            searchForLogs();
+            sendNextLog();
         }
-        // If we recorded more than MAXRECORDS or the log was created longer than
-        // we expected, we send the log and start a new one
-        if (numberOfRecords > MAXRECORDS || currentMillis - logCreationTime > MAXLOGLIFETIME) {
-            memcpy((void*) logWeAreSending, (void*) latestLog, 100);
-            send(logWeAreSending);
-            startNewLog();
-        }
-        // If we don't send nothing during a long time, we send a message to the
-        // client saying we are alive!!
-        if (currentMillis - lastMessage > KEEPALIVE) {
+        // If we don't send nothing during a long time, we send
+        // a message to the broker saying we are alive!!
+        if (currentMillis - lastLogSentTime > KEEPALIVE) {
             log_d("Sending keepalive message to MQTT broker");
             // sendAliveMessage(); TODO: Easy
         }
     }
-    void Logger::searchForLogs() {
+
+    void Logger::sendNextLog() {
         log_d("Searching for logs in SD to send...");
-        bool isLog;
-        char logPrefix[10] = "log_";
         File root = SD.open("/");
-        File entry = root.openNextFile();
+        File entry;
 
-        isThereLogs = false;
-        while (entry) {
-            if (!entry.isDirectory()) {
-                isLog = true;
+        // TODO: check if this works as expected :)
+        while (entry = root.openNextFile()) {
+            if (entry.isDirectory()) { continue; }
 
-                // Verify if file is a log
-                for (int i = 0; i < 3 && isLog; i++) {
-                    if (logPrefix[i] != entry.name()[i]) {
-                        // log_d("%c x %c", logPrefix[i], entry.name()[i]);
-                        isLog = false;
-                        break;
-                    }
-                }
-                if (isLog && strcmp(latestLog+1, entry.name())) {
-                    log_d("Found a log: %s", entry.name());
-                    if (sendingLog) {
-                        isThereLogs = true;
-                    } else {
-                        sprintf(logWeAreSending,"/%s", entry.name());
-                        send(logWeAreSending);
-                    }
-                }
+            if (strncmp("log_", entry.name(), strlen("log_")) != 0) {
+                continue;
             }
-            entry = root.openNextFile();
+
+            // "+1" means "skip the initial slash character"
+            if (strcmp(logfilename+1, entry.name()) != 0) {
+                log_d("Found a logfile to send: %s", entry.name());
+                sprintf(inTransitFilename,"/%s", entry.name());
+                log_d("Sending logfile %s.", entry.name());
+                sendingLog = true;
+                lastLogSentTime = currentMillis;
+                sendLog(inTransitFilename);
+                break; // Do not send anything else
+            }
         }
+
         log_d("Finished search for logs...\n");
         root.close();
         entry.close();
     }
 
-    void Logger::send(const char* file) {
-        log_d("Sending log.");
-        sendLog(file);
-        sendingLog = true;
-    }
-
     void Logger::finishLog() {
         log_d("Finished sending log...");
         sendingLog = false;
-        log_d("Removing file: %s", logWeAreSending);
-        SD.remove(logWeAreSending);
+        log_d("Removing file: %s", inTransitFilename);
+        SD.remove(inTransitFilename);
+        inTransitFilename[0] = 0;
     }
 
 
