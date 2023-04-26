@@ -86,4 +86,8 @@ void initLogSystem();
 void generateLog(const char* readerID, unsigned long cardID, 
                   bool authorized);
 
+void finishSendingLog();
+
+void checkLogs();
+
 #endif
