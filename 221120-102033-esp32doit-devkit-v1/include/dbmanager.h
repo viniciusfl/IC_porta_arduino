@@ -4,5 +4,6 @@
 void initDBMan();
 void updateDB();
 void startUpdateDB();
-
+void sendLog(const char* filename);
+bool isClientConnected();
 #endif

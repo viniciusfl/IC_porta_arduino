@@ -27,7 +27,7 @@ static const char *TAG = "dbman";
 
 #define RETRY_DOWNLOAD_TIME 60000
 
-#define DOWNLOAD_INTERVAL 120000
+#define DOWNLOAD_INTERVAL 2400000
 
 namespace DBNS {
     // This class periodically downloads a new version of the database
@@ -35,6 +35,10 @@ namespace DBNS {
     // when downloading is successful. It alternates between two filenames
     // to do its thing and, during startup, identifies which of them is
     // the current one by means of the "timestamp" file.
+
+    // TODO: Create unique name for ESP in MQTT */
+
+    // FIXME: maybe put MQTT protocol stuff in a separate file? */
     class UpdateDBManager {
     public:
         inline void init();
@@ -43,6 +47,8 @@ namespace DBNS {
         void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event);
 
+        inline void sendLog(const char* filename);
+        bool serverConnected();
     private:
         const char *currentFile;
         const char *otherFile;
@@ -71,6 +77,10 @@ namespace DBNS {
         bool serverStarted = false;
     };  
 
+    bool UpdateDBManager::serverConnected() {
+        return serverStarted;
+    }
+
     static void callback_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
         esp_mqtt_event_handle_t event = (esp_mqtt_event_t *) event_data;
         UpdateDBManager *obj = (UpdateDBManager *)event->user_context;
@@ -82,12 +92,13 @@ namespace DBNS {
         const esp_mqtt_client_config_t mqtt_cfg = {
             .host = "10.0.2.109",
             .port = 8883, 
+            .keepalive = 180000,
             .user_context = this,
-            .cert_pem = (const char*) brokerCert,
+            .cert_pem = brokerCert,
             .client_cert_pem = espCertPem,
             .client_key_pem = espCertKey,  
             .transport = MQTT_TRANSPORT_OVER_SSL,
-            .skip_cert_common_name_check = true,
+            .skip_cert_common_name_check = true, // FIXME:
         };
 
         ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
@@ -175,9 +186,11 @@ namespace DBNS {
     }
 
     inline bool UpdateDBManager::finishDBDownload() {
-        finishCurrentDownload("/topic/database");
+        esp_mqtt_client_unsubscribe(client, "/topic/database");
+        file.close();
 
         log_v("DB download finished, disconnecting from server.");
+        return 1; // FIXME:
     }
 
     bool UpdateDBManager::startDownload(const char *filename) {
@@ -189,10 +202,20 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::finishCurrentDownload(const char* topic) {
-        log_d("Disconnecting from DB topic...");
-        esp_mqtt_client_unsubscribe(client, topic); 
-        file.close();
     }
+
+    inline void UpdateDBManager::sendLog(const char* filename) {
+        File f = SD.open(filename, "r");
+
+        unsigned int fileSize = f.size();  // Get the file size.
+        char* pBuffer = (char*)malloc(fileSize + 1);  // Allocate memory for the file and a terminating null char.
+        f.read((uint8_t*) pBuffer, fileSize);         // Read the file into the buffer.
+        pBuffer[fileSize] = '\0';               // Add the terminating null char.
+        f.close();
+
+        esp_mqtt_client_enqueue(client, "/topic/sendLogs", (char*) pBuffer, fileSize, 1, 0, 0);
+    }
+
 
     void UpdateDBManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event) {
@@ -216,13 +239,12 @@ namespace DBNS {
             break;
         case MQTT_EVENT_PUBLISHED:
             ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            finishSendingLog();
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-            if (event->topic == "/topic/getLogs") {
-                return;
-            } else if (event->topic == "/topic/openDoor") {
+            if (event->topic == "/topic/openDoor") {
                 // Both card readers should blink in this case
                 openDoor("external");
                 return;
@@ -365,3 +387,7 @@ void initDBMan() { DBNS::updateDBManager.init(); }
 void updateDB() { DBNS::updateDBManager.update(); }
 
 void startUpdateDB() { DBNS::updateDBManager.startUpdate(); }
+
+void sendLog(const char* filename) {DBNS::updateDBManager.sendLog(filename); }
+
+bool isClientConnected() { return DBNS::updateDBManager.serverConnected(); }
