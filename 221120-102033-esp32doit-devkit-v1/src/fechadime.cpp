@@ -3,7 +3,6 @@ static const char* TAG = "main";
 #include <common.h>
 #include <networkmanager.h>
 #include <timemanager.h>
-#include <apiserver.h>
 #include <dbmanager.h>
 #include <authorizer.h>
 #include <cardreader.h>
@@ -13,7 +12,7 @@ static const char* TAG = "main";
 #include <SD.h>
 #include <sqlite3.h>
 
-#define HEAP_CHECK_INTERVAL 1000
+#define HEAP_CHECK_INTERVAL 5000
 unsigned long lastHeapCheck;
 
 int doorID = 1;
@@ -43,16 +42,17 @@ void setup() {
     currentMillis = millis();
     lastHeapCheck = currentMillis;
     initLogSystem();
+    initCardReaders();
     initWiFi();
     initTime();
     initLog(); // Log init must initiate here because we need getTime() function working for naming log file. 
     // FIXME: What if both hw clock and wifi are not working properly? 
     initDBMan();
-    initCardReaders();
 }
 
 void loop() {
     currentMillis = millis();
+    checkLogs();
 #   ifdef PRINT_HEAP
     if(currentMillis - lastHeapCheck > HEAP_CHECK_INTERVAL){
         lastHeapCheck = currentMillis;
