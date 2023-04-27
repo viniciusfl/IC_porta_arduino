@@ -33,9 +33,9 @@ namespace LOGNS {
         public:
             // TODO: change functions and variables name
             inline void init();
-            void generateLog(const char* readerID, unsigned long cardID,
+            void logEvent(const char* readerID, unsigned long cardID,
                             bool authorized);
-            void finishLog();
+            void flushSentLogfile();
             void processLogs();
         private:
 
@@ -77,7 +77,7 @@ namespace LOGNS {
         numberOfRecords = 0;
     }
 
-    void Logger::generateLog(const char* readerID, unsigned long cardID,
+    void Logger::logEvent(const char* readerID, unsigned long cardID,
                             bool authorized) {
         // If i let the file open the write method doesn't work...
         // I dont know why, but i will test when we finish this stuff
@@ -163,7 +163,7 @@ namespace LOGNS {
         entry.close();
     }
 
-    void Logger::finishLog() {
+    void Logger::flushSentLogfile() {
         log_d("Finished sending logfile...");
         sendingLogfile = false;
         log_d("Removing file: %s", inTransitFilename);
@@ -215,13 +215,13 @@ void initLogSystem() {
     esp_log_set_vprintf(LOGNS::logmessage);
 }
 
-void generateLog(const char* readerID, unsigned long cardID,
+void logEvent(const char* readerID, unsigned long cardID,
                     bool authorized) {
-    LOGNS::logger.generateLog(readerID, cardID, authorized);
+    LOGNS::logger.logEvent(readerID, cardID, authorized);
 }
 
-void finishSendingLog() {
-    LOGNS::logger.finishLog();
+void flushSentLogfile() {
+    LOGNS::logger.flushSentLogfile();
 }
 
 void processLogs() {

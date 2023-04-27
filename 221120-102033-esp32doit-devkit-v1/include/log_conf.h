@@ -83,10 +83,10 @@ void initLog();
 
 void initLogSystem();
 
-void generateLog(const char* readerID, unsigned long cardID, 
+void logEvent(const char* readerID, unsigned long cardID,
                   bool authorized);
 
-void finishSendingLog();
+void flushSentLogfile();
 
 void processLogs();
 

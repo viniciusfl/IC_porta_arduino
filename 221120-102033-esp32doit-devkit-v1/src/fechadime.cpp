@@ -66,7 +66,7 @@ void loop() {
     unsigned long int lastCardID;
     if (checkCardReaders(lastReaderID, lastCardID)) {
         bool authorized = userAuthorized(lastReaderID, lastCardID);
-        generateLog(lastReaderID, lastCardID, authorized);
+        logEvent(lastReaderID, lastCardID, authorized);
         if (authorized) {
             openDoor(lastReaderID);
         } else {
