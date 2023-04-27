@@ -88,6 +88,6 @@ void generateLog(const char* readerID, unsigned long cardID,
 
 void finishSendingLog();
 
-void checkLogs();
+void processLogs();
 
 #endif

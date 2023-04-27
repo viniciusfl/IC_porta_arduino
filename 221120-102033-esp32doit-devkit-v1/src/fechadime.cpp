@@ -52,7 +52,7 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    checkLogs();
+    processLogs();
 #   ifdef PRINT_HEAP
     if(currentMillis - lastHeapCheck > HEAP_CHECK_INTERVAL){
         lastHeapCheck = currentMillis;

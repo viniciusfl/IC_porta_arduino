@@ -36,7 +36,7 @@ namespace LOGNS {
             void generateLog(const char* readerID, unsigned long cardID,
                             bool authorized);
             void finishLog();
-            void checkLogs();
+            void processLogs();
         private:
 
             File logfile;
@@ -46,19 +46,19 @@ namespace LOGNS {
 
             char inTransitFilename[100]; // Keeps track of the current log file we're sending
 
-            void startNewLog();
-            void sendNextLog();
+            void createNewLogfile();
+            void sendNextLogfile();
 
             unsigned long lastLogCheck = 0;
-            bool sendingLog = false;
-            unsigned long lastLogSentTime = 0;
+            bool sendingLogfile = false;
+            unsigned long lastLogfileSentTime = 0;
     };
 
     inline void Logger::init() {
-        startNewLog();
+        createNewLogfile();
     }
 
-    inline void Logger::startNewLog() {
+    inline void Logger::createNewLogfile() {
         log_d("Creating new log file...");
 
         // FIXME: when this remains open we need to close it
@@ -94,7 +94,7 @@ namespace LOGNS {
         numberOfRecords++;
     }
 
-    void Logger::checkLogs() {
+    void Logger::processLogs() {
         // We create a new logfile if:
         //
         // 1. There are more than MAXRECORDS in the current file
@@ -113,25 +113,25 @@ namespace LOGNS {
                     and
                     numberOfRecords > 0
                 )
-           ) { startNewLog(); }
+           ) { createNewLogfile(); }
 
         // If we are sending a log already or are offline,
         // we should wait before sending anything else
-        if (sendingLog || !isClientConnected()) return;
+        if (sendingLogfile || !isClientConnected()) return;
 
         if (currentMillis - lastLogCheck > LOG_SEARCH_INTERVAL) {
             lastLogCheck = currentMillis;
-            sendNextLog();
+            sendNextLogfile();
         }
         // If we don't send nothing during a long time, we send
         // a message to the broker saying we are alive!!
-        if (currentMillis - lastLogSentTime > KEEPALIVE) {
+        if (currentMillis - lastLogfileSentTime > KEEPALIVE) {
             log_d("Sending keepalive message to MQTT broker");
             // sendAliveMessage(); TODO: Easy
         }
     }
 
-    void Logger::sendNextLog() {
+    void Logger::sendNextLogfile() {
         log_d("Searching for logs in SD to send...");
         File root = SD.open("/");
         File entry;
@@ -149,21 +149,21 @@ namespace LOGNS {
                 log_d("Found a logfile to send: %s", entry.name());
                 sprintf(inTransitFilename,"/%s", entry.name());
                 log_d("Sending logfile %s.", entry.name());
-                sendingLog = true;
-                lastLogSentTime = currentMillis;
+                sendingLogfile = true;
+                lastLogfileSentTime = currentMillis;
                 sendLog(inTransitFilename);
                 break; // Do not send anything else
             }
         }
 
-        log_d("Finished search for logs...\n");
+        log_d("Finished search for logfiles...\n");
         root.close();
         entry.close();
     }
 
     void Logger::finishLog() {
-        log_d("Finished sending log...");
-        sendingLog = false;
+        log_d("Finished sending logfile...");
+        sendingLogfile = false;
         log_d("Removing file: %s", inTransitFilename);
         SD.remove(inTransitFilename);
         inTransitFilename[0] = 0;
@@ -222,6 +222,6 @@ void finishSendingLog() {
     LOGNS::logger.finishLog();
 }
 
-void checkLogs() {
-    LOGNS::logger.checkLogs();
+void processLogs() {
+    LOGNS::logger.processLogs();
 }
