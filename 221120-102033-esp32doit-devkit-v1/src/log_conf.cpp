@@ -115,15 +115,17 @@ namespace LOGNS {
                 )
            ) { createNewLogfile(); }
 
-        // If we are sending a log already or are offline,
+        // If we are already sending a file or are offline,
         // we should wait before sending anything else
-        if (sendingLogfile || !isClientConnected()) return;
+        if (sendingLogfile || !isClientConnected()) { return; }
 
-        if (currentMillis - lastLogCheck > LOG_SEARCH_INTERVAL) {
-            lastLogCheck = currentMillis;
-            sendNextLogfile();
-        }
-        // If we don't send nothing during a long time, we send
+        if (currentMillis - lastLogCheck < LOG_SEARCH_INTERVAL) { return; }
+
+        lastLogCheck = currentMillis;
+
+        sendNextLogfile();
+
+        // If we haven't sent anything for a long time, send
         // a message to the broker saying we are alive!!
         if (currentMillis - lastLogfileSentTime > KEEPALIVE) {
             log_d("Sending keepalive message to MQTT broker");
