@@ -61,10 +61,10 @@ namespace LOGNS {
     inline void Logger::createNewLogfile() {
         log_d("Creating new log file...");
 
-        // FIXME: when this remains open we need to close it
-        //if (logfile) {
-        //    logfile.close();
-        //}
+        // When this remains open we need to close it
+        if (logfile) {
+            logfile.close();
+        }
 
         unsigned long date = getTime();
         logfileCreationTime = millis();
@@ -72,24 +72,18 @@ namespace LOGNS {
 
         log_d("Name of new log: %s\n", logfilename);
 
-        logfile = SD.open(logfilename, "w", 1);
-        logfile.close(); // FIXME it should remain open
+        logfile = SD.open(logfilename, "aw", 1);
         numberOfRecords = 0;
     }
 
     void Logger::logEvent(const char* readerID, unsigned long cardID,
                             bool authorized) {
-        // If i let the file open the write method doesn't work...
-        // I dont know why, but i will test when we finish this stuff
-        logfile = SD.open(logfilename, "aw");
-
         char buffer[100];
         sprintf(buffer, "%lu: %d %s %d %lu\n",
                 getTime(), doorID, readerID, authorized, cardID);
 
         log_d("Writing to log file: %s", buffer);
         logfile.print(buffer);
-        logfile.close(); // FIXME
 
         numberOfRecords++;
     }
