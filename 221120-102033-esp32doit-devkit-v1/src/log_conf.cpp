@@ -76,11 +76,21 @@ namespace LOGNS {
         numberOfRecords = 0;
     }
 
-    void Logger::logEvent(const char* readerID, unsigned long cardID,
+    void Logger::logAccess(const char* readerID, unsigned long cardID,
                             bool authorized) {
         char buffer[100];
-        sprintf(buffer, "%lu: %d %s %d %lu\n",
+        sprintf(buffer, "%lu (ACCESS): %d %s %d %lu\n",
                 getTime(), doorID, readerID, authorized, cardID);
+
+        log_d("Writing to log file: %s", buffer);
+        logfile.print(buffer);
+
+        numberOfRecords++;
+    }
+
+    void Logger::logEvent(const char* message) {
+        char buffer[1024];
+        sprintf(buffer, "%lu (SYSTEM): %s\n", getTime(), message);
 
         log_d("Writing to log file: %s", buffer);
         logfile.print(buffer);
