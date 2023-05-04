@@ -78,25 +78,24 @@ namespace LOGNS {
 
     void Logger::logAccess(const char* readerID, unsigned long cardID,
                             bool authorized) {
+        if (!sdPresent) return;
+
         char buffer[100];
         sprintf(buffer, "%lu (ACCESS): %d %s %d %lu\n",
                 getTime(), doorID, readerID, authorized, cardID);
-
-        if (sdPresent) {
-            log_d("Writing to log file: %s", buffer);
-            logfile.print(buffer);
-        }
+        log_d("Writing to log file: %s", buffer);
+        logfile.print(buffer);
 
         numberOfRecords++;
     }
 
     void Logger::logEvent(const char* message) {
+        if (!sdPresent) return;
+
         char buffer[1024];
         sprintf(buffer, "%lu (SYSTEM): %s\n", getTime(), message);
-
-        if (sdPresent) {
-            logfile.print(buffer);
-        }
+        logfile.print(buffer);
+        log_d("Writing to log file: %s", buffer);
 
         numberOfRecords++; // Does it count as record?
     }
