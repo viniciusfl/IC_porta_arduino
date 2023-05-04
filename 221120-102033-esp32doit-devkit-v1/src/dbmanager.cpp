@@ -12,18 +12,13 @@ static const char *TAG = "dbman";
 #include <WiFi.h>
 #else
 #include "esp_tls.h"
-// TODO: I think we do not need these, we should check
-//#include "esp_system.h"
-//#include "esp_event.h"
-//#include "esp_netif.h"
-//#include "esp_crt_bundle.h"
 #endif
 
 #include <networkmanager.h>
 #include <authorizer.h>
 #include <dbmanager.h>
-#include <keys.h>
 #include <cardreader.h>
+#include <mqttmanager.h>
 
 #define RETRY_DOWNLOAD_TIME 60000
 
@@ -35,20 +30,11 @@ namespace DBNS {
     // when downloading is successful. It alternates between two filenames
     // to do its thing and, during startup, identifies which of them is
     // the current one by means of the "timestamp" file.
-
-    // TODO: Create unique name for ESP in MQTT */
-
-    // FIXME: maybe put MQTT protocol stuff in a separate file? */
     class UpdateDBManager {
     public:
         inline void init();
         void update();
-        inline void startUpdate();
-        void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
-                                int32_t event_id, esp_mqtt_event_handle_t event);
-
-        inline void sendLog(const char* filename);
-        bool serverConnected();
+        inline void writeToDatabaseFile(const char* data, int data_len);
     private:
         const char *currentFile;
         const char *otherFile;
@@ -59,60 +45,21 @@ namespace DBNS {
         void swapFiles();
         bool checkFileFreshness(const char *);
 
-        const char *SERVER = "10.0.2.106";
         unsigned long lastDownloadTime = 0;
 
         bool downloadingDB = false;
         void startDBDownload();
-        inline bool finishDBDownload();
-
-        bool startDownload(const char*);
-        inline void processCurrentDownload();
-        inline void finishCurrentDownload(const char* topic);
+        inline void finishDBDownload();
         inline bool activateNewDBFile();
-        bool finishedDownload = false;
 
         File file;
-        esp_mqtt_client_handle_t client;
-        bool serverStarted = false;
     };  
-
-    bool UpdateDBManager::serverConnected() {
-        return serverStarted;
-    }
-
-    static void callback_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-        esp_mqtt_event_handle_t event = (esp_mqtt_event_t *) event_data;
-        UpdateDBManager *obj = (UpdateDBManager *)event->user_context;
-        obj->mqtt_event_handler(handler_args, base, event_id, event);
-    }
 
     // This should be called from setup()
     inline void UpdateDBManager::init() {
-        const esp_mqtt_client_config_t mqtt_cfg = {
-            .host = "10.0.2.109",
-            .port = 8883, 
-            .keepalive = 180000,
-            .user_context = this,
-            .cert_pem = brokerCert,
-            .client_cert_pem = espCertPem,
-            .client_key_pem = espCertKey,  
-            .transport = MQTT_TRANSPORT_OVER_SSL,
-            .skip_cert_common_name_check = true, // FIXME:
-        };
-
-        ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
-        client = esp_mqtt_client_init(&mqtt_cfg);
-        esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t) ESP_EVENT_ANY_ID, callback_handler, NULL);
-        esp_mqtt_client_start(client);
-
         if (sdPresent) {
             chooseInitialFile();
         }
-    }
-
-    inline void UpdateDBManager::startUpdate() {
-        startDBDownload();
     }
 
     // This should be called from loop()
@@ -120,7 +67,7 @@ namespace DBNS {
     // a small chunk of work, and return. This means we do not hog the
     // processor and can pursue other tasks while updating the DB.
     void UpdateDBManager::update() {
-        if (!sdPresent || !connected() || !serverStarted)
+        if (!sdPresent || !connected() || !isClientConnected())
             return;
         // We start a download only if we are not already downloading
         if (!downloadingDB) {
@@ -143,17 +90,15 @@ namespace DBNS {
         // If we finished downloading the DB, check whether the
         // download was successful; if so and the hash matches,
         // start using the new DB
-        if (finishedDownload) {
-            if (finishDBDownload()) {
-                // Both downloads successful, update the timestamp
-                if (activateNewDBFile()) {
-                    lastDownloadTime = currentMillis;
-                }
+        if (didDownloadFinish()) {
+            finishDBDownload();
+            // Both downloads successful, update the timestamp
+            if (activateNewDBFile()) {
+                lastDownloadTime = currentMillis;
             }
-        } else {
-            // still downloading the DB
-            processCurrentDownload();
         }
+        // still downloading the DB
+
     }
 
     void UpdateDBManager::startDBDownload() {
@@ -162,7 +107,7 @@ namespace DBNS {
 
         log_v("Starting DB download");
 
-        if (!connected() || !serverStarted) {
+        if (!connected() || !isClientConnected()) {
             lastDownloadTime += RETRY_DOWNLOAD_TIME;
             log_i("Internet failure, cancelling DB download");
             return;
@@ -178,102 +123,28 @@ namespace DBNS {
         }
         log_v("Writing to %s", otherFile);
 
+        if (!startDownload()) {
+            file.close();
+            return;
+        }
+
         downloadingDB = true;
-        finishedDownload = false;
 
-        startDownload("database");
         log_v("Started DB download");
+        return;
     }
 
-    inline bool UpdateDBManager::finishDBDownload() {
-        esp_mqtt_client_unsubscribe(client, "/topic/database");
+    inline void UpdateDBManager::finishDBDownload() {
         file.close();
-
-        log_v("DB download finished, disconnecting from server.");
-        return 1; // FIXME:
+        downloadingDB = false;
+        log_v("Finished DB download");
     }
 
-    bool UpdateDBManager::startDownload(const char *filename) {
-        char buffer[50];
-        sprintf(buffer, "/topic/%s", filename);
-        esp_mqtt_client_subscribe(client, buffer, 0);
-
-        return true;
-    }
-
-    inline void UpdateDBManager::finishCurrentDownload(const char* topic) {
-    }
-
-    inline void UpdateDBManager::sendLog(const char* filename) {
-        File f = SD.open(filename, "r");
-
-        unsigned int fileSize = f.size();  // Get the file size.
-        char* pBuffer = (char*)malloc(fileSize + 1);  // Allocate memory for the file and a terminating null char.
-        f.read((uint8_t*) pBuffer, fileSize);         // Read the file into the buffer.
-        pBuffer[fileSize] = '\0';               // Add the terminating null char.
-        f.close();
-
-        esp_mqtt_client_enqueue(client, "/topic/sendLogs", (char*) pBuffer, fileSize, 1, 0, 0);
-    }
-
-
-    void UpdateDBManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
-                                int32_t event_id, esp_mqtt_event_handle_t event) {
-        esp_mqtt_client_handle_t client = event->client;
-        switch ((esp_mqtt_event_id_t)event_id) {
-        case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            serverStarted = true;
-            esp_mqtt_client_subscribe(client, "/topic/getLogs", 0);
-            esp_mqtt_client_subscribe(client, "/topic/openDoor", 0);
-            break;
-        case MQTT_EVENT_DISCONNECTED:
-            serverStarted = false;
-            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
-            break;
-        case MQTT_EVENT_SUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-            break;
-        case MQTT_EVENT_UNSUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
-            break;
-        case MQTT_EVENT_PUBLISHED:
-            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
-            flushSentLogfile();
-            break;
-        case MQTT_EVENT_DATA:
-            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-            printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-            if (event->topic == "/topic/openDoor") {
-                // Both card readers should blink in this case
-                openDoor("external");
-                return;
-            } 
+    inline void UpdateDBManager::writeToDatabaseFile(const char* data, int data_len) { 
             // If topic isn't the ones above, then we are downloading DB
             // NOTE (maybe FIXME): When downloading retained messages, just the first
             // block of data comes with "topic", and the others blocks have empty topic.    
-            file.write((byte *)event->data, event->data_len);
-            if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
-                finishedDownload = true;
-            }
-            break;
-        case MQTT_EVENT_ERROR:
-            ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
-            if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-                ESP_LOGI(TAG, "-> ", event->error_handle->esp_tls_last_esp_err);
-                ESP_LOGI(TAG, "reported from tls stack", event->error_handle->esp_tls_stack_err);
-                ESP_LOGI(TAG, "captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
-                ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
-
-            }
-            break;
-        default:
-            ESP_LOGI(TAG, "Other event id:%d", event->event_id);
-            break;
-        }
-    }
-
-    inline void UpdateDBManager::processCurrentDownload() {
+            file.write((byte *)data, data_len);
     }
 
     inline bool UpdateDBManager::activateNewDBFile() {
@@ -285,8 +156,9 @@ namespace DBNS {
             ok = false;
             log_w("Error opening the updated DB, reverting to old one");
             swapFiles();
-            if (openDB(currentFile) != SQLITE_OK) { // FIXME: in the unlikely event that this fails too, we are doomed
-                // TODO:
+            if (openDB(currentFile) != SQLITE_OK) {
+                // FIXME: in the unlikely event that this fails too, we are doomed
+                chooseInitialFile();
             }
         }
     
@@ -355,15 +227,15 @@ namespace DBNS {
             } else {
                 if (downloadingDB) {
                     update();
-                } else if (connected() && serverStarted) {
-                    startUpdate();
+                } else if (connected() && isClientConnected()) {
+                    startDBDownload();
                 }
             }
         }
 
         // If we were forced to download a new file above, it was already
         // opened by update(), but there is no harm in doing it here again
-        log_d("Choosing %s as current DB.\n", currentFile);
+        log_d("Choosing %s as current DB.", currentFile);
         if (openDB(currentFile) != SQLITE_OK) {
             log_e("Something bad happen with the DB file! "
                   "Downloading a fresh one");
@@ -380,14 +252,9 @@ namespace DBNS {
 
     UpdateDBManager updateDBManager;
 }
-    
 
 void initDBMan() { DBNS::updateDBManager.init(); }
 
 void updateDB() { DBNS::updateDBManager.update(); }
 
-void startUpdateDB() { DBNS::updateDBManager.startUpdate(); }
-
-void sendLog(const char* filename) {DBNS::updateDBManager.sendLog(filename); }
-
-bool isClientConnected() { return DBNS::updateDBManager.serverConnected(); }
+void writeToDatabaseFile(const char* data, int data_len) { DBNS::updateDBManager.writeToDatabaseFile(data, data_len); }
