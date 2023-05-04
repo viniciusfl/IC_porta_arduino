@@ -154,7 +154,11 @@ namespace TimeNS {
         printDate(DateTime(hwclocktime));
         log_v("Difference: %lu", systemtime - hwclocktime);
 
-        if (systemtime - hwclocktime >= 10) {
+        // These are unsigned, so the result is always
+        // positive, but we need to watch out for overflows.
+        if (systemtime - hwclocktime >= 10
+                    and hwclocktime - systemtime >= 10) {
+
             log_v("Updating hardware clock time");
             rtc.adjust(DateTime(systemtime));
         }
