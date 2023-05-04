@@ -46,7 +46,7 @@ namespace  MQTT {
     inline void MqttManager::init() {
         // ESP's id in MQTT connection
         char buffer[50]; 
-        sprintf(buffer, "ESP_KEYLOCK_ID-%d", doorID); // FIXME: I don't know what to put here. 
+        snprintf(buffer, 50, "ESP_KEYLOCK_ID-%d", doorID); // FIXME: I don't know what to put here.
 
         const esp_mqtt_client_config_t mqtt_cfg = {
             .host = "10.0.2.109",
@@ -134,10 +134,10 @@ namespace  MQTT {
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             char buffer[100];
-            sprintf(buffer, "%.*s",  event->topic_len, event->topic);
+            snprintf(buffer, 100, "%.*s",  event->topic_len, event->topic);
             log_v("Received message from topic: %s", buffer);
             if (!strcmp(buffer, "/topic/commands")) {
-                sprintf(buffer, "%.*s",  event->data_len, event->data);
+                snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
                 treatCommands(buffer);
             }
             // If is not a message to command topic, then it means we are downloading the DB

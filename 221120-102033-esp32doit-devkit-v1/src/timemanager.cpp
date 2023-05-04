@@ -127,7 +127,8 @@ namespace TimeNS {
                                       "quarta", "quinta", "sexta", "sabado"};
 
         char buf[192];
-        sprintf(buf, "%u/%u/%u (%s) %u:%u:%u UTC\nsince midnight 1/1/1970 = "
+        snprintf(buf, 192,
+                 "%u/%u/%u (%s) %u:%u:%u UTC\nsince midnight 1/1/1970 = "
                  "%us (%u days)", moment.year(), moment.month(),
                  moment.day(), daysOfTheWeek[moment.dayOfTheWeek()],
                  moment.hour(), moment.minute(), moment.second(),

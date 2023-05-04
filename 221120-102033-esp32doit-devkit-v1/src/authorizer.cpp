@@ -20,7 +20,7 @@ class Authorizer {
 int Authorizer::openDB(const char *filename) {
     closeDB();
     char name[50];
-    sprintf(name, "/sd%s", filename);
+    snprintf(name, 50, "/sd%s", filename);
 
     int rc = sqlite3_open(name, &sqlitedb);
     if (rc != SQLITE_OK)

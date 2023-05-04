@@ -68,7 +68,7 @@ namespace LOGNS {
 
         unsigned long date = getTime();
         logfileCreationTime = millis();
-        sprintf(logfilename, "/log_%lu", date);
+        snprintf(logfilename, 100, "/log_%lu", date);
 
         log_d("Creating new logfile: %s", logfilename);
 
@@ -81,7 +81,7 @@ namespace LOGNS {
         if (!sdPresent) return;
 
         char buffer[100];
-        sprintf(buffer, "%lu (ACCESS): %d %s %d %lu",
+        snprintf(buffer, 100, "%lu (ACCESS): %d %s %d %lu",
                 getTime(), doorID, readerID, authorized, cardID);
         log_d("Writing to log file: %s", buffer);
         logfile.print(buffer);
@@ -93,7 +93,7 @@ namespace LOGNS {
         if (!sdPresent) return;
 
         char buffer[192];
-        sprintf(buffer, "%lu (SYSTEM): %s", getTime(), message);
+        snprintf(buffer, 192, "%lu (SYSTEM): %s", getTime(), message);
 
         logfile.print(buffer);
         log_d("Writing to log file: %s", buffer);
@@ -158,7 +158,7 @@ namespace LOGNS {
             // "+1" means "skip the initial slash character"
             if (strcmp(logfilename+1, entry.name()) != 0) {
                 log_d("Found a logfile to send: %s", entry.name());
-                sprintf(inTransitFilename,"/%s", entry.name());
+                snprintf(inTransitFilename, 100, "/%s", entry.name());
                 log_d("Sending logfile %s.", entry.name());
                 sendingLogfile = true;
                 lastLogfileSentTime = currentMillis;
