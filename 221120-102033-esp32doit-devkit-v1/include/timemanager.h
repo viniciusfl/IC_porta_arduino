@@ -3,7 +3,8 @@
 
 #include <RTClib.h>
 
-void initTime ();
+bool initTimeOffline();
+void initTime();
 void configNTP();
 void checkTimeSync();
 unsigned long getTime();

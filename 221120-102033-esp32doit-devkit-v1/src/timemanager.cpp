@@ -34,6 +34,7 @@ namespace TimeNS {
 
     class TimeManager {
         public:
+            inline bool initOffline();
             inline void init();
             inline void checkSync();
             inline unsigned long getCurrentTime();
@@ -44,40 +45,48 @@ namespace TimeNS {
             bool HWClockExists;
     };
 
+    // This should be called very early from setup()
+    inline bool TimeManager::initOffline() {
+        if (!rtc.begin()) {
+            HWClockExists = false;
+            log_i("Couldn't find HW clock, continuing with NTP only");
+            return false;
+        }
+
+        HWClockExists = true;
+
+        // If I understand things correctly, the hardware RTC starts life in
+        // state "stopped", because it has no idea what the time is. After
+        // you set the time for the first time, it enters state "started"
+        // and keeps time. This start/stop operation is controlled by bit 7
+        // of register 0 (if the bit is zero, the clock is started), which
+        // is what "isrunning()" checks. Since register 0 is the seconds
+        // register, we set it to zero when we call adjust() with a valid
+        // time for the first time (if bit 7 were on, the number of seconds
+        // would be >= 64).
+        // https://forum.arduino.cc/t/ds1307-real-time-clock-halts-on-power-off/206537/2
+
+        // If we ever set the hardware RTC time before, we may set the
+        // system time from it and adjust with NTP later. If not, we need
+        // to make sure the NTP date has been set before starting.
+        if (rtc.isrunning()) {
+            struct timeval tv;
+
+            tv.tv_sec = rtc.now().unixtime();
+            tv.tv_usec = 0;
+
+            settimeofday(&tv, NULL);
+            log_v("Date/time provisionally set from hardware clock.");
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     // This should be called from setup(), after NTP has been configured
     // (it's ok if the network is not up and/or NTP is not synchronized yet)
     inline void TimeManager::init() {
         lastClockAdjustment = 0; // when we last adjusted the HW clock
-
-        if (!rtc.begin()) {
-            HWClockExists = false;
-            log_i("Couldn't find HW clock, continuing with NTP only");
-        } else {
-            HWClockExists = true;
-
-            // If I understand things correctly, the hardware RTC starts life in
-            // state "stopped", because it has no idea what the time is. After
-            // you set the time for the first time, it enters state "started"
-            // and keeps time. This start/stop operation is controlled by bit 7
-            // of register 0 (if the bit is zero, the clock is started), which
-            // is what "isrunning()" checks. Since register 0 is the seconds
-            // register, we set it to zero when we call adjust() with a valid
-            // time for the first time (if bit 7 were on, the number of seconds
-            // would be >= 64).
-            // https://forum.arduino.cc/t/ds1307-real-time-clock-halts-on-power-off/206537/2
-
-            // If we ever set the hardware RTC time before, we may set the
-            // system time from it and adjust with NTP later. If not, we need
-            // to make sure the NTP date has been set before starting.
-            if (rtc.isrunning()) {
-                struct timeval tv;
-
-                tv.tv_sec = rtc.now().unixtime();
-                tv.tv_usec = 0;
-
-                settimeofday(&tv, NULL);
-            }
-        }
 
         // getLocalTime calls localtime_r() to convert the current system
         // timestamp into "struct tm" (days, hours etc.). If the current
@@ -172,6 +181,8 @@ namespace TimeNS {
 
     TimeManager hwclock;
 }
+
+bool initTimeOffline() { return TimeNS::hwclock.initOffline(); }
 
 void initTime() { TimeNS::hwclock.init(); }
 

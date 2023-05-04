@@ -38,6 +38,11 @@ void setup() {
         sdPresent = true;
     }
 
+    if (initTimeOffline()) {
+        initLogSystem();
+        initLog(); // We know the current time, so we can name the logfile
+    }
+
     sqlite3_initialize();
 
     currentMillis = millis();
@@ -47,8 +52,9 @@ void setup() {
     initWiFi();
     initMqtt();
     initTime();
-    initLog(); // Log init must initiate here because we need getTime() function working for naming log file. 
-    // FIXME: What if both hw clock and wifi are not working properly? 
+    // If initTimeOffline() failed before, we need to do this here,
+    // when knowing the current time allows us to name the logfile
+    initLog();
     initDBMan();
 }
 
