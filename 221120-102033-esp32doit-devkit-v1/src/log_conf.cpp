@@ -92,7 +92,7 @@ namespace LOGNS {
     void Logger::logEvent(const char* message) {
         if (!sdPresent) return;
 
-        char buffer[1024];
+        char buffer[192];
         sprintf(buffer, "%lu (SYSTEM): %s", getTime(), message);
 
         logfile.print(buffer);
@@ -198,9 +198,9 @@ namespace LOGNS {
         // (in that case, "%u" becomes "%s"). We may also get the system
         // time here ourselves and ignore this.
         int count;
-        char buf[512];
+        char buf[192];
         buf[0] = 0;
-        count = vsnprintf(buf, 512, format, ap);
+        count = vsnprintf(buf, 192, format, ap);
 
         Serial.print(buf);
         logger.logEvent(buf);
