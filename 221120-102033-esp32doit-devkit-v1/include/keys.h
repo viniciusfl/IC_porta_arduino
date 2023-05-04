@@ -1,3 +1,6 @@
+#ifndef KEYS_H
+#define KEYS_H
+
 const char* brokerCert = "-----BEGIN CERTIFICATE-----\n\
 MIIFtTCCA52gAwIBAgIUHiUkth1BKH2IMFKGRvbXR/nPShcwDQYJKoZIhvcNAQEN\n\
 BQAwajEXMBUGA1UEAwwOQW4gTVFUVCBicm9rZXIxFjAUBgNVBAoMDU93blRyYWNr\n\
@@ -88,3 +91,5 @@ YQXW7EFjvuea+8J40DmTgklQbaPuByx9f/ZveL/5AoGBAJFtGpQwb8vYic8lWj9z\n\
 EUN6kGflu1mW8byvWJ7rZ3LkKj5MrxUbATJ71B/sWl4sUfFYYjIDUjbgLWg3cQGl\n\
 4zQq3chVIM6c6eXS1Pqwejvm\n\
 -----END PRIVATE KEY-----\n";
+
+#endif
