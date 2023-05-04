@@ -211,9 +211,6 @@ namespace ReaderNS {
         returnReaderID = readerID;
         returnCardID = bitsToNumber(cardIDRaw, cardIDBits);
 
-        log_v("Card reader %s was used. Received card ID %lu",
-              returnReaderID, returnCardID);
-
         newAccess = false;
 
         return true;
