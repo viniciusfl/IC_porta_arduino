@@ -8,6 +8,7 @@ static const char *TAG = "log";
 #include <timemanager.h>
 #include <networkmanager.h>
 #include <dbmanager.h>
+#include <mqttmanager.h>
 
 #define BACKUP_INTERVAL 120000
 
@@ -20,7 +21,7 @@ static const char *TAG = "log";
 // #define maxLogLifetime 120000
 #define MAXLOGLIFETIME 180000
 
-#define MAXRECORDS 5
+#define MAXRECORDS 50
 
 // Value of keepalive. If we don't send at least one log for one hour,
 // we will send a message saying we are alive!
@@ -31,14 +32,13 @@ static const char *TAG = "log";
 namespace LOGNS {
     class Logger {
         public:
-            // TODO: change functions and variables name
             inline void init();
-            void logEvent(const char* readerID, unsigned long cardID,
-                            bool authorized);
             void flushSentLogfile();
             void processLogs();
+            void logEvent(const char* message);
+            void logAccess(const char* readerID, unsigned long cardID,
+                            bool authorized);
         private:
-
             File logfile;
             char logfilename[100]; // Keeps track of the current log file we're using
             unsigned long logfileCreationTime;
@@ -82,8 +82,10 @@ namespace LOGNS {
         sprintf(buffer, "%lu (ACCESS): %d %s %d %lu\n",
                 getTime(), doorID, readerID, authorized, cardID);
 
-        log_d("Writing to log file: %s", buffer);
-        logfile.print(buffer);
+        if (sdPresent) {
+            log_d("Writing to log file: %s", buffer);
+            logfile.print(buffer);
+        }
 
         numberOfRecords++;
     }
@@ -92,10 +94,11 @@ namespace LOGNS {
         char buffer[1024];
         sprintf(buffer, "%lu (SYSTEM): %s\n", getTime(), message);
 
-        log_d("Writing to log file: %s", buffer);
-        logfile.print(buffer);
+        if (sdPresent) {
+            logfile.print(buffer);
+        }
 
-        numberOfRecords++;
+        numberOfRecords++; // Does it count as record?
     }
 
     void Logger::processLogs() {
@@ -162,7 +165,7 @@ namespace LOGNS {
             }
         }
 
-        log_d("Finished search for logfiles...\n");
+        log_d("Finished search for logfiles...");
         root.close();
         entry.close();
     }
@@ -197,11 +200,8 @@ namespace LOGNS {
         buf[0] = 0;
         count = vsnprintf(buf, 512, format, ap);
 
-#       ifdef DEBUG_TERMINAL
         Serial.print(buf);
-#       else
-        logger.systemlogFile.print(buf);
-#       endif
+        logger.logEvent(buf);
 
         return count;
     }
@@ -219,9 +219,9 @@ void initLogSystem() {
     esp_log_set_vprintf(LOGNS::logmessage);
 }
 
-void logEvent(const char* readerID, unsigned long cardID,
+void logAccess(const char* readerID, unsigned long cardID,
                     bool authorized) {
-    LOGNS::logger.logEvent(readerID, cardID, authorized);
+    LOGNS::logger.logAccess(readerID, cardID, authorized);
 }
 
 void flushSentLogfile() {
