@@ -126,5 +126,6 @@
    are kept there and and then flushed. During normal operation, they are
    flushed immediately, but the buffer is accessible with a command from
    MQTT so that we can see the latest messages even if something goes wrong
-   with the logfile.
+   with the logfile. Finally, if there is a problem with the SD card, we
+   should send the log messages in the buffer over MQTT.
 
