@@ -268,6 +268,10 @@ void blinkFail(const char* reader) {
     digitalWrite(pin, HIGH);
 };
 
+void openDoorCommand() {
+    log_v("Opened door");
+}
+
 bool openDoor(const char* reader) {
     log_v("Opened door");
     if (NULL != reader) {

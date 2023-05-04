@@ -13,4 +13,6 @@ bool isClientConnected();
 
 bool sendLog(const char* filename); 
 
+bool treatCommands(const char* command);
+
 #endif

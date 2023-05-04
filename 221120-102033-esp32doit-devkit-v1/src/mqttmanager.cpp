@@ -20,6 +20,7 @@ namespace  MQTT {
         inline bool sendLog(const char *filename);
         void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event);
+        void treatCommands(const char* command);
     private: 
         bool serverStarted = false;
 
@@ -94,6 +95,19 @@ namespace  MQTT {
         return true;
     }
 
+    void MqttManager::treatCommands(const char* command) {
+        // QUESTION: Should i return an anwser in another topic?
+        if (!strcmp(command, "openDoor")) {
+            log_v("Received command to open door.");
+            openDoorCommand();
+        } else if (!strcmp(command, "reboot")) {
+            log_v("Received command to reboot ESP.");
+            ESP.restart();
+        } else {
+            log_e("Invalid command: %s", command);
+        }
+    }
+
     void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event) {
         esp_mqtt_client_handle_t client = event->client;
@@ -101,8 +115,7 @@ namespace  MQTT {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             serverStarted = true;
-            esp_mqtt_client_subscribe(client, "/topic/getLogs", 0);
-            esp_mqtt_client_subscribe(client, "/topic/openDoor", 0);
+            esp_mqtt_client_subscribe(client, "/topic/commands", 0);
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
@@ -120,12 +133,14 @@ namespace  MQTT {
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-            if (event->topic == "/topic/commands") {
-                // do something
-                printf("Commands");
+            char buffer[100];
+            sprintf(buffer, "%.*s",  event->topic_len, event->topic);
+            log_v("Received message from topic: %s", buffer);
+            if (!strcmp(buffer, "/topic/commands")) {
+                sprintf(buffer, "%.*s",  event->data_len, event->data);
+                treatCommands(buffer);
             }
-
-            // If is not command topic, then it means we are downloading the DB:
+            // If is not a message to command topic, then it means we are downloading the DB
             writeToDatabaseFile(event->data, event->data_len);
             if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
                 didDownloadFinish = true;
@@ -162,3 +177,5 @@ bool didDownloadFinish() { return MQTT::mqttManager.finishedDownload(); }
 bool isClientConnected() { return MQTT::mqttManager.serverConnected(); }
 
 bool sendLog(const char *filename) { return MQTT::mqttManager.sendLog(filename); };
+
+void treatCommands(const char* command) { MQTT::mqttManager.treatCommands(command); }

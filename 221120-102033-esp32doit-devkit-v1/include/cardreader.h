@@ -9,4 +9,6 @@ bool openDoor(const char* reader);
 
 bool denyToOpenDoor(const char* reader);
 
+void openDoorCommand();
+
 #endif
