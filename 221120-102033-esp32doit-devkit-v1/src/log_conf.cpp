@@ -59,6 +59,8 @@ namespace LOGNS {
     }
 
     inline void Logger::createNewLogfile() {
+        if (!sdPresent) return;
+
         log_d("Creating new log file...");
 
         // When this remains open we need to close it
@@ -101,6 +103,8 @@ namespace LOGNS {
     }
 
     void Logger::processLogs() {
+        if (!sdPresent) return;
+
         // We create a new logfile if:
         //
         // 1. There are more than MAXRECORDS in the current file
