@@ -7,12 +7,14 @@ static const char* TAG = "main";
 #include <authorizer.h>
 #include <cardreader.h>
 #include <log_conf.h>
+#include <mqttmanager.h>
 #include <Arduino.h>
 #include <SPI.h>
 #include <SD.h>
 #include <sqlite3.h>
 
 #define HEAP_CHECK_INTERVAL 5000
+#define PRINT_HEAP
 unsigned long lastHeapCheck;
 
 int doorID = 1;
@@ -20,7 +22,6 @@ int doorID = 1;
 unsigned long currentMillis;
 bool sdPresent = false;
 
-#define PRINT_HEAP
 
 void setup() {
     Serial.begin(115200);
@@ -44,6 +45,7 @@ void setup() {
     initLogSystem();
     initCardReaders();
     initWiFi();
+    initMqtt();
     initTime();
     initLog(); // Log init must initiate here because we need getTime() function working for naming log file. 
     // FIXME: What if both hw clock and wifi are not working properly? 
