@@ -61,10 +61,8 @@ namespace LOGNS {
     inline void Logger::createNewLogfile() {
         if (!sdPresent) return;
 
-        log_d("Creating new log file...");
-
-        // When this remains open we need to close it
         if (logfile) {
+            log_d("Closing logfile: %s", logfilename);
             logfile.close();
         }
 
@@ -72,7 +70,7 @@ namespace LOGNS {
         logfileCreationTime = millis();
         sprintf(logfilename, "/log_%lu", date);
 
-        log_d("Name of new log: %s\n", logfilename);
+        log_d("Creating new logfile: %s", logfilename);
 
         logfile = SD.open(logfilename, "aw", 1);
         numberOfRecords = 0;
@@ -83,7 +81,7 @@ namespace LOGNS {
         if (!sdPresent) return;
 
         char buffer[100];
-        sprintf(buffer, "%lu (ACCESS): %d %s %d %lu\n",
+        sprintf(buffer, "%lu (ACCESS): %d %s %d %lu",
                 getTime(), doorID, readerID, authorized, cardID);
         log_d("Writing to log file: %s", buffer);
         logfile.print(buffer);
@@ -95,7 +93,8 @@ namespace LOGNS {
         if (!sdPresent) return;
 
         char buffer[1024];
-        sprintf(buffer, "%lu (SYSTEM): %s\n", getTime(), message);
+        sprintf(buffer, "%lu (SYSTEM): %s", getTime(), message);
+
         logfile.print(buffer);
         log_d("Writing to log file: %s", buffer);
 
@@ -168,15 +167,15 @@ namespace LOGNS {
             }
         }
 
-        log_d("Finished search for logfiles...");
+        log_d("Finished search for logfiles.");
         root.close();
         entry.close();
     }
 
     void Logger::flushSentLogfile() {
-        log_d("Finished sending logfile...");
+        log_d("Finished sending logfile %s.", inTransitFilename);
         sendingLogfile = false;
-        log_d("Removing file: %s", inTransitFilename);
+        log_d("Removing sent logfile: %s", inTransitFilename);
         SD.remove(inTransitFilename);
         inTransitFilename[0] = 0;
     }
