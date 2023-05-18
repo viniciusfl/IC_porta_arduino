@@ -18,7 +18,7 @@ static const char* TAG = "time";
 
 namespace TimeNS {
 
-    const char* ntpServer = "a.ntp.br";
+    const char* ntpServer = "a.st1.ntp.br";
     const long  gmtOffset_sec = -3600*3;
     const int   daylightOffset_sec = 0;
 
@@ -43,6 +43,8 @@ namespace TimeNS {
             unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
             void update();
             bool HWClockExists;
+            bool internalClockIsUpdated = false;
+            bool HWClockIsUpdated = false;
     };
 
     // This should be called very early from setup()
@@ -71,7 +73,7 @@ namespace TimeNS {
         // to make sure the NTP date has been set before starting.
         if (rtc.isrunning()) {
             struct timeval tv;
-
+            HWClockIsUpdated = true;
             tv.tv_sec = rtc.now().unixtime();
             tv.tv_usec = 0;
 
@@ -97,11 +99,12 @@ namespace TimeNS {
         // server, so we wait a little for that.
         struct tm timeinfo;
         bool timeOK = false;
-
+        configNTP();
         int attempts = 0;
         while (!timeOK) {
-            if (getLocalTime(&timeinfo, 30000)) { // 30s timeout
+            if (getLocalTime(&timeinfo, 45000)) { // 45s timeout
                 timeOK = true;
+                internalClockIsUpdated = true;
             } else if (++attempts > 3) {
                 log_e("Failed to obtain time from both HW clock "
                       "and network too many times, restarting");
@@ -109,7 +112,6 @@ namespace TimeNS {
             } else {
                 log_i("Failed to obtain time from both HW clock "
                       "and network, resetting network");
-
                 netReset();
             }
         }
@@ -149,7 +151,11 @@ namespace TimeNS {
     }
 
     void TimeManager::update() {
-        if (!HWClockExists) return;
+        if (!HWClockExists) {
+            log_e("Error, HW clock is NOT working.");
+            return;
+        }
+        HWClockIsUpdated = true;
 
         time_t now;
         time(&now);
@@ -174,9 +180,14 @@ namespace TimeNS {
     }
 
     inline unsigned long TimeManager::getCurrentTime() {
-        time_t now;
-        time(&now);
-        return now;
+        if (internalClockIsUpdated) {
+            time_t now;
+            time(&now);
+            return now;
+        } else if (HWClockIsUpdated) {
+            return rtc.now().unixtime();
+        }
+        return 0; // Error
     }
 
     TimeManager hwclock;
