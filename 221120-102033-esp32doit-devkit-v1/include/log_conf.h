@@ -90,4 +90,6 @@ void flushSentLogfile();
 
 void processLogs();
 
+void initOfflineLogger();
+
 #endif
