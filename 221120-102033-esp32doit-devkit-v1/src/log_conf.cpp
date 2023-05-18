@@ -38,6 +38,8 @@ namespace LOGNS {
             void logEvent(const char* message);
             void logAccess(const char* readerID, unsigned long cardID,
                             bool authorized);
+            void initOfflineLogger();
+            int increaseBootCounter();
         private:
             File logfile;
             char logfilename[100]; // Keeps track of the current log file we're using
@@ -52,6 +54,9 @@ namespace LOGNS {
             unsigned long lastLogCheck = 0;
             bool sendingLogfile = false;
             unsigned long lastLogfileSentTime = 0;
+
+            bool usingOfflineLog = false;
+            int bootcount;
     };
 
     inline void Logger::init() {
@@ -59,11 +64,13 @@ namespace LOGNS {
     }
 
     inline void Logger::createNewLogfile() {
-        if (!sdPresent) return;
+        if ((!sdPresent || !getTime())) return;
 
         if (logfile) {
             log_d("Closing logfile: %s", logfilename);
+            logfile.flush();
             logfile.close();
+            usingOfflineLog = false;
         }
 
         unsigned long date = getTime();
@@ -72,8 +79,50 @@ namespace LOGNS {
 
         log_d("Creating new logfile: %s", logfilename);
 
-        logfile = SD.open(logfilename, "aw", 1);
+        logfile = SD.open(logfilename, FILE_WRITE);
+
+        if (usingOfflineLog) {
+            char buffer[100];
+            snprintf(buffer, 100, "boot %d OK; this message was logged when millis = %lu\n", bootcount, millis());
+            logfile.print(buffer);
+            logfile.flush();
+        }
+
         numberOfRecords = 0;
+    }
+
+    inline void Logger::initOfflineLogger() {
+        if (!sdPresent) return;
+
+        usingOfflineLog = true;
+        logfileCreationTime = millis();
+
+        bootcount = increaseBootCounter();
+
+        snprintf(logfilename, 100, "/bootlog_%lu", bootcount);
+
+        log_d("Creating new logfile: %s", logfilename);
+
+        logfile = SD.open(logfilename, FILE_WRITE, 1);
+        numberOfRecords = 0;
+    }
+
+    inline int Logger::increaseBootCounter() {
+        int r;
+        File boot;
+        if (SD.exists("/bootcount.txt")) {
+            boot = SD.open("/bootcount.txt", FILE_READ);
+            r = boot.parseInt();
+            boot.close();
+        } else {
+            r = 0;
+        }
+
+        boot = SD.open("/bootcount.txt", FILE_WRITE);
+        boot.print(r+1);
+        boot.close();
+
+        return r;
     }
 
     void Logger::logAccess(const char* readerID, unsigned long cardID,
@@ -81,28 +130,39 @@ namespace LOGNS {
         if (!sdPresent) return;
 
         char buffer[100];
-        snprintf(buffer, 100, "%lu (ACCESS): %d %s %d %lu",
-                getTime(), doorID, readerID, authorized, cardID);
-        log_d("Writing to log file: %s", buffer);
-        logfile.print(buffer);
+        if (usingOfflineLog) {
+            snprintf(buffer, 100, "(BOOT#%d): %d %s %d %lu",
+                    bootcount, doorID, readerID, authorized, cardID);
+        } else {
+            snprintf(buffer, 100, "%lu (ACCESS): %d %s %d %lu",
+                    getTime(), doorID, readerID, authorized, cardID);
+        }
 
-        numberOfRecords++;
+        logfile.print(buffer);
+        logfile.flush();
+
+        if (!usingOfflineLog)
+            numberOfRecords++;
     }
 
     void Logger::logEvent(const char* message) {
         if (!sdPresent) return;
 
         char buffer[192];
-        snprintf(buffer, 192, "%lu (SYSTEM): %s", getTime(), message);
+        if (usingOfflineLog) {
+            snprintf(buffer, 192, "(BOOT#%d): %s", bootcount, message);
+        } else {
+            snprintf(buffer, 192, "%lu (SYSTEM): %s", getTime(), message);
+        }
 
         logfile.print(buffer);
-        log_d("Writing to log file: %s", buffer);
-
-        numberOfRecords++; // Does it count as record?
+        logfile.flush();
+        if (!usingOfflineLog)
+            numberOfRecords++;
     }
 
     void Logger::processLogs() {
-        if (!sdPresent) return;
+        if (!sdPresent || usingOfflineLog) return;
 
         // We create a new logfile if:
         //
@@ -143,6 +203,7 @@ namespace LOGNS {
     }
 
     void Logger::sendNextLogfile() {
+        return;
         log_d("Searching for logs in SD to send...");
         File root = SD.open("/");
         File entry;
@@ -151,7 +212,8 @@ namespace LOGNS {
         while (entry = root.openNextFile()) {
             if (entry.isDirectory()) { continue; }
 
-            if (strncmp("log_", entry.name(), strlen("log_")) != 0) {
+            if (strncmp("log_", entry.name(), strlen("log_")) != 0 &&
+            strncmp("bootlog_", entry.name(), strlen("bootlog_")) != 0 ) {
                 continue;
             }
 
@@ -203,7 +265,8 @@ namespace LOGNS {
         count = vsnprintf(buf, 192, format, ap);
 
         Serial.print(buf);
-        logger.logEvent(buf);
+        if (sdPresent)
+            logger.logEvent(buf);
 
         return count;
     }
@@ -232,4 +295,8 @@ void flushSentLogfile() {
 
 void processLogs() {
     LOGNS::logger.processLogs();
+}
+
+void initOfflineLogger() {
+    LOGNS::logger.initOfflineLogger();
 }
