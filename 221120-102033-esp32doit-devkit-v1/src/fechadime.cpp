@@ -29,6 +29,7 @@ void setup() {
     while (!Serial) { ; }
     delay(2000);
 
+    initLogSystem(); // Doesn't really make a difference if this is called here
     log_v("Start program");
 
     if (!SD.begin()) { 
@@ -39,15 +40,15 @@ void setup() {
     }
 
     if (initTimeOffline()) {
-        initLogSystem();
         initLog(); // We know the current time, so we can name the logfile
+    } else {
+        initOfflineLogger();
     }
 
     sqlite3_initialize();
 
     currentMillis = millis();
     lastHeapCheck = currentMillis;
-    initLogSystem();
     initCardReaders();
     initWiFi();
     initMqtt();
