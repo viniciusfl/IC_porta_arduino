@@ -120,25 +120,6 @@ namespace TimeNS {
         }
     }
 
-    void printDate(DateTime moment) {
-#       if CORE_DEBUG_LEVEL >= ARDUHAL_LOG_LEVEL_VERBOSE
-
-        char daysOfTheWeek[15][15] = {"domingo", "segunda", "terça",
-                                      "quarta", "quinta", "sexta", "sabado"};
-
-        char buf[192];
-        snprintf(buf, 192,
-                 "%u/%u/%u (%s) %u:%u:%u UTC\nsince midnight 1/1/1970 = "
-                 "%us (%u days)", moment.year(), moment.month(),
-                 moment.day(), daysOfTheWeek[moment.dayOfTheWeek()],
-                 moment.hour(), moment.minute(), moment.second(),
-                 moment.unixtime(), moment.unixtime() / 86400L);
-
-        log_v("%s", buf);
-
-#       endif
-    }
-
     void TimeManager::update() {
         if (!HWClockExists) {
             log_e("Error, HW clock is NOT working.");
@@ -151,12 +132,6 @@ namespace TimeNS {
 
         unsigned long systemtime = now;
         unsigned long hwclocktime = rtc.now().unixtime();
-
-        log_v("System date: %lu", systemtime);
-        printDate(DateTime(systemtime));
-        log_v("HW clock date: %lu", hwclocktime);
-        printDate(DateTime(hwclocktime));
-        log_v("Difference: %lu", systemtime - hwclocktime);
 
         // These are unsigned, so the result is always
         // positive, but we need to watch out for overflows.
