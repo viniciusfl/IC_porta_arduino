@@ -8,8 +8,7 @@ static const char* TAG = "time";
 #include <timemanager.h>
 #include <networkmanager.h>
 
-#define READJUST_CLOCK_INTERVAL 60000 // 10s, just for testing; a good
-                                      // value is 10800 (3 hours)
+#define READJUST_CLOCK_INTERVAL 10800 // 3 hours
 
 // Instead of periodically checking for the time difference, as we do here,
 // we might use sntp_set_time_sync_notification_cb(). However, polling is
@@ -21,16 +20,6 @@ namespace TimeNS {
     const char* ntpServer = "a.st1.ntp.br";
     const long  gmtOffset_sec = -3600*3;
     const int   daylightOffset_sec = 0;
-
-    inline void configNTP() {
-        // initialize esp32 sntp client, which calls settimeofday
-        // periodically; this performs a DNS lookup and an NTP
-        // request, so it takes some time. If the network is not
-        // already up when this is called, the system retries later.
-        // I suppose there is no harm in calling this every time the
-        // network connects, even if it is unnecessary.
-        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    }
 
     class TimeManager {
         public:
@@ -197,7 +186,16 @@ bool initTimeOffline() { return TimeNS::hwclock.initOffline(); }
 
 void initTime() { TimeNS::hwclock.init(); }
 
-void configNTP() { TimeNS::configNTP(); }
+void configNTP() {
+    // initialize esp32 sntp client, which calls settimeofday
+    // periodically; this performs a DNS lookup and an NTP
+    // request, so it takes some time. If the network is not
+    // already up when this is called, the system retries later.
+    // I suppose there is no harm in calling this every time the
+    // network connects, even if it is unnecessary.
+    configTime(TimeNS::gmtOffset_sec, TimeNS::daylightOffset_sec,
+               TimeNS::ntpServer);
+}
 
 void checkTimeSync() { TimeNS::hwclock.checkSync(); }
 
