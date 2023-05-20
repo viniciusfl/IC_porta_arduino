@@ -4,7 +4,8 @@
 #include <RTClib.h>
 
 bool initTimeOffline();
-void initTime();
+bool timeIsValid();
+bool initTime();
 void configNTP();
 void checkTimeSync();
 unsigned long getTime();

@@ -81,15 +81,11 @@ ARDUHAL_LOG_LEVEL_VERBOSE (5)
 
 void initLog();
 
-void initLogSystem();
-
 void logAccess(const char* readerID, unsigned long cardID,
                   bool authorized);
 
 void flushSentLogfile();
 
 void processLogs();
-
-void initOfflineLogger();
 
 #endif

@@ -24,24 +24,25 @@ namespace TimeNS {
     class TimeManager {
         public:
             inline bool initOffline();
-            inline void init();
+            inline bool init();
             inline void checkSync();
             inline unsigned long getCurrentTime();
+            bool timeOK;
         private:
             RTC_DS1307 rtc;
             unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
             void update();
             bool HWClockExists;
-            bool internalClockIsUpdated = false;
-            bool HWClockIsUpdated = false;
     };
 
     // This should be called very early from setup()
     inline bool TimeManager::initOffline() {
+        timeOK = false;
+        HWClockExists = false;
+
         if (!rtc.begin()) {
-            HWClockExists = false;
             log_i("Couldn't find HW clock, continuing with NTP only");
-            return false;
+            return timeOK;
         }
 
         HWClockExists = true;
@@ -62,21 +63,20 @@ namespace TimeNS {
         // to make sure the NTP date has been set before starting.
         if (rtc.isrunning()) {
             struct timeval tv;
-            HWClockIsUpdated = true;
             tv.tv_sec = rtc.now().unixtime();
             tv.tv_usec = 0;
 
             settimeofday(&tv, NULL);
+            timeOK = true;
             log_v("Date/time provisionally set from hardware clock.");
-            return true;
-        } else {
-            return false;
         }
+
+        return timeOK;
     }
 
     // This should be called from setup(), after NTP has been configured
     // (it's ok if the network is not up and/or NTP is not synchronized yet)
-    inline void TimeManager::init() {
+    inline bool TimeManager::init() {
         lastClockAdjustment = 0; // when we last adjusted the HW clock
 
         // getLocalTime calls localtime_r() to convert the current system
@@ -85,31 +85,22 @@ namespace TimeNS {
         // this fails and it tries again, until a timeout is reached. The
         // idea is that we might have just started to run and the SNTP
         // client may have not yet received the first answer from the
-        // server, so we wait a little for that.
+        // server, so we wait a little for that. Note that if time was
+        // previously set from the HW clock, this succeeds immediately,
+        // even if we have not synced to NTP yet.
         struct tm timeinfo;
-        bool timeOK = false;
-        configNTP();
-        int attempts = 0;
-        while (!timeOK) {
-            if (getLocalTime(&timeinfo, 45000)) { // 45s timeout
-                timeOK = true;
-                internalClockIsUpdated = true;
-            } else if (++attempts > 3) {
-                log_e("Failed to obtain time from both HW clock "
-                      "and network too many times, restarting");
-                ESP.restart(); // Desperate times call for desperate measures
-            } else {
-                log_i("Failed to obtain time from both HW clock "
-                      "and network, resetting network");
-                netReset();
-            }
+
+        if (getLocalTime(&timeinfo, 2000)) { // 2s timeout
+            timeOK = true;
+
+            // System time is set, now set the
+            // HW clock for the first time
+            update();
+
+            log_v("Date/time are set!");
         }
 
-        // System time is set, now set the
-        // HW clock for the first time
-        update();
-
-        log_v("Date/time are set!");
+        return timeOK;
     }
 
     // This should be called from loop()
@@ -122,10 +113,9 @@ namespace TimeNS {
 
     void TimeManager::update() {
         if (!HWClockExists) {
-            log_e("Error, HW clock is NOT working.");
+            log_w("Cannot update HW clock time (HW clock not found).");
             return;
         }
-        HWClockIsUpdated = true;
 
         time_t now;
         time(&now);
@@ -138,20 +128,20 @@ namespace TimeNS {
         if (systemtime - hwclocktime >= 10
                     and hwclocktime - systemtime >= 10) {
 
-            log_v("Updating hardware clock time");
+            log_v("Updating hardware clock time (%lu -> %lu)",
+                  hwclocktime, systemtime);
+
             rtc.adjust(DateTime(systemtime));
         }
     }
 
     inline unsigned long TimeManager::getCurrentTime() {
-        if (internalClockIsUpdated) {
+        if (timeOK) {
             time_t now;
             time(&now);
             return now;
-        } else if (HWClockIsUpdated) {
-            return rtc.now().unixtime();
         }
-        return 0; // Error
+        return 0; // Time not set
     }
 
     TimeManager hwclock;
@@ -159,7 +149,7 @@ namespace TimeNS {
 
 bool initTimeOffline() { return TimeNS::hwclock.initOffline(); }
 
-void initTime() { TimeNS::hwclock.init(); }
+bool initTime() { return TimeNS::hwclock.init(); }
 
 void configNTP() {
     // initialize esp32 sntp client, which calls settimeofday
@@ -175,3 +165,5 @@ void configNTP() {
 void checkTimeSync() { TimeNS::hwclock.checkSync(); }
 
 unsigned long getTime() { return TimeNS::hwclock.getCurrentTime(); }
+
+bool timeIsValid() { return TimeNS::hwclock.timeOK; }

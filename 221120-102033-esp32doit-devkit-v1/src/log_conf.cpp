@@ -10,24 +10,18 @@ static const char *TAG = "log";
 #include <dbmanager.h>
 #include <mqttmanager.h>
 
-#define BACKUP_INTERVAL 120000
+// Rotate the logfile if it reaches this many records. We want to keep
+// each file small because they are copied to memory for transmission
+// to the MQTT broker.
+#define MAX_RECORDS 50
 
-#define RETRY_TIME 60000 // TODO: if we switch to alarms instead of
-                         //       time intervals, how to handle this?
+// If we don't send anything to the MQTT broker for this long, rotate
+// the logfile even if it did not reach MAX_RECORDS. This will indirectly
+// cause us to transmit something, indicating we are alive.
+#define MAX_IDLE_TIME 3600000 // 1 hour
 
-#define DEBUG_TERMINAL
-
-//#define maxLogLifetime 14400000 // 4h in ms
-// #define maxLogLifetime 120000
-#define MAXLOGLIFETIME 180000
-
-#define MAXRECORDS 50
-
-// Value of keepalive. If we don't send at least one log for one hour,
-// we will send a message saying we are alive!
-#define KEEPALIVE 3600000
-
-#define LOG_SEARCH_INTERVAL 15000
+// Check the disk periodically for logfiles to upload.
+#define LOG_SEARCH_INTERVAL 15000 // 15 seconds
 
 namespace LOGNS {
     class Logger {
@@ -38,12 +32,9 @@ namespace LOGNS {
             void logEvent(const char* message);
             void logAccess(const char* readerID, unsigned long cardID,
                             bool authorized);
-            void initOfflineLogger();
-            int increaseBootCounter();
         private:
             File logfile;
             char logfilename[100]; // Keeps track of the current log file we're using
-            unsigned long logfileCreationTime;
             int numberOfRecords;
 
             char inTransitFilename[100]; // Keeps track of the current log file we're sending
@@ -55,74 +46,70 @@ namespace LOGNS {
             bool sendingLogfile = false;
             unsigned long lastLogfileSentTime = 0;
 
-            bool usingOfflineLog = false;
-            int bootcount;
+            bool loggingWithoutTime;
+            inline void initBootCount();
+            int bootcount = 0;
+            bool justStarted = true;
     };
 
     inline void Logger::init() {
+        if (timeIsValid()) {
+            loggingWithoutTime = false;
+        } else {
+            loggingWithoutTime = true;
+            initBootCount();
+        }
+
         createNewLogfile();
     }
 
     inline void Logger::createNewLogfile() {
-        if ((!sdPresent || !getTime())) return;
+        if (!sdPresent) return;
 
         if (logfile) {
             log_d("Closing logfile: %s", logfilename);
             logfile.flush();
             logfile.close();
-            usingOfflineLog = false;
         }
 
-        unsigned long date = getTime();
-        logfileCreationTime = millis();
-        snprintf(logfilename, 100, "/log_%lu", date);
 
-        log_d("Creating new logfile: %s", logfilename);
+        if (timeIsValid()) { loggingWithoutTime = false; }
+
+        if (loggingWithoutTime) {
+            unsigned long timestamp = millis();
+            snprintf(logfilename, 100, "/bootlog_%lu_%lu", bootcount, timestamp);
+        } else {
+            unsigned long timestamp = getTime();
+            snprintf(logfilename, 100, "/log_%lu", timestamp);
+        }
 
         logfile = SD.open(logfilename, FILE_WRITE);
+        numberOfRecords = 0;
 
-        if (usingOfflineLog) {
+        if (loggingWithoutTime && justStarted) {
             char buffer[100];
             snprintf(buffer, 100, "boot %d OK; this message was logged when millis = %lu\n", bootcount, millis());
             logfile.print(buffer);
             logfile.flush();
+            justStarted = false;
         }
 
-        numberOfRecords = 0;
+        log_d("Created new logfile: %s", logfilename);
     }
 
-    inline void Logger::initOfflineLogger() {
-        if (!sdPresent) return;
-
-        usingOfflineLog = true;
-        logfileCreationTime = millis();
-
-        bootcount = increaseBootCounter();
-
-        snprintf(logfilename, 100, "/bootlog_%lu", bootcount);
-
-        log_d("Creating new logfile: %s", logfilename);
-
-        logfile = SD.open(logfilename, FILE_WRITE, 1);
-        numberOfRecords = 0;
-    }
-
-    inline int Logger::increaseBootCounter() {
-        int r;
+    inline void Logger::initBootCount() {
         File boot;
         if (SD.exists("/bootcount.txt")) {
             boot = SD.open("/bootcount.txt", FILE_READ);
-            r = boot.parseInt();
+            bootcount = boot.parseInt();
             boot.close();
-        } else {
-            r = 0;
         }
 
-        boot = SD.open("/bootcount.txt", FILE_WRITE);
-        boot.print(r+1);
-        boot.close();
+        ++bootcount;
 
-        return r;
+        boot = SD.open("/bootcount.txt", FILE_WRITE);
+        boot.print(bootcount);
+        boot.close();
     }
 
     void Logger::logAccess(const char* readerID, unsigned long cardID,
@@ -130,9 +117,9 @@ namespace LOGNS {
         if (!sdPresent) return;
 
         char buffer[100];
-        if (usingOfflineLog) {
-            snprintf(buffer, 100, "(BOOT#%d): %d %s %d %lu",
-                    bootcount, doorID, readerID, authorized, cardID);
+        if (loggingWithoutTime) {
+            snprintf(buffer, 100, "%lu (ACCESS/BOOT#%d): %d %s %d %lu",
+                    millis(), bootcount, doorID, readerID, authorized, cardID);
         } else {
             snprintf(buffer, 100, "%lu (ACCESS): %d %s %d %lu",
                     getTime(), doorID, readerID, authorized, cardID);
@@ -140,49 +127,47 @@ namespace LOGNS {
 
         logfile.print(buffer);
         logfile.flush();
-
-        if (!usingOfflineLog)
-            numberOfRecords++;
+        numberOfRecords++;
     }
 
     void Logger::logEvent(const char* message) {
         if (!sdPresent) return;
 
         char buffer[192];
-        if (usingOfflineLog) {
-            snprintf(buffer, 192, "(BOOT#%d): %s", bootcount, message);
+        if (loggingWithoutTime) {
+            snprintf(buffer, 192, "%lu (BOOT#%d): %s", millis(), bootcount, message);
         } else {
             snprintf(buffer, 192, "%lu (SYSTEM): %s", getTime(), message);
         }
 
         logfile.print(buffer);
         logfile.flush();
-        if (!usingOfflineLog)
-            numberOfRecords++;
+        numberOfRecords++;
     }
 
     void Logger::processLogs() {
-        if (!sdPresent || usingOfflineLog) return;
+        if (!sdPresent) return;
 
         // We create a new logfile if:
         //
-        // 1. There are more than MAXRECORDS in the current file
+        // 1. There are more than MAX_RECORDS in the current file
         //    (it has to fit in the device memory)
         //
         // OR
         //
-        // 2. The file is non-empty and created too long ago
-        //    (this will force the file to be sent, which
+        // 2. The file is non-empty and nothing has been sent for
+        //    too long (this will force the file to be sent, which
         //    serves as a notification that we are alive)
-        if (
-                numberOfRecords > MAXRECORDS
-                or
-                (
-                    currentMillis - logfileCreationTime > MAXLOGLIFETIME
-                    and
-                    numberOfRecords > 0
-                )
-           ) { createNewLogfile(); }
+        if (numberOfRecords > MAX_RECORDS
+                or currentMillis - lastLogfileSentTime > MAX_IDLE_TIME) {
+
+            if (numberOfRecords > 0) {
+                createNewLogfile();
+                lastLogfileSentTime = currentMillis; // that's a lie, but ok
+            } else { // Make numberOfRecords > 0 on the next iteration
+                log_w("We're alive!");
+            }
+        }
 
         // If we are already sending a file or are offline,
         // we should wait before sending anything else
@@ -193,13 +178,6 @@ namespace LOGNS {
         lastLogCheck = currentMillis;
 
         sendNextLogfile();
-
-        // If we haven't sent anything for a long time, send
-        // a message to the broker saying we are alive!!
-        if (currentMillis - lastLogfileSentTime > KEEPALIVE) {
-            log_d("Sending keepalive message to MQTT broker");
-            // sendAliveMessage(); TODO: Easy
-        }
     }
 
     void Logger::sendNextLogfile() {
@@ -265,8 +243,7 @@ namespace LOGNS {
         count = vsnprintf(buf, 192, format, ap);
 
         Serial.print(buf);
-        if (sdPresent)
-            logger.logEvent(buf);
+        logger.logEvent(buf);
 
         return count;
     }
@@ -274,9 +251,7 @@ namespace LOGNS {
 
 void initLog() {
     LOGNS::logger.init();
-}
 
-void initLogSystem() {
     // Do not change this! Instead, define the desired level in log_conf.h
     esp_log_level_set("*", ESP_LOG_VERBOSE);
 
@@ -297,6 +272,3 @@ void processLogs() {
     LOGNS::logger.processLogs();
 }
 
-void initOfflineLogger() {
-    LOGNS::logger.initOfflineLogger();
-}
