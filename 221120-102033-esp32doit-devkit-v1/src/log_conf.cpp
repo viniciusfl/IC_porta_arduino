@@ -34,10 +34,10 @@ namespace LOGNS {
                             bool authorized);
         private:
             File logfile;
-            char logfilename[100]; // Keeps track of the current log file we're using
+            char logfilename[100]; // current file we're logging to
             int numberOfRecords;
 
-            char inTransitFilename[100]; // Keeps track of the current log file we're sending
+            char inTransitFilename[100]; // current file we're sending
 
             void createNewLogfile();
             void sendNextLogfile();
@@ -77,7 +77,8 @@ namespace LOGNS {
 
         if (loggingWithoutTime) {
             unsigned long timestamp = millis();
-            snprintf(logfilename, 100, "/bootlog_%lu_%lu", bootcount, timestamp);
+            snprintf(logfilename, 100, "/bootlog_%lu_%lu",
+                     bootcount, timestamp);
         } else {
             unsigned long timestamp = getTime();
             snprintf(logfilename, 100, "/log_%lu", timestamp);
@@ -137,9 +138,11 @@ namespace LOGNS {
 
         char buffer[192];
         if (loggingWithoutTime) {
-            snprintf(buffer, 192, "%lu %d (BOOT#%d): %s", millis(), doorID, bootcount, message);
+            snprintf(buffer, 192, "%lu %d (BOOT#%d): %s",
+                     millis(), doorID, bootcount, message);
         } else {
-            snprintf(buffer, 192, "%lu %d (SYSTEM): %s", getTime(), doorID, message);
+            snprintf(buffer, 192, "%lu %d (SYSTEM): %s",
+                     getTime(), doorID, message);
         }
 
         logfile.print(buffer);
