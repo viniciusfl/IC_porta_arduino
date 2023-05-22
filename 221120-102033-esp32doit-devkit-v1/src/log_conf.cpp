@@ -135,9 +135,9 @@ namespace LOGNS {
 
         char buffer[192];
         if (loggingWithoutTime) {
-            snprintf(buffer, 192, "%lu (BOOT#%d): %s", millis(), bootcount, message);
+            snprintf(buffer, 192, "%lu %d (BOOT#%d): %s", millis(), doorID, bootcount, message);
         } else {
-            snprintf(buffer, 192, "%lu (SYSTEM): %s", getTime(), message);
+            snprintf(buffer, 192, "%lu %d (SYSTEM): %s", getTime(), doorID, message);
         }
 
         logfile.print(buffer);
