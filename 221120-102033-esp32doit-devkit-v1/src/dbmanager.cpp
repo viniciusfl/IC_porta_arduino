@@ -141,7 +141,6 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::writeToDatabaseFile(const char* data, int data_len) { 
-            // If topic isn't the ones above, then we are downloading DB
             // NOTE (maybe FIXME): When downloading retained messages, just the first
             // block of data comes with "topic", and the others blocks have empty topic.    
             file.write((byte *)data, data_len);
