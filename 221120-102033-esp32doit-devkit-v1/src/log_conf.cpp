@@ -88,7 +88,9 @@ namespace LOGNS {
 
         if (loggingWithoutTime && justStarted) {
             char buffer[100];
-            snprintf(buffer, 100, "boot %d OK; this message was logged when millis = %lu\n", bootcount, millis());
+            snprintf(buffer, 100, "boot %d, door %d OK; "
+                     "this message was logged when millis = %lu\n",
+                     bootcount, doorID, millis());
             logfile.print(buffer);
             logfile.flush();
             justStarted = false;
