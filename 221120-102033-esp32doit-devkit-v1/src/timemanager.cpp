@@ -30,7 +30,7 @@ namespace TimeNS {
             bool timeOK;
         private:
             RTC_DS1307 rtc;
-            unsigned long lastClockAdjustment; // variable that holds the last time we adjusted the clock
+            unsigned long lastClockAdjustment;
             void update();
             bool HWClockExists;
     };
