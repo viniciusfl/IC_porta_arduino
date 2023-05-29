@@ -1,6 +1,6 @@
-#!/usr/bin/env python3  
-# -*- coding: utf-8 -*- 
-#----------------------------------------------------------------------------   
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#----------------------------------------------------------------------------
 # Created Date: 28/05/2023
 # ---------------------------------------------------------------------------
 """This code handles the creation of a MQTT client that deals up to three things:
@@ -10,9 +10,9 @@
 2) Observe the commands directory, when a new file is created he reads the data,
    send it to nodeMCU and delete the file;
 
-3) Subscribe for receiveng log messages from the other brokers, when he gets a 
-   new message he push it to the sqlite messages.db according to its topic, 
-   (acesses or systems)"""  
+3) Subscribe for receiving log messages from the other clients, when it gets a
+   new message it pushes it to the sqlite messages.db according to its topic,
+   (acesses or systems)"""
 # ---------------------------------------------------------------------------
 
 from watchdog.observers import Observer
@@ -27,62 +27,62 @@ DB_NAME = "messages.db"
 FILE_PATTERNS = ["./commands/*.txt", "*/acess.db"]
 OBSERVED_DIR = ".."
 TABLES = {
-    "accesses": "topic VARCHAR(10),\
-                time VARCHAR(40),\
+    "accesses": "time VARCHAR(40),\
                 door INT,\
+                bootcount INT, \
                 reader INT,\
                 card INT,\
                 authorization INT,\
-                message VARCHAR(255),\
-                PRIMARY KEY(time, door, reader, card)",
+                UNIQUE (time, door, bootcount, reader, card, authorization)",
 
-    "systems" :  "topic VARCHAR(10),\
-                time VARCHAR(40),\
+    "systems" : "time VARCHAR(40),\
+                bootcount INT, \
                 door INT,\
-                message VARCHAR(255),\
-                PRIMARY KEY (time, door)"
+                message VARCHAR(1024),\
+                UNIQUE (time, bootcount, door, message)"
 }
 
 
 class Client():
     def __init__(self):
             self.data_base = self.create_data_base()
-            self.event_handler = Handler(self.publish)  
+            self.event_handler = Handler(self.publish)
             self.observer = Observer()
 
     def start_observer(self):
         self.observer.schedule(self.event_handler, OBSERVED_DIR, recursive=True)
         self.observer.start()
-    
+
         try:
             while True:
                 time.sleep(SLEEP_TIME)
         finally:
             self.observer.stop()
             self.observer.join()
-    
+
     def create_data_base(self):
         data_base = DataBase()
         for table in TABLES:
             data_base.create_db_tables(table, TABLES[table])
         return data_base
-           
+
     def publish(self, topic, *file_name):
         file_name = format("".join(file_name))
         if topic == "db":
             file = open(file_name, mode="rb")
-            result = self.client.publish("/topic/database", file.read(), retain=True)
-            if result[0] == 0:
-                self.message = "Send db to topic /topic/database"
-            else:
-                self.message = "Failed to send message to topic /topic/database"
+            result = self.client.publish("/topic/database", file.read(), retain=True, qos=2)
         elif topic == "commands":
             file = open(file_name, mode="rb")
             result = self.client.publish("/topic/commands", file.read())
-  
+
+        if result[0] == 0:
+            self.message = "Message sent ({})".format(topic)
+        else:
+            self.message = "Failed to send message ({})".format(topic)
+
     def subscribe(self):
         def on_message(client, userdata, msg):
-            self.message = f"Received msg from `{msg.topic}` topic"     
+            self.message = f"Received msg from `{msg.topic}` topic"
             for info in (msg.payload.decode().split()):
                 msg_data = f'{msg_data}, "{info}"'
             msg_data = f'"{msg.topic}" "{msg_data}", "{self.message}"'
@@ -91,27 +91,27 @@ class Client():
 
         self.client.subscribe("/topic/sendLogs", 1)
         self.client.on_message = on_message
-        
+
 class DataBase():
     def __init__(self):
         self.connection = sqlite3.connect(DB_NAME)
         self.cursor = self.connection.cursor()
 
     def create_db_tables(self, table, fields):
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS {}({}); """.format(table, fields))        
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS {}({}); """.format(table, fields))
 
     def push_data(self, topic, msg_data):
         try:
             if(topic == "SYSTEM"):
-                table = "systems"  
-            else: 
+                table = "systems"
+            else:
                 table = "accesses"
             self.cursor.execute("""INSERT INTO {} VALUES({});""".format(table, msg_data))
         except:
             return
         self.connection.commit()
 
-class Handler(PatternMatchingEventHandler):   
+class Handler(PatternMatchingEventHandler):
     def __init__(self, client_publish):
         self.client_publish = client_publish
         # Set the patterns for PatternMatchingEventHandler
@@ -119,13 +119,15 @@ class Handler(PatternMatchingEventHandler):
                                                              ignore_directories=True, case_sensitive=False)
     def on_created(self, event):
         #handle files created on command directory
+        print("AAA", event.src_path)
         q = Process(target=self.client_publish, args=("commands", event.src_path))
         q.start()
         os.remove("".join(event.src_path))
-        
- 
+
+
     def on_modified(self, event):
         #handle acess.db changes
+        print("BBB", event.src_path)
         p = Process(target=self.client_publish, args=("db", event.src_path))
         p.start()
 
