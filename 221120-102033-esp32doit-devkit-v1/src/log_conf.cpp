@@ -138,10 +138,10 @@ namespace LOGNS {
 
         char buffer[192];
         if (loggingWithoutTime) {
-            snprintf(buffer, 192, "%lu %d (BOOT#%d): %s",
-                     millis(), doorID, bootcount, message);
+            snprintf(buffer, 192, "%lu (SYSTEM/BOOT#%d): %d  %s",
+                     millis(), bootcount, doorID, message);
         } else {
-            snprintf(buffer, 192, "%lu %d (SYSTEM): %s",
+            snprintf(buffer, 192, "%lu (SYSTEM): %d %s",
                      getTime(), doorID, message);
         }
 
