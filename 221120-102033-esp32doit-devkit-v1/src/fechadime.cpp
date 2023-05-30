@@ -67,7 +67,7 @@ void setup() {
     // got the time from the HW clock above, great; if not, wait for NTP.
     int attempts = 0;
     while(!initTime()) { // Timeouts after 2s
-        checkDoor();
+        checkDoor(); // No DB yet, so this only works for the master key
 
         ++attempts;
 
@@ -93,7 +93,6 @@ void loop() {
     currentMillis = millis();
     processLogs();
     checkNetConnection();
-    updateDB();
     checkTimeSync();
     checkDoor();
 }
