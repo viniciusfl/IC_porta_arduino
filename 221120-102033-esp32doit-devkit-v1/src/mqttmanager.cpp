@@ -13,18 +13,16 @@ namespace  MQTT {
     class MqttManager {
     public:
         void init();
-        bool startDBDownload();
-        inline void finishDBDownload();
-        inline bool finishedDownload();
         inline bool serverConnected();
         inline bool sendLog(const char *filename);
         void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event);
         void treatCommands(const char* command);
+        inline void resubscribe();
     private: 
+        bool downloading = false;
         bool serverStarted = false;
 
-        bool didDownloadFinish = false;
         esp_mqtt_client_handle_t client;
     };
 
@@ -38,20 +36,16 @@ namespace  MQTT {
         return serverStarted;
     }
 
-    inline bool MqttManager::finishedDownload() {
-        return didDownloadFinish;
-    }
-
     // This should be called from setup()
     inline void MqttManager::init() {
-        // ESP's id in MQTT connection
         char buffer[50]; 
-        snprintf(buffer, 50, "ESP_KEYLOCK_ID-%d", doorID); // FIXME: I don't know what to put here.
+        snprintf(buffer, 50, "ESP_KEYLOCK_ID-%d", doorID);
 
         const esp_mqtt_client_config_t mqtt_cfg = {
             .host = "10.0.2.109",
             .port = 8883, 
             .client_id = buffer,
+            .disable_clean_session = true,
             .keepalive = 180000, //FIXME:
             .user_context = this,
             .cert_pem = brokerCert,
@@ -66,18 +60,6 @@ namespace  MQTT {
         esp_mqtt_client_start(client);
     }
 
-    inline bool MqttManager::startDBDownload() {
-        if (!esp_mqtt_client_subscribe(client, "/topic/database", 0)) return false;
-
-        didDownloadFinish = false;
-        return true;
-    }
-
-    inline void MqttManager::finishDBDownload() {
-        // Should i test fail on this?
-        esp_mqtt_client_unsubscribe(client, "/topic/database");
-        log_d("DB download finished, disconnecting from server.");
-    }
 
     inline bool MqttManager::sendLog(const char *filename) {
         File f = SD.open(filename, "r");
@@ -108,6 +90,15 @@ namespace  MQTT {
         }
     }
 
+    inline void MqttManager::resubscribe() {
+        while (!serverStarted) { delay(1000); }
+
+        esp_mqtt_client_unsubscribe(client, "/topic/commands");
+        esp_mqtt_client_unsubscribe(client, "/topic/database");
+        esp_mqtt_client_subscribe(client, "/topic/commands", 2);
+        esp_mqtt_client_subscribe(client, "/topic/database", 2);
+    }
+
     void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event) {
         esp_mqtt_client_handle_t client = event->client;
@@ -115,7 +106,8 @@ namespace  MQTT {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             serverStarted = true;
-            esp_mqtt_client_subscribe(client, "/topic/commands", 0);
+            esp_mqtt_client_subscribe(client, "/topic/commands", 2);
+            esp_mqtt_client_subscribe(client, "/topic/database", 2);
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
@@ -141,9 +133,16 @@ namespace  MQTT {
                 treatCommands(buffer);
             }
             // If is not a message to command topic, then it means we are downloading the DB
+            if (!downloading) {
+                if (!startDBDownload()) {
+                    // TODO: Do something smart here
+                    log_w("Cannot start download!");
+                }
+            }
             writeToDatabaseFile(event->data, event->data_len);
             if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
-                didDownloadFinish = true;
+                // TODO: what if downloading is aborted/fails?
+                finishDBDownload();
             }
             break;
         case MQTT_EVENT_ERROR:
@@ -168,14 +167,10 @@ namespace  MQTT {
 
 void initMqtt() { MQTT::mqttManager.init(); }
 
-bool startDownload() { return MQTT::mqttManager.startDBDownload(); }
-
-void finishDownload() { MQTT::mqttManager.finishDBDownload(); }
-
-bool didDownloadFinish() { return MQTT::mqttManager.finishedDownload(); }
-
 bool isClientConnected() { return MQTT::mqttManager.serverConnected(); }
 
 bool sendLog(const char *filename) { return MQTT::mqttManager.sendLog(filename); };
 
 void treatCommands(const char* command) { MQTT::mqttManager.treatCommands(command); }
+
+void forceDBDownload() { MQTT::mqttManager.resubscribe(); }

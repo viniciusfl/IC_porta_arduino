@@ -33,140 +33,92 @@ namespace DBNS {
     class UpdateDBManager {
     public:
         inline void init();
-        void update();
-        inline void writeToDatabaseFile(const char* data, int data_len);
+        inline bool startDBDownload();
+        inline ssize_t writeToDatabaseFile(const char* data, int data_len);
+        inline void finishDBDownload();
+        inline void cancelDBDownload();
     private:
         const char *currentFile;
         const char *otherFile;
         const char *currentTimestampFile;
         const char *otherTimestampFile;
 
-        inline void chooseInitialFile();
+        void chooseInitialFile();
         void swapFiles();
         bool checkFileFreshness(const char *);
-
-        unsigned long lastDownloadTime = 0;
-
-        bool downloadingDB = false;
-        void startDBDownload();
-        inline void finishDBDownload();
-        inline bool activateNewDBFile();
+        void clearAllDBFiles();
+        inline void activateNewDBFile();
+        inline bool findValidDB();
 
         File file;
     };  
 
     // This should be called from setup()
     inline void UpdateDBManager::init() {
+        currentFile = "/bancoA.db";
+        otherFile = "/bancoB.db";
+        currentTimestampFile = "/TSA.TXT";
+        otherTimestampFile = "/TSB.TXT";
+
         if (sdPresent) {
             chooseInitialFile();
         }
     }
 
-    // This should be called from loop()
-    // At each call, we determine the current state we are in, perform
-    // a small chunk of work, and return. This means we do not hog the
-    // processor and can pursue other tasks while updating the DB.
-    void UpdateDBManager::update() {
-        if (!sdPresent || !connected() || !isClientConnected())
-            return;
-        // We start a download only if we are not already downloading
-        if (!downloadingDB) {
-            // millis() wraps every ~49 days, but
-            // wrapping does not cause problems here
-            // TODO: we might prefer to use dates,
-            //       such as "at midnight"
-            //
-            // ANWSER: we can use an alarm with RTC 1307
-            // https://robojax.com/learn/arduino/?vid=robojax_DS1307-clock-alarm
-            // I believe the nodeMCU RTC might also have this feature
-
-            if (currentMillis - lastDownloadTime > DOWNLOAD_INTERVAL) {
-                startDBDownload();
-            }
-            return;
-        }
-        // If we did not return above, we are still downloading the DB
-
-        // If we finished downloading the DB, check whether the
-        // download was successful; if so and the hash matches,
-        // start using the new DB
-        if (didDownloadFinish()) {
-            finishDBDownload();
-            // Both downloads successful, update the timestamp
-            if (activateNewDBFile()) {
-                lastDownloadTime = currentMillis;
-            }
-        }
-        // still downloading the DB
-
-    }
-
-    void UpdateDBManager::startDBDownload() {
-        if (!sdPresent) 
-            return;
-
+    inline bool UpdateDBManager::startDBDownload() {
         log_v("Starting DB download");
-
-        if (!connected() || !isClientConnected()) {
-            lastDownloadTime += RETRY_DOWNLOAD_TIME;
-            log_i("Internet failure, cancelling DB download");
-            return;
-        }
 
         SD.remove(otherTimestampFile);
         SD.remove(otherFile);
 
         file = SD.open(otherFile, FILE_WRITE);
         if(!file) {
-            log_e("Error openning file, cancelling DB Download.");
-            return;
+            log_e("Error opening file, cancelling DB Download.");
+            return false;
         }
+
         log_v("Writing to %s", otherFile);
 
-        if (!startDownload()) {
-            file.close();
-            return;
-        }
+        return true;
+    }
 
-        downloadingDB = true;
+    inline ssize_t UpdateDBManager::writeToDatabaseFile(const char* data,
+                                                        int data_len) {
 
-        log_v("Started DB download");
-        return;
+        // NOTE (maybe FIXME): When downloading retained messages, just
+        // the first block of data comes with "topic", and the other
+        // blocks have empty topic.
+        return file.write((byte *)data, data_len);
     }
 
     inline void UpdateDBManager::finishDBDownload() {
         file.close();
-        downloadingDB = false;
         log_v("Finished DB download");
+        activateNewDBFile();
     }
 
-    inline void UpdateDBManager::writeToDatabaseFile(const char* data, int data_len) { 
-            // NOTE (maybe FIXME): When downloading retained messages, just the first
-            // block of data comes with "topic", and the others blocks have empty topic.    
-            file.write((byte *)data, data_len);
+    inline void UpdateDBManager::cancelDBDownload() {
+        file.close();
+        SD.remove(otherFile);
     }
 
-    inline bool UpdateDBManager::activateNewDBFile() {
-        bool ok = true;
-        swapFiles();
+    inline void UpdateDBManager::activateNewDBFile() {
+        log_w("Activating newly downloaded DB file");
+
         closeDB();
+        swapFiles();
 
         if (openDB(currentFile) != SQLITE_OK) {
-            ok = false;
             log_w("Error opening the updated DB, reverting to old one");
+            closeDB();
             swapFiles();
             if (openDB(currentFile) != SQLITE_OK) {
-                // FIXME: in the unlikely event that this fails too, we are doomed
+                log_w("Reverting to old DB failed, downloading a fresh file");
+                closeDB();
+                clearAllDBFiles();
                 chooseInitialFile();
             }
         }
-    
-        if (!ok) {
-            lastDownloadTime += RETRY_DOWNLOAD_TIME;
-        }
-
-        downloadingDB = false;
-        return ok;
     }
 
     void UpdateDBManager::swapFiles() {
@@ -182,13 +134,13 @@ namespace DBNS {
         // use the new version of the DB. If we crash in the middle (with
         // both files containing "1"), on restart we will use "bancoA.db",
         // which may be either.
-        file = SD.open(currentTimestampFile, FILE_WRITE);
-        file.print(1);
-        file.close();
+        File f = SD.open(currentTimestampFile, FILE_WRITE);
+        f.print(1);
+        f.close();
 
-        file = SD.open(otherTimestampFile, FILE_WRITE);
-        file.print(0);
-        file.close();
+        f = SD.open(otherTimestampFile, FILE_WRITE);
+        f.print(0);
+        f.close();
     }
 
     bool UpdateDBManager::checkFileFreshness(const char *tsfile) {
@@ -206,47 +158,54 @@ namespace DBNS {
         return t > 0;
     }
 
-    inline void UpdateDBManager::chooseInitialFile() {
+    void UpdateDBManager::chooseInitialFile() {
         if (!sdPresent)
             return;
 
-        START_OF_FUNCTION: // We will use goto further below
-        currentFile = "/bancoA.db";
-        otherFile = "/bancoB.db";
-        currentTimestampFile = "/TSA.TXT";
-        otherTimestampFile = "/TSB.TXT";
-        bool dbFileOK = false;
+        bool success = false;
 
-        while (!dbFileOK) {
-            if (checkFileFreshness(currentTimestampFile)) {
-                dbFileOK = true;
-            } else if (checkFileFreshness(otherTimestampFile)) {
-                swapFiles();
-                dbFileOK = true;
+        while (!success) {
+            if (!findValidDB()) {
+                clearAllDBFiles();
+                forceDBDownload();
+            }
+
+            while (!findValidDB()) { delay(1000); }
+
+            log_d("Choosing %s as current DB.", currentFile);
+            if (openDB(currentFile) != SQLITE_OK) {
+                closeDB();
+                log_e("Something bad happen with the DB file! "
+                      "Downloading a fresh one");
+                clearAllDBFiles();
             } else {
-                if (downloadingDB) {
-                    update();
-                } else if (connected() && isClientConnected()) {
-                    startDBDownload();
-                }
+                success = true;
             }
         }
+    }
 
-        // If we were forced to download a new file above, it was already
-        // opened by update(), but there is no harm in doing it here again
-        log_d("Choosing %s as current DB.", currentFile);
-        if (openDB(currentFile) != SQLITE_OK) {
-            log_e("Something bad happen with the DB file! "
-                  "Downloading a fresh one");
-
-            // start over
-            closeDB();
-            SD.remove(currentFile);
-            SD.remove(otherFile);
-            SD.remove(currentTimestampFile);
-            SD.remove(otherTimestampFile);
-            goto START_OF_FUNCTION;
+    inline bool UpdateDBManager::findValidDB() {
+        if (checkFileFreshness(currentTimestampFile)) {
+            return true;
+        } else if (checkFileFreshness(otherTimestampFile)) {
+            swapFiles();
+            return true;
         }
+        return false;
+    }
+
+    void UpdateDBManager::clearAllDBFiles() {
+        SD.remove(currentFile);
+        SD.remove(otherFile);
+        SD.remove(currentTimestampFile);
+        SD.remove(otherTimestampFile);
+
+        File f = SD.open(currentTimestampFile, FILE_WRITE);
+        f.print(0);
+        f.close();
+        f = SD.open(otherTimestampFile, FILE_WRITE);
+        f.print(0);
+        f.close();
     }
 
     UpdateDBManager updateDBManager;
@@ -254,6 +213,12 @@ namespace DBNS {
 
 void initDBMan() { DBNS::updateDBManager.init(); }
 
-void updateDB() { DBNS::updateDBManager.update(); }
+bool startDBDownload() { return DBNS::updateDBManager.startDBDownload(); }
 
-void writeToDatabaseFile(const char* data, int data_len) { DBNS::updateDBManager.writeToDatabaseFile(data, data_len); }
+ssize_t writeToDatabaseFile(const char* data, int data_len) {
+    return DBNS::updateDBManager.writeToDatabaseFile(data, data_len);
+}
+
+void finishDBDownload() { return DBNS::updateDBManager.finishDBDownload(); }
+
+void cancelDBDownload() { return DBNS::updateDBManager.cancelDBDownload(); }

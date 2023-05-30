@@ -3,16 +3,10 @@
 
 void initMqtt(); 
 
-bool startDownload(); 
-
-void finishDownload(); 
-
-bool didDownloadFinish();
-
 bool isClientConnected();
 
 bool sendLog(const char* filename); 
 
-bool treatCommands(const char* command);
+void forceDBDownload();
 
 #endif
