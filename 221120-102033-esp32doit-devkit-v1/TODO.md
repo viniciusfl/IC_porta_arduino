@@ -2,10 +2,6 @@
 
  * Choose and set license
 
- * Create MQTT commands to open the door and reboot (and maybe others) :heavy_check_mark:
-
- * Save system log messages to the logfile :heavy_check_mark:
-
  * Draw printed circuit board
 
  * Actually open the door; we may use an ordinary logic level converter
