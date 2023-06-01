@@ -19,7 +19,7 @@ from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, PatternMatchingEventHandler
 from paho.mqtt import client as mqtt_client
 from multiprocessing import Process
-import ssl, sys, time, logging, sqlite3, inspect, os, random
+import ssl, sys, time, logging, sqlite3, inspect, os, random, re
 
 
 SLEEP_TIME = 1
@@ -76,19 +76,43 @@ class Client():
             result = self.client.publish("/topic/commands", file.read())
 
         if result[0] == 0:
-            self.message = "Message sent ({})".format(topic)
+            self.message = "Message sent to ({})".format(topic)
         else:
-            self.message = "Failed to send message ({})".format(topic)
+            self.message = "Failed to send message to ({})".format(topic)
 
     def subscribe(self):
+        def get_bootcount(msg):
+            start = msg.find('#')
+            if start == -1:
+                return "NULL"
+            end = msg.find(')', start)
+            return msg[start+1:end]
+
         def on_message(client, userdata, msg):
             self.message = f"Received msg from `{msg.topic}` topic"
-            for info in (msg.payload.decode().split()):
-                msg_data = f'{msg_data}, "{info}"'
-            msg_data = f'"{msg.topic}" "{msg_data}", "{self.message}"'
-            self.insert_data(msg.topic, msg_data)
-            self.contador = self.contador + 1
+            rcv_msg = str(msg.payload.decode("utf-8"))
+            splitted_msg = rcv_msg.split()
+            
+            is_access = rcv_msg.find("ACCESS") != -1 
+            msg_data = f'"{get_bootcount(splitted_msg[1])}"'
 
+            if is_access:
+                table = "access"
+                for i in range(0, len(splitted_msg)):
+                    if i == 1: continue
+                    msg_data = f'{msg_data}, "{splitted_msg[i]}"'
+            else:
+                table = "systems"
+                for i in range(0, 3):
+                    if i == 1: continue
+                    msg_data = f'{msg_data}, "{splitted_msg[i]}"'
+                system_msg = "".join(splitted_msg[3:])
+                msg_data = f'{msg_data}, "{system_msg}"'
+
+            self.data_base.push_data(msg.topic, msg_data)
+            self.contador = self.contador + 1
+                
+            
         self.client.subscribe("/topic/sendLogs", 1)
         self.client.on_message = on_message
 
@@ -100,12 +124,8 @@ class DataBase():
     def create_db_tables(self, table, fields):
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS {}({}); """.format(table, fields))
 
-    def push_data(self, topic, msg_data):
+    def push_data(self, table, msg_data):
         try:
-            if(topic == "SYSTEM"):
-                table = "systems"
-            else:
-                table = "accesses"
             self.cursor.execute("""INSERT INTO {} VALUES({});""".format(table, msg_data))
         except:
             return
@@ -119,7 +139,6 @@ class Handler(PatternMatchingEventHandler):
                                                              ignore_directories=True, case_sensitive=False)
     def on_created(self, event):
         #handle files created on command directory
-        print("AAA", event.src_path)
         q = Process(target=self.client_publish, args=("commands", event.src_path))
         q.start()
         os.remove("".join(event.src_path))
@@ -127,7 +146,6 @@ class Handler(PatternMatchingEventHandler):
 
     def on_modified(self, event):
         #handle acess.db changes
-        print("BBB", event.src_path)
         p = Process(target=self.client_publish, args=("db", event.src_path))
         p.start()
 
