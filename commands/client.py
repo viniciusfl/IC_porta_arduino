@@ -27,16 +27,16 @@ DB_NAME = "messages.db"
 FILE_PATTERNS = ["./commands/*.txt", "*/acess.db"]
 OBSERVED_DIR = ".."
 TABLES = {
-    "accesses": "time VARCHAR(40),\
+    "accesses": "bootcount INT, \
+                time VARCHAR(40),\
                 door INT,\
-                bootcount INT, \
                 reader INT,\
-                card INT,\
                 authorization INT,\
+                card INT,\
                 UNIQUE (time, door, bootcount, reader, card, authorization)",
 
-    "systems" : "time VARCHAR(40),\
-                bootcount INT, \
+    "systems" : "bootcount INT, \
+                time VARCHAR(40),\
                 door INT,\
                 message VARCHAR(1024),\
                 UNIQUE (time, bootcount, door, message)"
