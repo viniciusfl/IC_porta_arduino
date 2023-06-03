@@ -186,7 +186,6 @@ namespace LOGNS {
     }
 
     void Logger::sendNextLogfile() {
-        return;
         log_d("Searching for logs in SD to send...");
         File root = SD.open("/");
         File entry;
