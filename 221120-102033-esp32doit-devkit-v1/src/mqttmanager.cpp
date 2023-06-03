@@ -138,10 +138,12 @@ namespace  MQTT {
                     // TODO: Do something smart here
                     log_w("Cannot start download!");
                 }
+                downloading = true;
             }
             writeToDatabaseFile(event->data, event->data_len);
             if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
                 // TODO: what if downloading is aborted/fails?
+                downloading = false;
                 finishDBDownload();
             }
             break;
