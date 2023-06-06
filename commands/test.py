@@ -1,47 +1,41 @@
-def get_bootcount(msg):
-            start = msg.find('#')
-            if start == -1:
-                return "NULL"
-            end = msg.find(')', start)
-            return msg[start+1:end]
-        
-def push_data(table, msg_data):
-        print("""INSERT INTO {} VALUES({});""".format(table, msg_data))
-        
-
-def on_message(msg):
-    rcv_msg = msg
-    splitted_msg = rcv_msg.split()
-    
-    is_access = rcv_msg.find("ACCESS") != -1 
-    msg_data = f'"{get_bootcount(splitted_msg[1])}"'
-
-    if is_access:
-        table = "access"
-        for i in range(0, len(splitted_msg)):
-            if i == 1: continue
-            msg_data = f'{msg_data}, "{splitted_msg[i]}"'
-    else:
-        table = "systems"
-        for i in range(0, 3):
-            if i == 1: continue
-            msg_data = f'{msg_data}, "{splitted_msg[i]}"'
-        system_msg = " ".join(splitted_msg[3:])
-        msg_data = f'{msg_data}, "{system_msg}"'
-
-    push_data(table, msg_data)
+from client import *
+import multiprocessing as mp
 
 def main():
+    client2 = Client()
+    client2.subscribe("sendLogs")
+    client2.subscribe("database")
+    client2.subscribe("commands")
+    client1 = Client()
+    client1.publish("log", "files/ACCESSES.txt")
+    client1.publish("log", "files/SYSTEM_BOOT.txt")
+    client1.publish("log", "files/SYSTEM.txt")
+    client1.publish("log", "files/ACCESSES_BOOT.txt")
 
-    string1 = "TIME (SYSTEM/BOOT#BOOTCOUNT): DOOR-ID MESSAGE MESSAGE MESSAGE"
-    string2 = "TIME (SYSTEM): DOOR-ID MESSAGE MESSAGE MESSAGE"
-    string3 = "TIME (ACCESS/BOOT#BOOTCOUNT): DOOR-ID READER-ID AUTHORIZED CARD-ID"
-    string4 = "TIME (ACCESS): DOOR-ID READER-ID AUTHORIZED CARD-ID"
-    
-    on_message(string1)
-    on_message(string2)
-    on_message(string3)
-    on_message(string4)
+    first = mp.Process(target=client1.start_observer)
+    first.start()
+    time.sleep(1)
+
+    processes = []
+    processes.append(mp.Process(target=create_command))
+    processes.append(mp.Process(target=update_database))
+    for p in processes:
+        p.start()
+        time.sleep(1)
+        p.join()
+        
+
+def create_command():
+    print("Created new Command")
+    f = open(f"test.txt", mode="w")
+    f.write("NOVO COMANDO")
+    f.close()
+
+def update_database():
+    print("Updated database")
+    f = open(f"files/databaseex.txt", mode="w")
+    f.write("12|AAAAA|BBBBBBB|C|")
+    f.close()
 
 if __name__ == "__main__":
     main()
