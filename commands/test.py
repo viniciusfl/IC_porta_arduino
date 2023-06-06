@@ -11,18 +11,18 @@ def main():
     client1.publish("log", "files/SYSTEM_BOOT.txt")
     client1.publish("log", "files/SYSTEM.txt")
     client1.publish("log", "files/ACCESSES_BOOT.txt")
+    client1.start_observer()
+    #first = mp.Process(target=client1.start_observer)
+    #first.start()
+    #time.sleep(1)
 
-    first = mp.Process(target=client1.start_observer)
-    first.start()
-    time.sleep(1)
-
-    processes = []
-    processes.append(mp.Process(target=create_command))
-    processes.append(mp.Process(target=update_database))
-    for p in processes:
-        p.start()
-        time.sleep(1)
-        p.join()
+    #processes = []
+    #processes.append(mp.Process(target=create_command))
+    #processes.append(mp.Process(target=update_database))
+    #for p in processes:
+    #    p.start()
+    #    time.sleep(1)
+    #   p.join()
         
 
 def create_command():
