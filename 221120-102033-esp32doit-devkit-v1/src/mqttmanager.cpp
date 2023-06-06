@@ -130,7 +130,7 @@ namespace  MQTT {
             log_v("Received message from topic: %s", buffer);
             if (!strcmp(buffer, "/topic/commands")) {
                 snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
-                treatCommands(buffer);
+                this->treatCommands(buffer);
             }
             // If is not a message to command topic, then it means we are downloading the DB
             if (!downloading) {
@@ -172,7 +172,5 @@ void initMqtt() { MQTT::mqttManager.init(); }
 bool isClientConnected() { return MQTT::mqttManager.serverConnected(); }
 
 bool sendLog(const char *filename) { return MQTT::mqttManager.sendLog(filename); };
-
-void treatCommands(const char* command) { MQTT::mqttManager.treatCommands(command); }
 
 void forceDBDownload() { MQTT::mqttManager.resubscribe(); }
