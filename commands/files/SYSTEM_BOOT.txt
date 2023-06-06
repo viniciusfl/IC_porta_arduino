@@ -1,0 +1,1 @@
+10:00 (SYSTEM/BOOT#BOOTCOUNT): 2 Sei la o que na porta 2 nem sei se deveria ter horas
