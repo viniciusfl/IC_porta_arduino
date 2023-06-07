@@ -94,9 +94,12 @@ namespace  MQTT {
         while (!serverStarted) { delay(1000); }
 
         esp_mqtt_client_unsubscribe(client, "/topic/commands");
-        esp_mqtt_client_unsubscribe(client, "/topic/database");
         esp_mqtt_client_subscribe(client, "/topic/commands", 2);
-        esp_mqtt_client_subscribe(client, "/topic/database", 2);
+
+        if (sdPresent) {
+            esp_mqtt_client_unsubscribe(client, "/topic/database");
+            esp_mqtt_client_subscribe(client, "/topic/database", 2);
+        }
     }
 
     void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
@@ -104,33 +107,35 @@ namespace  MQTT {
         esp_mqtt_client_handle_t client = event->client;
         switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            log_i("MQTT_EVENT_CONNECTED");
             serverStarted = true;
             esp_mqtt_client_subscribe(client, "/topic/commands", 2);
-            esp_mqtt_client_subscribe(client, "/topic/database", 2);
+            if (sdPresent)
+                esp_mqtt_client_subscribe(client, "/topic/database", 2);
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
-            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            log_i("MQTT_EVENT_DISCONNECTED");
             break;
         case MQTT_EVENT_SUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            log_i("MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
-            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            log_i("MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_PUBLISHED:
-            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            log_i("MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
             flushSentLogfile();
             break;
         case MQTT_EVENT_DATA:
-            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             char buffer[100];
             snprintf(buffer, 100, "%.*s",  event->topic_len, event->topic);
-            log_v("Received message from topic: %s", buffer);
             if (!strcmp(buffer, "/topic/commands")) {
+                log_i("MQTT_EVENT_DATA from topic %s", buffer);
                 snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
                 this->treatCommands(buffer);
+            } else if (!strcmp(buffer, "/topic/database")) { /* Just for log purposes */
+                log_i("MQTT_EVENT_DATA from topic %s, first data", buffer);
             }
             // If is not a message to command topic, then it means we are downloading the DB
             if (!downloading) {
@@ -142,25 +147,29 @@ namespace  MQTT {
             }
             writeToDatabaseFile(event->data, event->data_len);
             if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
+                log_i("MQTT_EVENT_DATA from /topic/database, last data");
                 // TODO: what if downloading is aborted/fails?
                 downloading = false;
                 finishDBDownload();
+            } else {
+                log_d("MQTT_EVENT_DATA from database", buffer);
             }
+
             break;
         case MQTT_EVENT_ERROR:
-            ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
+            log_i("MQTT_EVENT_ERROR");
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-                ESP_LOGI(TAG, "-> ", event->error_handle->esp_tls_last_esp_err);
-                ESP_LOGI(TAG, "reported from tls stack", event->error_handle->esp_tls_stack_err);
-                ESP_LOGI(TAG, "captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
-                ESP_LOGI(TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
-
+                log_i("-> ", event->error_handle->esp_tls_last_esp_err);
+                log_i("reported from tls stack", event->error_handle->esp_tls_stack_err);
+                log_i("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
+                log_i("Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
             }
             break;
         default:
-            ESP_LOGI(TAG, "Other event id:%d", event->event_id);
+            log_i("Other event id:%d", event->event_id);
             break;
         }
+        processLogs();
     }
 
     MqttManager mqttManager;
