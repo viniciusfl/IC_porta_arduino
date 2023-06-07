@@ -3,29 +3,35 @@
 #----------------------------------------------------------------------------
 # Created Date: 28/05/2023
 # ---------------------------------------------------------------------------
-"""This code handles the creation of a MQTT client that deals up to three things:
+"""This code handles the creation of an MQTT client that does three things:
 
-1) Observe the users.db and send it to the nodeMCU whenever the file is changed;
+   1) Watch the users.db file and send it to the nodeMCU whenever it
+      is changed;
 
-2) Observe the commands directory, when a new file is created he reads the data,
-   send it to nodeMCU and delete the file;
+   2) Watch the commands directory and, when a new file is created,
+      read its content, send it to the nodeMCU, and delete the file;
 
-3) Subscribe for receiving log messages from the other clients, when it gets a
-   new message it pushes it to the sqlite messages.db according to its topic,
-   (acesses or systems)"""
+   3) Receive log messages from other clients by subscribing to the
+      appropriate topic. When a new message is received, save it in
+      an sqlite DB according to its type (acesses or systems)"""
 # ---------------------------------------------------------------------------
 
-from watchdog.observers import Observer
-from watchdog.events import LoggingEventHandler, PatternMatchingEventHandler
-from paho.mqtt import client as mqtt_client
 from multiprocessing import Process
 import ssl, sys, time, logging, sqlite3, inspect, os, random, re
 
+#BROKER_ADDRESS = '10.0.2.109'
+#BROKER_PORT = 8883
+BROKER_ADDRESS = "localhost"
+BROKER_PORT = 1883
 
 SLEEP_TIME = 1
+
+CMD_DIR = "commands"
+CMD_PATTERNS = ["*.txt"]
+DB_DIR = "upload"
+DB_PATTERNS = ["*.db"]
+
 DB_NAME = "messages.db"
-FILE_PATTERNS = ["./commands/*.txt", "files/*"]
-OBSERVED_DIR = ".."
 TABLES = {
     "accesses": "bootcount INT, \
                 time VARCHAR(40),\
@@ -43,112 +49,85 @@ TABLES = {
 }
 
 
-class Client():
-    def __init__(self):      
-        self.event_handler = Handler(self.publish)
-        self.observer = Observer()
-        self.data_base = self.create_data_base()
-        self.contador = 0
-        self.port = 8883
-        self.message = ""
-        self.broker = '10.0.2.109'
+from paho.mqtt import client as mqtt_client
 
+class OurMQTT():
+    def __init__(self):      
+        self.database = DBwrapper()
+        self.init_mqtt_client()
+
+
+    def init_mqtt_client(self):
         self.client_id = f'python-mqtt-server-{random.randint(0, 1000)}'
-        self.client = mqtt_client.Client(self.client_id)
+        self.client = mqtt_client.Client(client_id = self.client_id,
+                                         clean_session = False,
+                                         userdata = self)
 
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
                 print("Connected to MQTT Broker!")
-            else
+            else:
                 print(f"Failed to connect, return code {rc}\n")
-       
         self.client.on_connect = on_connect
-        self.client.on_message = self.on_message
-        self.client.connect("localhost", 1883, 60)
-        self.client.loop_start()        
-    
-    def start_observer(self):
-        self.observer.schedule(self.event_handler, OBSERVED_DIR, recursive=True)
-        self.observer.start()
 
-        try:
-            while True:
-                time.sleep(SLEEP_TIME)
-        finally:
-            self.observer.stop()
-            self.observer.join()
+        def on_message(client, userdata, msg):
+            userdata.on_message(client, msg)
+        self.client.on_message = on_message
 
-    def create_data_base(self):
-        data_base = DataBase()
-        for table in TABLES:
-            data_base.create_db_tables(table, TABLES[table])
-        return data_base
+        self.client.connect_async(BROKER_ADDRESS, BROKER_PORT, 60)
+        self.client.loop_start()
 
-    def publish(self, topic, *file_name):
-        file_name = format("".join(file_name))
-        print(f"publising on topic {topic}")
-        print(file_name)
-        if topic == "db":
-            file = open(file_name, mode="rb")
-            result = self.client.publish("/topic/database", file.read(), retain=True, qos=2)
+
+    def publish(self, topic, filename):
+        print(f"publishing {filename} on topic {topic}")
+
+        with open(filename, mode="rb") as f:
+
+            if topic == "database":
+                result = self.client.publish(f"/topic/{topic}",
+                                             f.read(),
+                                             retain=True, qos=2)
+            else:
+                result = self.client.publish("/topic/{topic}",
+                                             f.read())
+
+            if topic == "commands":
+                os.remove(filename)
+
             print(result[0])
-        elif topic == "commands":
-            file = open(file_name, mode="rb")
-            result = self.client.publish("/topic/commands", file.read())
-            os.remove(file_name)
-        elif topic == "log":
-            file = open(file_name, mode="rb")
-            result = self.client.publish("/topic/sendLogs", file.read())
+
         time.sleep(1)
 
+
     def subscribe(self, topic):
-        print(f"subscribing to topic /topic/{topic}")
+        print(f"subscribing to topic {topic}")
         self.client.subscribe(f"/topic/{topic}")
-        
-    def on_message(self, client, userdata, msg):
-        def get_bootcount(msg):
-            start = msg.find('#')
-            if start == -1:
-                return "NULL"
-            end = msg.find(')', start)
-            return msg[start+1:end]
-        
-        def logs_topic(rcv_msg):
-            splitted_msg = rcv_msg.split()
-            is_access = splitted_msg[1].find("ACCESS") != -1 
-            msg_data = f'"{get_bootcount(splitted_msg[1])}"'
 
-            if is_access:
-                table = "accesses"
-                for i in range(0, len(splitted_msg)):
-                    if i == 1: continue
-                    msg_data = f'{msg_data}, "{splitted_msg[i]}"'
-            else:
-                table = "systems"
-                for i in range(0, 3):
-                    if i == 1: continue
-                    msg_data = f'{msg_data}, "{splitted_msg[i]}"'
-                system_msg = " ".join(splitted_msg[3:])
-                msg_data = f'{msg_data}, "{system_msg}"'
 
-            self.data_base.push_data(table, msg_data)
-            self.contador = self.contador + 1
-        
-        def other_topics(topic, rcv_msg):
-            print(f'msg received from topic {topic}: \n {rcv_msg} \n')
-
-        self.message = f"Received msg from `{msg.topic}` topic"
-        print(self.message)
-        rcv_msg = str(msg.payload.decode("utf-8"))
+    def on_message(self, client, msg):
+        print(f"Received msg from `{msg.topic}` topic")
+        decoded_payload = str(msg.payload.decode("utf-8"))
         if msg.topic == "/topic/sendLogs":
-            logs_topic(rcv_msg)
-        else:
-            other_topics(msg.topic, rcv_msg)
-        
-class DataBase():
+            self.process_incoming_log_messages(decoded_payload)
+        else: # This should only happen during testing
+            print(f'msg received from topic {topic}: \n {decoded_payload} \n')
+
+
+    def process_incoming_log_messages(self, messages):
+        for msg in messages.splitlines():
+            self.database.save_message(msg)
+
+
+    def stop(self):
+        self.client.loop_stop()
+
+
+class DBwrapper():
     def __init__(self):
         self.connection = sqlite3.connect(DB_NAME, check_same_thread=False)
         self.cursor = self.connection.cursor()
+        for table in TABLES:
+            self.create_db_tables(table, TABLES[table])
 
     def create_db_tables(self, table, fields):
         self.cursor.execute(f"""CREATE TABLE IF NOT EXISTS {table}({fields}); """)
@@ -161,36 +140,127 @@ class DataBase():
             print("Unable to push to database")
         self.connection.commit()
 
-class Handler(PatternMatchingEventHandler):
-    def __init__(self, client_publish):
-        self.client_publish = client_publish
+    def save_message(self, msg):
+        msg_fields = msg.split()
+        timestamp = msg_fields[0]
+        msgtype = msg_fields[1]
+        doorID = msg_fields[2]
+
+        is_access = msgtype.find("ACCESS") != -1
+        is_boot = msgtype[1].find("BOOT") != -1
+
+        bootcount = 0
+        if is_boot:
+            start = msgtype.find('#')
+            end = msgtype.find(')', start)
+            bootcount = int(msg[start+1:end])
+
+        if is_access:
+            # Each segment goes in a separate DB column:
+            # timestamp, type, doorID, readerID, authOK, cardID
+            otherColumns = ",".join(msg_fields[3:])
+            table = "accesses"
+        else:
+            # All segments after doorID are the text message
+            # and, therefore, go in a single DB column:
+            # timestamp, type, doorID, message
+            otherColumns = " ".join(msg_fields[3:])
+            table = "systems"
+
+        final_message = f"{bootcount}, {timestamp}, {doorID}, {otherColumns}"
+        self.push_data(table, final_message)
+
+
+from watchdog.observers import Observer
+from watchdog.events import LoggingEventHandler, PatternMatchingEventHandler
+
+class DiskMonitor():
+    def __init__(self, cmdHandler, dbUploadHandler):
+
+        self.cmdObserver = Observer()
+        self.cmdObserver.schedule(FileMonitor(CMD_PATTERNS, cmdHandler),
+                                  CMD_DIR)
+
+        self.cmdObserver.start()
+
+        self.dbObserver = Observer()
+        self.dbObserver.schedule(FileMonitor(DB_PATTERNS, dbUploadHandler),
+                                 DB_DIR)
+
+        self.dbObserver.start()
+
+    def stop(self):
+        self.cmdObserver.stop()
+        self.dbObserver.stop()
+        self.cmdObserver.join()
+        self.dbObserver.join()
+
+
+# TODO: prevent "repeated" events when a file is created and modified.
+#       Maybe all we need to do is on_modified and ignore on_created?
+class FileMonitor(PatternMatchingEventHandler):
+    def __init__(self, patterns, handler):
+        self.handler = handler
 
         # Set the patterns for PatternMatchingEventHandler
-        PatternMatchingEventHandler.__init__(self, patterns=FILE_PATTERNS,
+        PatternMatchingEventHandler.__init__(self, patterns=patterns,
                                                    ignore_directories=True,
                                                    case_sensitive=False)
 
     def on_created(self, event):
-        #handle files created on command directory
-        if event.src_path.find("commands") == -1 : return
-        print("new txt file in command directory")
-        q = Process(target=self.client_publish,
-                    args=("commands", event.src_path))
-
-        q.start()
+        self.handler(event.src_path)
 
 
     def on_modified(self, event):
-        #handle acess.db changes
-        if event.src_path.find("databaseex") == -1 : return
-        print("users database has changed")
-        p = Process(target=self.client_publish, args=("db", event.src_path))
-        p.start()
+        self.handler(event.src_path)
+
+
+class Main():
+    def __init__(self):
+
+        # How to make diskMonitor call a specific method of this object?
+        #
+        # 1. Pass as parameters both the object and the function, then
+        #    call function(obj, params). Since the first parameter of
+        #    the function is "self", that probably works, but is weird.
+        #
+        # 2. Make the object global and define functions that call the
+        #    adequate method of the global object. That should work, but
+        #    involves a global, which may make testing harder.
+        #
+        # 3. Use closures, which is what we do here: cmdHandler and
+        #    dbUploadHandler have a reference to the object as "theMain".
+
+        theMain = self
+
+        def cmdHandler(filename):
+            theMain.sendCommand(filename)
+
+        def dbUploadHandler(filename):
+            theMain.sendDB(filename)
+
+        self.mqtt = OurMQTT()
+        self.diskMonitor = DiskMonitor(cmdHandler, dbUploadHandler)
+
+    def sendDB(self, filename):
+        self.mqtt.publish("database", filename)
+
+    def sendCommand(self, filename):
+        self.mqtt.publish("commands", filename)
+
+    def stop(self):
+        self.diskMonitor.stop()
+        self.mqtt.stop()
 
 
 def main():
-    client = Client()
-    #client.start_observer()
+    mainObject = Main()
+    try:
+        while True:
+            time.sleep(SLEEP_TIME)
+    finally:
+        mainObject.stop()
+
 
 if __name__ == "__main__":
     main()
