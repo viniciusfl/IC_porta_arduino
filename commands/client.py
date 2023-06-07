@@ -16,7 +16,6 @@
       an sqlite DB according to its type (acesses or systems)"""
 # ---------------------------------------------------------------------------
 
-from multiprocessing import Process
 import ssl, sys, time, logging, sqlite3, inspect, os, random, re
 
 #BROKER_ADDRESS = '10.0.2.109'
