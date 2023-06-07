@@ -77,11 +77,13 @@ namespace LOGNS {
 
         if (loggingWithoutTime) {
             unsigned long timestamp = millis();
-            snprintf(logfilename, 100, "/bootlog_%lu_%lu",
-                     bootcount, timestamp);
+            int dirName = timestamp%10;
+            snprintf(logfilename, 100, "/logs/%d/bootlog_%lu_%lu",
+                     dirName, bootcount, timestamp);
         } else {
             unsigned long timestamp = getTime();
-            snprintf(logfilename, 100, "/log_%lu", timestamp);
+            int dirName = timestamp%10;
+            snprintf(logfilename, 100, "/logs/%d/log_%lu", dirName, timestamp);
         }
 
         logfile = SD.open(logfilename, FILE_WRITE);
@@ -186,34 +188,42 @@ namespace LOGNS {
     }
 
     void Logger::sendNextLogfile() {
+        char buffer[9];
         log_d("Searching for logs in SD to send...");
-        File root = SD.open("/");
-        File entry;
 
-        // TODO: check if this works as expected :)
-        while (entry = root.openNextFile()) {
-            if (entry.isDirectory()) { continue; }
+        for (int i = 0; i < 10; i++) {
+            snprintf(buffer, 9, "/logs/%d", i); /* Open each dir */
+            File root = SD.open(buffer);
+            File entry;
 
-            if (strncmp("log_", entry.name(), strlen("log_")) != 0 &&
-            strncmp("bootlog_", entry.name(), strlen("bootlog_")) != 0 ) {
-                continue;
+            while (entry = root.openNextFile()) {
+                if (entry.isDirectory()) { continue; }
+
+                if (strncmp("log_", entry.name(), strlen("log_")) != 0 &&
+                strncmp("bootlog_", entry.name(), strlen("bootlog_")) != 0 ) {
+                    continue;
+                }
+
+                // "+1" means "skip the initial slash character"
+                if (strcmp(logfilename+1, entry.name()) != 0) {
+                    log_d("Found a logfile to send: %s", entry.name());
+                    snprintf(inTransitFilename, 100, "/logs/%d/%s", i, entry.name());
+                    log_d("Sending logfile %s.", entry.name());
+                    sendingLogfile = true;
+                    lastLogfileSentTime = currentMillis;
+                    sendLog(inTransitFilename);
+                    root.close();
+                    entry.close();
+
+                    log_d("Finished search for logfiles");
+                    return; // Do not send anything else
+                }
             }
 
-            // "+1" means "skip the initial slash character"
-            if (strcmp(logfilename+1, entry.name()) != 0) {
-                log_d("Found a logfile to send: %s", entry.name());
-                snprintf(inTransitFilename, 100, "/%s", entry.name());
-                log_d("Sending logfile %s.", entry.name());
-                sendingLogfile = true;
-                lastLogfileSentTime = currentMillis;
-                sendLog(inTransitFilename);
-                break; // Do not send anything else
-            }
+            root.close();
+            entry.close();
         }
-
-        log_d("Finished search for logfiles.");
-        root.close();
-        entry.close();
+        log_d("Finished search for logfiles, didn't find anything.");
     }
 
     void Logger::flushSentLogfile() {
