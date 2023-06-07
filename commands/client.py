@@ -57,7 +57,10 @@ class Client():
         self.client = mqtt_client.Client(self.client_id)
 
         def on_connect(client, userdata, flags, rc):
-            print("Connected to MQTT Broker!") if rc == 0 else  print("Failed to connect, return code %d\n", rc)
+            if rc == 0:
+                print("Connected to MQTT Broker!")
+            else
+                print("Failed to connect, return code %d\n", rc)
        
         self.client.on_connect = on_connect
         self.client.on_message = self.on_message
@@ -137,8 +140,10 @@ class Client():
         self.message = f"Received msg from `{msg.topic}` topic"
         print(self.message)
         rcv_msg = str(msg.payload.decode("utf-8"))
-        if msg.topic == "/topic/sendLogs" : logs_topic(rcv_msg)
-        else : other_topics(msg.topic, rcv_msg)
+        if msg.topic == "/topic/sendLogs":
+            logs_topic(rcv_msg)
+        else:
+            other_topics(msg.topic, rcv_msg)
         
 class DataBase():
     def __init__(self):
@@ -159,16 +164,20 @@ class DataBase():
 class Handler(PatternMatchingEventHandler):
     def __init__(self, client_publish):
         self.client_publish = client_publish
+
         # Set the patterns for PatternMatchingEventHandler
         PatternMatchingEventHandler.__init__(self, patterns=FILE_PATTERNS,
-                                                             ignore_directories=True, case_sensitive=False)
+                                                   ignore_directories=True,
+                                                   case_sensitive=False)
+
     def on_created(self, event):
         #handle files created on command directory
         if event.src_path.find("commands") == -1 : return
         print("new txt file in command directory")
-        q = Process(target=self.client_publish, args=("commands", event.src_path))
+        q = Process(target=self.client_publish,
+                    args=("commands", event.src_path))
+
         q.start()
-        
 
 
     def on_modified(self, event):
@@ -177,7 +186,6 @@ class Handler(PatternMatchingEventHandler):
         print("users database has changed")
         p = Process(target=self.client_publish, args=("db", event.src_path))
         p.start()
-
 
 
 def main():
