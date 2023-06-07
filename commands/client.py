@@ -60,7 +60,7 @@ class Client():
             if rc == 0:
                 print("Connected to MQTT Broker!")
             else
-                print("Failed to connect, return code %d\n", rc)
+                print(f"Failed to connect, return code {rc}\n")
        
         self.client.on_connect = on_connect
         self.client.on_message = self.on_message
@@ -86,7 +86,7 @@ class Client():
 
     def publish(self, topic, *file_name):
         file_name = format("".join(file_name))
-        print("publising on topic {}".format(topic))
+        print(f"publising on topic {topic}")
         print(file_name)
         if topic == "db":
             file = open(file_name, mode="rb")
@@ -102,8 +102,8 @@ class Client():
         time.sleep(1)
 
     def subscribe(self, topic):
-        print("subscribing to topic /topic/{}".format(topic))
-        self.client.subscribe("/topic/{}".format(topic))
+        print(f"subscribing to topic /topic/{topic}")
+        self.client.subscribe(f"/topic/{topic}")
         
     def on_message(self, client, userdata, msg):
         def get_bootcount(msg):
@@ -151,12 +151,12 @@ class DataBase():
         self.cursor = self.connection.cursor()
 
     def create_db_tables(self, table, fields):
-        self.cursor.execute("""CREATE TABLE IF NOT EXISTS {}({}); """.format(table, fields))
+        self.cursor.execute(f"""CREATE TABLE IF NOT EXISTS {table}({fields}); """)
 
     def push_data(self, table, msg_data):
-        print("""INSERT INTO {} VALUES({});""".format(table, msg_data))
+        print(f"""INSERT INTO {table} VALUES({msg_data});""")
         try:
-            self.cursor.execute("""INSERT INTO {} VALUES({});""".format(table, msg_data))
+            self.cursor.execute(f"""INSERT INTO {table} VALUES({msg_data});""")
         except:
             print("Unable to push to database")
         self.connection.commit()
