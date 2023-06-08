@@ -2,27 +2,21 @@ from client import *
 import multiprocessing as mp
 
 def main():
-    client2 = Client()
-    client2.subscribe("sendLogs")
-    client2.subscribe("database")
-    client2.subscribe("commands")
-    client1 = Client()
-    client1.publish("log", "files/ACCESSES.txt")
-    client1.publish("log", "files/SYSTEM_BOOT.txt")
-    client1.publish("log", "files/SYSTEM.txt")
-    client1.publish("log", "files/ACCESSES_BOOT.txt")
-    first = mp.Process(target=client1.start_observer)
-    first.start()
-    time.sleep(1)
+    client2 = Main()
+    client2.mqtt.subscribe("sendLogs")
+    client2.mqtt.subscribe("database")
+    client2.mqtt.subscribe("commands")
+    client1 = Main()
+    client1.mqtt.publish("sendLogs", "files/ACCESSES.txt")
+    client1.mqtt.publish("sendLogs", "files/SYSTEM_BOOT.txt")
+    client1.mqtt.publish("sendLogs", "files/SYSTEM.txt")
+    client1.mqtt.publish("sendLogs", "files/ACCESSES_BOOT.txt")
 
-    processes = []
-    processes.append(mp.Process(target=create_command))
-    processes.append(mp.Process(target=update_database))
-    for p in processes:
-        p.start()
-        time.sleep(1)
-        p.join()
-        
+    create_command()
+    update_database()
+    time.sleep(10)
+    client1.stop()
+    client2.stop()
 
 def create_command():
     print("Created new Command")
@@ -33,7 +27,7 @@ def create_command():
 def update_database():
     print("Updated database")
     f = open(f"files/databaseex.txt", mode="w")
-    f.write("12|AAAAA|BBBBBBB|C|")
+    f.write("13|AAAAA|BBBBBBB|C|")
     f.close()
 
 if __name__ == "__main__":

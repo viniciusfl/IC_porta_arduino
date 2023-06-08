@@ -16,7 +16,7 @@
       an sqlite DB according to its type (acesses or systems)"""
 # ---------------------------------------------------------------------------
 
-import ssl, sys, time, logging, sqlite3, inspect, os, random, re
+import ssl, sys, time, logging, sqlite3, inspect, os, random
 
 #BROKER_ADDRESS = '10.0.2.109'
 #BROKER_PORT = 8883
@@ -25,7 +25,7 @@ BROKER_PORT = 1883
 
 SLEEP_TIME = 1
 
-CMD_DIR = "commands"
+CMD_DIR = "."
 CMD_PATTERNS = ["*.txt"]
 DB_DIR = "upload"
 DB_PATTERNS = ["*.db"]
@@ -79,22 +79,22 @@ class OurMQTT():
 
     def publish(self, topic, filename):
         print(f"publishing {filename} on topic {topic}")
+        try:
+            with open(filename, mode="rb") as f:
+                if topic == "database":
+                    result = self.client.publish(f"/topic/{topic}",
+                                                f.read(),
+                                                retain=True, qos=2)
+                else:
+                    result = self.client.publish(f"/topic/{topic}",
+                                                f.read())
 
-        with open(filename, mode="rb") as f:
-
-            if topic == "database":
-                result = self.client.publish(f"/topic/{topic}",
-                                             f.read(),
-                                             retain=True, qos=2)
-            else:
-                result = self.client.publish("/topic/{topic}",
-                                             f.read())
-
-            if topic == "commands":
-                os.remove(filename)
-
-            print(result[0])
-
+                if topic == "commands":
+                    os.remove(filename)
+                print("Published with sucess\n") if result[0] == 0 else print("Publish failed!\n")
+        except:
+            print(f"File {filename} not found!")
+        
         time.sleep(1)
 
 
@@ -109,7 +109,7 @@ class OurMQTT():
         if msg.topic == "/topic/sendLogs":
             self.process_incoming_log_messages(decoded_payload)
         else: # This should only happen during testing
-            print(f'msg received from topic {topic}: \n {decoded_payload} \n')
+            print(f'msg received from topic {msg.topic}: \n {decoded_payload} \n')
 
 
     def process_incoming_log_messages(self, messages):
@@ -144,20 +144,20 @@ class DBwrapper():
         timestamp = msg_fields[0]
         msgtype = msg_fields[1]
         doorID = msg_fields[2]
-
+        print(f'msg type is: {msgtype}')
         is_access = msgtype.find("ACCESS") != -1
-        is_boot = msgtype[1].find("BOOT") != -1
+        is_boot = msgtype.find("BOOT") != -1
 
         bootcount = 0
         if is_boot:
             start = msgtype.find('#')
             end = msgtype.find(')', start)
-            bootcount = int(msg[start+1:end])
+            bootcount = msgtype[start+1:end]
 
         if is_access:
             # Each segment goes in a separate DB column:
             # timestamp, type, doorID, readerID, authOK, cardID
-            otherColumns = ",".join(msg_fields[3:])
+            otherColumns =  '", "'.join(msg_fields[3:])
             table = "accesses"
         else:
             # All segments after doorID are the text message
@@ -166,7 +166,7 @@ class DBwrapper():
             otherColumns = " ".join(msg_fields[3:])
             table = "systems"
 
-        final_message = f"{bootcount}, {timestamp}, {doorID}, {otherColumns}"
+        final_message = f'"{bootcount}", "{timestamp}", "{doorID}", "{otherColumns}"'
         self.push_data(table, final_message)
 
 
@@ -179,7 +179,6 @@ class DiskMonitor():
         self.cmdObserver = Observer()
         self.cmdObserver.schedule(FileMonitor(CMD_PATTERNS, cmdHandler),
                                   CMD_DIR)
-
         self.cmdObserver.start()
 
         self.dbObserver = Observer()
@@ -199,8 +198,8 @@ class DiskMonitor():
 #       Maybe all we need to do is on_modified and ignore on_created?
 class FileMonitor(PatternMatchingEventHandler):
     def __init__(self, patterns, handler):
-        self.handler = handler
 
+        self.handler = handler
         # Set the patterns for PatternMatchingEventHandler
         PatternMatchingEventHandler.__init__(self, patterns=patterns,
                                                    ignore_directories=True,
@@ -237,10 +236,9 @@ class Main():
 
         def dbUploadHandler(filename):
             theMain.sendDB(filename)
-
         self.mqtt = OurMQTT()
         self.diskMonitor = DiskMonitor(cmdHandler, dbUploadHandler)
-
+    
     def sendDB(self, filename):
         self.mqtt.publish("database", filename)
 
