@@ -21,9 +21,9 @@ namespace NetNS {
 
     // ESP IP did change in my house, so i had to do this because
     // different IP causes problem with the certificates
-    IPAddress local_IP(10, 0, 2, 101);
+/*     IPAddress local_IP(10, 0, 2, 101);
     IPAddress gateway(192, 168, 1, 1);
-    IPAddress subnet(255, 255, 0, 0);
+    IPAddress subnet(255, 255, 0, 0); */
 
     // Events callback
     void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
@@ -34,7 +34,7 @@ namespace NetNS {
 
     inline void netReset() {
         WiFi.disconnect(true);
-        WiFi.config(local_IP, gateway, subnet);
+        /* WiFi.config(local_IP, gateway, subnet); */
         WiFi.begin(ssid, password);
         //WiFi.begin(ssid);
     }
