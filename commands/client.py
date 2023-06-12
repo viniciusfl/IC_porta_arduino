@@ -144,7 +144,6 @@ class DBwrapper():
         timestamp = msg_fields[0]
         msgtype = msg_fields[1]
         doorID = msg_fields[2]
-        print(f'msg type is: {msgtype}')
         is_access = msgtype.find("ACCESS") != -1
         is_boot = msgtype.find("BOOT") != -1
 
@@ -168,6 +167,7 @@ class DBwrapper():
 
         final_message = f'"{bootcount}", "{timestamp}", "{doorID}", "{otherColumns}"'
         self.push_data(table, final_message)
+        time.sleep(0.1)
 
 
 from watchdog.observers import Observer

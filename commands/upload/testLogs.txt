@@ -1,0 +1,4 @@
+10:00 (SYSTEM/BOOT#BOOTCOUNT): 2  10:00 horas
+12:00 (ACCESS/BOOT#20): 1 1 2 3
+14:00 (ACCESS): 2 3 3 3
+14:00 (SYSTEM): 20 Acesso a porta 20 as 14:00 horas
