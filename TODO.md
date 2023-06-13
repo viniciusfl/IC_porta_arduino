@@ -1,13 +1,76 @@
-# Short-term TODOs
+# Short-term TODOs - Vinicius
+
+ * Check whether the timestamp is added twice to the log messages
+
+ * Handle multiline log messages: we should save each message
+   to disk with a final "\0" character and, on the controlling
+   server, split messages on this character instead of "\n"
+
+ * Limit log file size:
+
+   - The code in `processLogs()` that checks whether there are too many
+     messages in the current log file should be migrated to `logEvent()`
+     and `logAccess()`
+
+   - The code should not only check the total number of messages but
+     also the size the file would become if the current message were
+     added to it; if that value is too large, rotate the log. A good
+     limit is probably 5KB.
+
+   - After we make sure no file will be larger than 5KB, eliminate
+     the "malloc" in MqttManager::sendLog and use a fixed buffer
+     instead.
+
+ * Error handling:
+
+   - If we start to upload a file, we set `sendingLogfile` to true (in
+     logmanager.cpp). When the upload is successful, `flushSentLogfile`
+     is called and we change `sendingLogFile` to false. But if the
+     upload fails, we will probably be stuck with `sendingLogFile` as
+     true and, therefore, no more files will be sent. We should fix
+     that.
+
+   - Check how does MQTT handle timeouts and figure out how to handle
+     timeout errors.
+
+ * Check whether openDoor, denyToOpenDoor, blinkOK, and blinkFail do
+   what they are supposed to do:
+
+   - We should choose an output pin to activate the door; this pin
+     should *not* switch levels during boot! Then openDoor should
+     change the level of the pin for some 300ms.
+
+ * Currently, we store the card IDs in the database; instead of that,
+   we should store the sha256 of the ID. Then, when reading a card, we
+   should calculate its sha256 and compare it to the DB. With this,
+   even if somebody steals the nodeMCU they will not really know the
+   IDs of the users.
+
+ * `MASTER_KEY` should be a (hardcoded) list of possible keys (also
+   using the SHA256 hash, as described above)
+
+
+# Other short-term TODOs
+
+ * Reconsider the buffer sizes for log messages (currently 192)
+
+ * To actually open the door, we may use an ordinary logic level
+   converter (https://www.sparkfun.com/products/12009 ): although all
+   pages about this device talk about "3.3-5V", the datasheet for the
+   BSS138 allows for up to 50V Drain-Source and +-20V Gate-Source DDP
 
  * Choose and set license
 
  * Draw printed circuit board
 
- * Actually open the door; we may use an ordinary logic level converter
-   (https://www.sparkfun.com/products/12009 ) for that (although all
-   pages about this device talk about "3.3-5V", the datasheet for the
-   BSS138 allows for up to 50V Drain-Source and +-20V Gate-Source DDP)
+ * Smarter logs: we should have an in-memory circular buffer for the log
+   messages. During startup, before the logfile is available, messages
+   are kept there and and then flushed. During normal operation, they are
+   flushed immediately, but the buffer is accessible with a command from
+   MQTT so that we can see the latest messages even if something goes wrong
+   with the logfile. Finally, if there is a problem with the SD card, we
+   should send the log messages in the buffer over MQTT.
+
 
 # Non-critical TODOs
 
@@ -117,11 +180,4 @@
    so the query is ready to run on the next iteration. This, however, is
    not trivial, because the DB may be updated at some point.
 
- * Smarter logs: we should have an in-memory circular buffer for the log
-   messages. During startup, before the logfile is available, messages
-   are kept there and and then flushed. During normal operation, they are
-   flushed immediately, but the buffer is accessible with a command from
-   MQTT so that we can see the latest messages even if something goes wrong
-   with the logfile. Finally, if there is a problem with the SD card, we
-   should send the log messages in the buffer over MQTT.
-
+ * Implement OTA

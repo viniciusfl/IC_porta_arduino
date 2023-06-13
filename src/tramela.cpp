@@ -1,17 +1,18 @@
 static const char* TAG = "main";
 
-#include <common.h>
+#include <tramela.h>
+
+#include <Arduino.h>
+#include <SPI.h>
+#include <SD.h>
+#include <sqlite3.h>
+
 #include <networkmanager.h>
 #include <timemanager.h>
 #include <dbmanager.h>
 #include <authorizer.h>
 #include <cardreader.h>
-#include <log_conf.h>
 #include <mqttmanager.h>
-#include <Arduino.h>
-#include <SPI.h>
-#include <SD.h>
-#include <sqlite3.h>
 
 int doorID = 1;
 

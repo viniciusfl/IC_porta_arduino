@@ -1,7 +1,10 @@
 static const char* TAG = "network";
 
-#include <common.h>
+#include <tramela.h>
+
+#include <Arduino.h>
 #include <WiFi.h>
+
 #include <networkmanager.h>
 #include <timemanager.h>
 

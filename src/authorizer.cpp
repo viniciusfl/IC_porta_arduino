@@ -1,6 +1,7 @@
 static const char *TAG = "auth";
 
-#include <common.h>
+#include <tramela.h>
+
 #include <Arduino.h>
 #include <sqlite3.h>
 
@@ -49,7 +50,7 @@ int Authorizer::openDB(const char *filename) {
 inline bool Authorizer::userAuthorized(const char* readerID,
                                        unsigned long cardID) {
 
-    // MASTER's ID is defined in common.h.
+    // MASTER's ID is defined in tramela.h.
     // Maybe there is a better way to manage this.
     if (cardID == MASTER_KEY) {
         log_w("MASTER card used, openning door.");

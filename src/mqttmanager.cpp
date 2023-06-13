@@ -1,13 +1,16 @@
 static const char *TAG = "mqttman";
 
-#include <common.h>
-#include <mqtt_client.h>
-#include <networkmanager.h>
-#include <authorizer.h>
-#include <dbmanager.h>
-#include <keys.h>
-#include <cardreader.h>
+#include <tramela.h>
+
+#include <Arduino.h>
 #include <SD.h>
+#include <mqtt_client.h>
+
+#include <mqttmanager.h>
+#include <networkmanager.h>
+#include <dbmanager.h> // startDBDownload etc.
+#include <cardreader.h> // openDoor etc.
+#include <keys.h>
 
 namespace  MQTT {
     class MqttManager {
@@ -26,11 +29,16 @@ namespace  MQTT {
         esp_mqtt_client_handle_t client;
     };
 
-    static void callback_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+    // This is a "real" function (not a method) that hands
+    // the received event over to the MqttManager object.
+    void callback_handler(void *handler_args, esp_event_base_t base,
+                          int32_t event_id, void *event_data) {
+
         esp_mqtt_event_handle_t event = (esp_mqtt_event_t *) event_data;
         MqttManager *obj = (MqttManager *)event->user_context;
         obj->mqtt_event_handler(handler_args, base, event_id, event);
     }
+
 
     inline bool MqttManager::serverConnected() {
         return serverStarted;
@@ -56,7 +64,9 @@ namespace  MQTT {
         };
 
         client = esp_mqtt_client_init(&mqtt_cfg);
-        esp_mqtt_client_register_event(client, (esp_mqtt_event_id_t) ESP_EVENT_ANY_ID, callback_handler, NULL);
+        esp_mqtt_client_register_event(client,
+                                       (esp_mqtt_event_id_t) ESP_EVENT_ANY_ID,
+                                       callback_handler, NULL);
         esp_mqtt_client_start(client);
     }
 
@@ -68,7 +78,7 @@ namespace  MQTT {
         char* pBuffer = (char*)malloc(fileSize + 1);
         f.read((uint8_t*) pBuffer, fileSize);
         pBuffer[fileSize] = '\0';
-        if (!esp_mqtt_client_enqueue(client, "/topic/sendLogs", pBuffer, fileSize, 1, 0, 0)) {
+        if (!esp_mqtt_client_enqueue(client, "/topic/logs", pBuffer, fileSize, 1, 0, 0)) {
             free(pBuffer);
             return false;
         }
@@ -78,7 +88,6 @@ namespace  MQTT {
     }
 
     void MqttManager::treatCommands(const char* command) {
-        // QUESTION: Should i return an anwser in another topic?
         if (!strcmp(command, "openDoor")) {
             log_v("Received command to open door.");
             openDoorCommand();

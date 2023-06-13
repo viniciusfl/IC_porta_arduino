@@ -1,8 +1,11 @@
 static const char* TAG = "card";
 
-#include <common.h>
+#include <tramela.h>
+
 #include <Arduino.h>
+
 #include <Wiegand.h>
+
 #include <cardreader.h>
 
 // pins for card reader 1 (external)
@@ -229,7 +232,7 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
 // activate both sound and led, while led pin doesnt do nothing
 
 // another "problem" i found is that intelbras beep fails a little if 
-// turned on for 200 ms <
+// turned on for less than 200ms
 void blinkOk(const char* reader) {
 
     int pin;

@@ -106,7 +106,7 @@ class OurMQTT():
     def on_message(self, client, msg):
         print(f"Received msg from `{msg.topic}` topic")
         decoded_payload = str(msg.payload.decode("utf-8"))
-        if msg.topic == "/topic/sendLogs":
+        if msg.topic == "/topic/logs":
             self.process_incoming_log_messages(decoded_payload)
         else: # This should only happen during testing
             print(f'msg received from topic {msg.topic}: \n {decoded_payload} \n')

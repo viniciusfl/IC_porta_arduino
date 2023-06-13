@@ -1,4 +1,4 @@
-from client import *
+from door_controller import *
 import multiprocessing as mp
 
 def main():

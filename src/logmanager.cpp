@@ -1,14 +1,28 @@
 static const char *TAG = "log";
 
-#include <common.h>
+#include <tramela.h>
+
 #include <Arduino.h>
-#include <sqlite3.h>
 #include <SD.h>
-#include "esp_tls.h"
-#include <timemanager.h>
-#include <networkmanager.h>
-#include <dbmanager.h>
-#include <mqttmanager.h>
+
+#include <timemanager.h> // getTime()
+#include <mqttmanager.h> // sendLog and isClientConnected
+
+// This does three things:
+//
+//  1. Receives log messages and writes them to a file on the disk
+//  2. When the file is "big", closes it and opens a new one
+//  3. Sends one file at a time to the controlling server and, if
+//     upload is successful, deletes the sent file
+//
+// Log messages are both system logs and access logs, and they are
+// all mixed together; it is up to the server to separate them.
+//
+// We may need to log stuff before the system time is correct.
+// When this happens, we (1) use millis() as the time and (2) add
+// "BOOT#XX" (where "XX" is the boot count) to the log messages so
+// that the server can order them.
+
 
 // Rotate the logfile if it reaches this many records. We want to keep
 // each file small because they are copied to memory for transmission
@@ -23,11 +37,15 @@ static const char *TAG = "log";
 // Check the disk periodically for logfiles to upload.
 #define LOG_SEARCH_INTERVAL 15000 // 15 seconds
 
+// We divide the log files in a few subdirectories to avoid filesystem
+// performance issues.
+#define NUM_SUBDIRS 10
+
 namespace LOGNS {
     class Logger {
         public:
             inline void init();
-            void flushSentLogfile();
+            void flushSentLogfile(); // erase logfiles that have been sent ok
             void processLogs();
             void logEvent(const char* message);
             void logAccess(const char* readerID, unsigned long cardID,
@@ -53,6 +71,14 @@ namespace LOGNS {
     };
 
     inline void Logger::init() {
+
+        // Create the log subdirectories if they do not already exist
+        char buf[12];
+        for (int i = 0; i < NUM_SUBDIRS; i++) {
+            snprintf(buf, 12, "/logs/%d", i);
+            SD.mkdir(buf);
+        }
+
         if (timeIsValid()) {
             loggingWithoutTime = false;
         } else {
@@ -72,19 +98,16 @@ namespace LOGNS {
             logfile.close();
         }
 
-
-        if (timeIsValid()) { loggingWithoutTime = false; }
-
-        if (loggingWithoutTime) {
-            unsigned long timestamp = millis();
-            int dirName = timestamp%10;
-            snprintf(logfilename, 100, "/logs/%d/bootlog_%lu_%lu",
-                     dirName, bootcount, timestamp);
+        if (timeIsValid()) {
+            loggingWithoutTime = false;
         } else {
-            unsigned long timestamp = getTime();
-            int dirName = timestamp%10;
-            snprintf(logfilename, 100, "/logs/%d/log_%lu", dirName, timestamp);
+            loggingWithoutTime = true;
         }
+
+        unsigned long timestamp = millis();
+        if (!loggingWithoutTime) { timestamp = getTime(); }
+        int dirName = timestamp % NUM_SUBDIRS;
+        snprintf(logfilename, 100, "/logs/%d/log_%lu", dirName, timestamp);
 
         logfile = SD.open(logfilename, FILE_WRITE);
         numberOfRecords = 0;
@@ -188,19 +211,18 @@ namespace LOGNS {
     }
 
     void Logger::sendNextLogfile() {
-        char buffer[9];
+        char buffer[12];
         log_d("Searching for logs in SD to send...");
 
-        for (int i = 0; i < 10; i++) {
-            snprintf(buffer, 9, "/logs/%d", i); /* Open each dir */
+        for (int i = 0; i < NUM_SUBDIRS; i++) {
+            snprintf(buffer, 12, "/logs/%d", i); /* Open each dir */
             File root = SD.open(buffer);
             File entry;
 
             while (entry = root.openNextFile()) {
                 if (entry.isDirectory()) { continue; }
 
-                if (strncmp("log_", entry.name(), strlen("log_")) != 0 &&
-                strncmp("bootlog_", entry.name(), strlen("bootlog_")) != 0 ) {
+                if (strncmp("log_", entry.name(), strlen("log_")) != 0) {
                     continue;
                 }
 
@@ -208,26 +230,25 @@ namespace LOGNS {
                 if (strcmp(logfilename+1, entry.name()) != 0) {
                     log_d("Found a logfile to send: %s", entry.name());
                     snprintf(inTransitFilename, 100, "/logs/%d/%s", i, entry.name());
-                    log_d("Sending logfile %s.", entry.name());
                     sendingLogfile = true;
                     lastLogfileSentTime = currentMillis;
                     sendLog(inTransitFilename);
-                    root.close();
                     entry.close();
+                    root.close();
 
-                    log_d("Finished search for logfiles");
                     return; // Do not send anything else
                 }
             }
 
-            root.close();
             entry.close();
+            root.close();
         }
-        log_d("Finished search for logfiles, didn't find anything.");
+
+        log_d("No logfiles to send for now.");
     }
 
     void Logger::flushSentLogfile() {
-        log_d("Finished sending logfile %s.", inTransitFilename);
+        log_v("Finished sending logfile %s.", inTransitFilename);
         sendingLogfile = false;
         log_d("Removing sent logfile: %s", inTransitFilename);
         SD.remove(inTransitFilename);

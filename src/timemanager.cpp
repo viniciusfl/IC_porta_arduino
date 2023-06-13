@@ -1,10 +1,13 @@
 static const char* TAG = "time";
 
-#include <common.h>
+#include <tramela.h>
+
+#include <Arduino.h>
 #include <SPI.h>
 #include <stdlib.h>
 #include <RTClib.h>
 #include <time.h>
+
 #include <timemanager.h>
 #include <networkmanager.h>
 
