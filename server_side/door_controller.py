@@ -13,7 +13,7 @@
 
    3) Receive log messages from other clients by subscribing to the
       appropriate topic. When a new message is received, save it in
-      an sqlite DB according to its type (acesses or systems)"""
+      an sqlite DB according to its type (access or system)"""
 # ---------------------------------------------------------------------------
 
 import ssl, sys, time, logging, sqlite3, inspect, os, random
@@ -32,7 +32,7 @@ DB_PATTERNS = ["*.db"]
 
 DB_NAME = "messages.db"
 TABLES = {
-    "accesses": "bootcount INT, \
+    "access": "bootcount INT, \
                 time VARCHAR(40),\
                 door INT,\
                 reader INT,\
@@ -40,7 +40,7 @@ TABLES = {
                 card INT,\
                 UNIQUE (time, door, bootcount, reader, card, authorization)",
 
-    "systems" : "bootcount INT, \
+    "system" : "bootcount INT, \
                 time VARCHAR(40),\
                 door INT,\
                 message VARCHAR(1024),\
@@ -131,19 +131,33 @@ class DBwrapper():
     def create_db_tables(self, table, fields):
         self.cursor.execute(f"""CREATE TABLE IF NOT EXISTS {table}({fields}); """)
 
-    def push_data(self, table, msg_data):
-        print(f"""INSERT INTO {table} VALUES({msg_data});""")
+    def save_access_log(bootcount, timestamp, doorID,
+                        readerID, authOK, cardID):
+
         try:
-            self.cursor.execute(f"""INSERT INTO {table} VALUES({msg_data});""")
+            self.cursor.execute("INSERT INTO access VALUES(?,?,?,?,?,?)",
+                                (bootcount, timestamp, doorID,
+                                readerID, authOK, cardID))
         except:
             print("Unable to push to database")
+
+        self.connection.commit()
+
+    def save_system_log(bootcount, timestamp, doorID, logtext):
+
+        try:
+            self.cursor.execute("INSERT INTO system VALUES(?,?,?,?)",
+                                (bootcount, timestamp, doorID, logtext))
+        except:
+            print("Unable to push to database")
+
         self.connection.commit()
 
     def save_message(self, msg):
         msg_fields = msg.split()
         timestamp = msg_fields[0]
         msgtype = msg_fields[1]
-        doorID = msg_fields[2]
+        doorID = int(msg_fields[2])
         is_access = msgtype.find("ACCESS") != -1
         is_boot = msgtype.find("BOOT") != -1
 
@@ -151,22 +165,21 @@ class DBwrapper():
         if is_boot:
             start = msgtype.find('#')
             end = msgtype.find(')', start)
-            bootcount = msgtype[start+1:end]
+            bootcount = int(msgtype[start+1:end])
 
         if is_access:
-            # Each segment goes in a separate DB column:
-            # timestamp, type, doorID, readerID, authOK, cardID
-            otherColumns =  '", "'.join(msg_fields[3:])
-            table = "accesses"
+            readerID = int(msg_fields[3])
+            authOK = int(msg_fields[4])
+            cardID = int(msg_fields[5])
+
+            self.save_access_log(bootcount, timestamp, doorID,
+                                 readerID, authOK, cardID)
         else:
             # All segments after doorID are the text message
             # and, therefore, go in a single DB column:
-            # timestamp, type, doorID, message
-            otherColumns = " ".join(msg_fields[3:])
-            table = "systems"
+            logtext = " ".join(msg_fields[3:])
+            self.save_system_log(bootcount, timestamp, doorID, logtext)
 
-        final_message = f'"{bootcount}", "{timestamp}", "{doorID}", "{otherColumns}"'
-        self.push_data(table, final_message)
         time.sleep(0.1)
 
 
