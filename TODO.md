@@ -186,3 +186,6 @@
    not trivial, because the DB may be updated at some point.
 
  * Implement OTA
+
+ * If the DB file is small, we should be able to eliminate the SD card and
+   use only the nodeMCU storage.
