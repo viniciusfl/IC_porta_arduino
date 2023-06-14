@@ -169,7 +169,7 @@ namespace DBNS {
                 forceDBDownload();
             }
 
-            while (!findValidDB()) { delay(1000); }
+            while (!findValidDB()) { delay(400); checkDoor(); }
 
             log_d("Choosing %s as current DB.", currentFile);
             if (openDB(currentFile) != SQLITE_OK) {

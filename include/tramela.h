@@ -14,6 +14,8 @@ extern int doorID;
 
 extern bool sdPresent;
 
+void checkDoor();
+
 #include <logmanager.h>
 
 #endif
