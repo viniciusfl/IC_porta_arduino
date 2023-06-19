@@ -49,7 +49,7 @@
    we should store the sha256 of the ID. Then, when reading a card, we
    should calculate its sha256 and compare it to the DB. With this,
    even if somebody steals the nodeMCU they will not really know the
-   IDs of the users. We should also add a salt.
+   IDs of the users.
 
  * `MASTER_KEY` should be a (hardcoded) list of possible keys (also
    using the SHA256 hash, as described above)
