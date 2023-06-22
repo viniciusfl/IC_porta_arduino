@@ -178,7 +178,6 @@ namespace  MQTT {
             log_i("Other event id:%d", event->event_id);
             break;
         }
-        processLogs();
     }
 
     MqttManager mqttManager;
