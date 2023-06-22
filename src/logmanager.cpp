@@ -41,6 +41,8 @@ static const char *TAG = "log";
 // performance issues.
 #define NUM_SUBDIRS 10
 
+#define MAX_LOG_FILE_SIZE 5000 // 5kb
+
 namespace LOGNS {
     class Logger {
         public:
@@ -59,6 +61,7 @@ namespace LOGNS {
 
             void createNewLogfile();
             void sendNextLogfile();
+            bool verifyLogFileSize();
 
             unsigned long lastLogCheck = 0;
             bool sendingLogfile = false;
@@ -91,6 +94,7 @@ namespace LOGNS {
 
     inline void Logger::createNewLogfile() {
         if (!sdPresent) return;
+        numberOfRecords = 0;
 
         if (logfile) {
             log_d("Closing logfile: %s", logfilename);
@@ -110,7 +114,6 @@ namespace LOGNS {
         snprintf(logfilename, 100, "/logs/%d/log_%lu", dirName, timestamp);
 
         logfile = SD.open(logfilename, FILE_WRITE);
-        numberOfRecords = 0;
 
         if (loggingWithoutTime && justStarted) {
             char buffer[100];
@@ -156,6 +159,11 @@ namespace LOGNS {
         logfile.print(buffer);
         logfile.flush();
         numberOfRecords++;
+
+        if (numberOfRecords > MAX_RECORDS) {
+            createNewLogfile();
+            lastLogfileSentTime = currentMillis;
+        }
     }
 
     void Logger::logEvent(const char* message) {
@@ -173,6 +181,11 @@ namespace LOGNS {
         logfile.print(buffer);
         logfile.flush();
         numberOfRecords++;
+
+        if (numberOfRecords > MAX_RECORDS || verifyLogFileSize()) {
+            createNewLogfile();
+            lastLogfileSentTime = currentMillis;
+        }
     }
 
     void Logger::processLogs() {
@@ -188,8 +201,7 @@ namespace LOGNS {
         // 2. The file is non-empty and nothing has been sent for
         //    too long (this will force the file to be sent, which
         //    serves as a notification that we are alive)
-        if (numberOfRecords > MAX_RECORDS
-                or currentMillis - lastLogfileSentTime > MAX_IDLE_TIME) {
+        if (currentMillis - lastLogfileSentTime > MAX_IDLE_TIME ) {
 
             if (numberOfRecords > 0) {
                 createNewLogfile();
@@ -208,6 +220,14 @@ namespace LOGNS {
         lastLogCheck = currentMillis;
 
         sendNextLogfile();
+    }
+
+    bool Logger::verifyLogFileSize() {
+        File f = SD.open(logfilename);
+        int size = f.size();
+        f.close();
+        if (size >= MAX_LOG_FILE_SIZE) return true;
+        return false;
     }
 
     void Logger::sendNextLogfile() {
