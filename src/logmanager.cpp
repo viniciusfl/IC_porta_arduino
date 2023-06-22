@@ -51,7 +51,7 @@ namespace LOGNS {
         public:
             inline void init();
             void flushSentLogfile(); // erase logfiles that have been sent ok
-            void processLogs();
+            void uploadLogs();
             void logEvent(const char* message);
             void logAccess(const char* readerID, unsigned long cardID,
                             bool authorized);
@@ -191,7 +191,7 @@ namespace LOGNS {
         logAnything(buffer);
     }
 
-    void Logger::processLogs() {
+    void Logger::uploadLogs() {
         if (!sdPresent) return;
 
         // If we are already sending a file or are offline,
@@ -318,7 +318,7 @@ void flushSentLogfile() {
     LOGNS::logger.flushSentLogfile();
 }
 
-void processLogs() {
-    LOGNS::logger.processLogs();
+void uploadLogs() {
+    LOGNS::logger.uploadLogs();
 }
 

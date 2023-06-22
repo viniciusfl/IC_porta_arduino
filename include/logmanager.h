@@ -86,6 +86,6 @@ void logAccess(const char* readerID, unsigned long cardID,
 
 void flushSentLogfile();
 
-void processLogs();
+void uploadLogs();
 
 #endif

@@ -92,7 +92,7 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    processLogs();
+    uploadLogs();
     checkNetConnection();
     checkTimeSync();
     checkDoor();
