@@ -24,14 +24,18 @@ static const char *TAG = "log";
 // that the server can order them.
 
 
-// Rotate the logfile if it reaches this many records. We want to keep
-// each file small because they are copied to memory for transmission
-// to the MQTT broker.
-#define MAX_RECORDS 50
+// Rotate the logfile if it reaches this many records or this total
+// size. We want to keep each file small because they are copied to
+// memory for transmission to the MQTT broker. We also want to
+// send out information to the broker regularly, so it is easier
+// to detect whether we crashed or lost connectivity.
+#define MAX_RECORDS 100
+#define MAX_LOG_FILE_SIZE 5000 // 5kb
 
-// If we don't send anything to the MQTT broker for this long, rotate
-// the logfile even if it did not reach MAX_RECORDS. This will indirectly
-// cause us to transmit something, indicating we are alive.
+// If we have no file to send and the current log file has not been
+// rotated for this long, rotate it so we send something to the
+// broker. This guarantees, if everything is ok, that the broker
+// hears from us on a somewhat regular basis.
 #define MAX_IDLE_TIME 3600000 // 1 hour
 
 // Check the disk periodically for logfiles to upload.
@@ -41,7 +45,6 @@ static const char *TAG = "log";
 // performance issues.
 #define NUM_SUBDIRS 10
 
-#define MAX_LOG_FILE_SIZE 5000 // 5kb
 
 namespace LOGNS {
     class Logger {
@@ -53,6 +56,8 @@ namespace LOGNS {
             void logAccess(const char* readerID, unsigned long cardID,
                             bool authorized);
         private:
+            void logAnything(const char* message);
+
             File logfile;
             char logfilename[100]; // current file we're logging to
             int numberOfRecords;
@@ -60,12 +65,12 @@ namespace LOGNS {
             char inTransitFilename[100]; // current file we're sending
 
             void createNewLogfile();
-            void sendNextLogfile();
-            bool verifyLogFileSize(int newLogSize);
+            bool sendNextLogfile();
+            bool logfileTooBig(const char* nextLogMessage);
 
             unsigned long lastLogCheck = 0;
             bool sendingLogfile = false;
-            unsigned long lastLogfileSentTime = 0;
+            unsigned long lastLogRotationTime = 0;
 
             bool loggingWithoutTime;
             inline void initBootCount();
@@ -126,6 +131,8 @@ namespace LOGNS {
         }
 
         log_d("Created new logfile: %s", logfilename);
+
+        lastLogRotationTime = timestamp;
     }
 
     inline void Logger::initBootCount() {
@@ -143,6 +150,16 @@ namespace LOGNS {
         boot.close();
     }
 
+    void Logger::logAnything(const char* message) {
+        if (logfileTooBig(message)) {
+            createNewLogfile();
+        }
+
+        logfile.print(message);
+        logfile.flush();
+        numberOfRecords++;
+    }
+
     void Logger::logAccess(const char* readerID, unsigned long cardID,
                             bool authorized) {
         if (!sdPresent) return;
@@ -156,15 +173,7 @@ namespace LOGNS {
                     getTime(), doorID, readerID, authorized, cardID);
         }
 
-        if (numberOfRecords > MAX_RECORDS || verifyLogFileSize(100)) {
-            createNewLogfile();
-            lastLogfileSentTime = currentMillis;
-        }
-
-        logfile.print(buffer);
-        logfile.flush();
-        numberOfRecords++;
-
+        logAnything(buffer);
     }
 
     void Logger::logEvent(const char* message) {
@@ -179,39 +188,11 @@ namespace LOGNS {
                      getTime(), doorID, message);
         }
 
-        if (numberOfRecords > MAX_RECORDS || verifyLogFileSize(192)) {
-            createNewLogfile();
-            lastLogfileSentTime = currentMillis;
-        }
-
-        logfile.print(buffer);
-        logfile.flush();
-        numberOfRecords++;
-
+        logAnything(buffer);
     }
 
     void Logger::processLogs() {
         if (!sdPresent) return;
-
-        // We create a new logfile if:
-        //
-        // 1. There are more than MAX_RECORDS in the current file
-        //    (it has to fit in the device memory)
-        //
-        // OR
-        //
-        // 2. The file is non-empty and nothing has been sent for
-        //    too long (this will force the file to be sent, which
-        //    serves as a notification that we are alive)
-        if (currentMillis - lastLogfileSentTime > MAX_IDLE_TIME ) {
-
-            if (numberOfRecords > 0) {
-                createNewLogfile();
-                lastLogfileSentTime = currentMillis; // that's a lie, but ok
-            } else { // Make numberOfRecords > 0 on the next iteration
-                log_w("We're alive!");
-            }
-        }
 
         // If we are already sending a file or are offline,
         // we should wait before sending anything else
@@ -221,18 +202,29 @@ namespace LOGNS {
 
         lastLogCheck = currentMillis;
 
-        sendNextLogfile();
+        if (!sendNextLogfile()) {
+            // There was no file to send. If the file currently being
+            // written to is "too old", rotate it to force something
+            // to be sent on the next iteration.
+            if (currentMillis - lastLogRotationTime > MAX_IDLE_TIME ) {
+                log_w("We're alive!"); // Make sure the file is not empty
+                createNewLogfile();
+            }
+        }
     }
 
-    bool Logger::verifyLogFileSize(int newLogSize) {
+    bool Logger::logfileTooBig(const char* nextLogMessage) {
+        if (numberOfRecords > MAX_RECORDS) { return true; }
+
         File f = SD.open(logfilename);
-        int size = f.size() + newLogSize;
+        int size = f.size() + strlen(nextLogMessage);
         f.close();
-        if (size >= MAX_LOG_FILE_SIZE) return true;
+        if (size >= MAX_LOG_FILE_SIZE) { return true; }
+
         return false;
     }
 
-    void Logger::sendNextLogfile() {
+    bool Logger::sendNextLogfile() {
         char buffer[12];
         log_d("Searching for logs in SD to send...");
 
@@ -255,19 +247,19 @@ namespace LOGNS {
                 log_d("Found a logfile to send: %s", entry.name());
                 snprintf(inTransitFilename, 100, "/logs/%d/%s", i, entry.name());
                 sendingLogfile = true;
-                lastLogfileSentTime = currentMillis;
                 sendLog(inTransitFilename);
                 entry.close();
 
                 // Do not send more than one file at the same time
                 root.close();
-                return;
+                return true;
             }
 
             root.close();
         }
 
         log_d("No logfiles to send for now.");
+        return false;
     }
 
     void Logger::flushSentLogfile() {
