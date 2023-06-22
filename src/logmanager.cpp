@@ -220,9 +220,10 @@ namespace LOGNS {
             File entry;
 
             while (entry = root.openNextFile()) {
-                if (entry.isDirectory()) { continue; }
+                if (entry.isDirectory()) { entry.close(); continue; }
 
                 if (strncmp("log_", entry.name(), strlen("log_")) != 0) {
+                    entry.close();
                     continue;
                 }
 
