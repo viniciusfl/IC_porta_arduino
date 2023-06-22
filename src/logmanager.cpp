@@ -61,7 +61,7 @@ namespace LOGNS {
 
             void createNewLogfile();
             void sendNextLogfile();
-            bool verifyLogFileSize();
+            bool verifyLogFileSize(int newLogSize);
 
             unsigned long lastLogCheck = 0;
             bool sendingLogfile = false;
@@ -156,14 +156,15 @@ namespace LOGNS {
                     getTime(), doorID, readerID, authorized, cardID);
         }
 
+        if (numberOfRecords > MAX_RECORDS || verifyLogFileSize(100)) {
+            createNewLogfile();
+            lastLogfileSentTime = currentMillis;
+        }
+
         logfile.print(buffer);
         logfile.flush();
         numberOfRecords++;
 
-        if (numberOfRecords > MAX_RECORDS) {
-            createNewLogfile();
-            lastLogfileSentTime = currentMillis;
-        }
     }
 
     void Logger::logEvent(const char* message) {
@@ -178,14 +179,15 @@ namespace LOGNS {
                      getTime(), doorID, message);
         }
 
+        if (numberOfRecords > MAX_RECORDS || verifyLogFileSize(192)) {
+            createNewLogfile();
+            lastLogfileSentTime = currentMillis;
+        }
+
         logfile.print(buffer);
         logfile.flush();
         numberOfRecords++;
 
-        if (numberOfRecords > MAX_RECORDS || verifyLogFileSize()) {
-            createNewLogfile();
-            lastLogfileSentTime = currentMillis;
-        }
     }
 
     void Logger::processLogs() {
@@ -222,9 +224,9 @@ namespace LOGNS {
         sendNextLogfile();
     }
 
-    bool Logger::verifyLogFileSize() {
+    bool Logger::verifyLogFileSize(int newLogSize) {
         File f = SD.open(logfilename);
-        int size = f.size();
+        int size = f.size() + newLogSize;
         f.close();
         if (size >= MAX_LOG_FILE_SIZE) return true;
         return false;
