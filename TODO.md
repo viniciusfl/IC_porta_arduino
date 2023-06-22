@@ -15,12 +15,12 @@
 
    - The code in `processLogs()` that checks whether there are too many
      messages in the current log file should be migrated to `logEvent()`
-     and `logAccess()`
+     and `logAccess()` - CHECK IF THIS IS OK
 
    - The code should not only check the total number of messages but
      also the size the file would become if the current message were
      added to it; if that value is too large, rotate the log. A good
-     limit is probably 5KB.
+     limit is probably 5KB. - CHECK IF THIS IS OK
 
    - After we make sure no file will be larger than 5KB, eliminate
      the "malloc" in MqttManager::sendLog and use a fixed buffer
