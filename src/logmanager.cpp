@@ -242,28 +242,28 @@ namespace LOGNS {
             File entry;
 
             while (entry = root.openNextFile()) {
-                if (entry.isDirectory()) { entry.close(); continue; }
-
-                if (strncmp("log_", entry.name(), strlen("log_")) != 0) {
-                    entry.close();
-                    continue;
-                }
-
+                // Skip directories, files that are not named like "log_*",
+                // and the logfile that is still being written to.
                 // "+1" means "skip the initial slash character"
-                if (strcmp(logfilename+1, entry.name()) != 0) {
-                    log_d("Found a logfile to send: %s", entry.name());
-                    snprintf(inTransitFilename, 100, "/logs/%d/%s", i, entry.name());
-                    sendingLogfile = true;
-                    lastLogfileSentTime = currentMillis;
-                    sendLog(inTransitFilename);
-                    entry.close();
-                    root.close();
+                if (
+                          entry.isDirectory()
+                      || (strncmp("log_", entry.name(), strlen("log_")) != 0)
+                      || (strcmp(logfilename+1, entry.name()) != 0)
+                   )
+                      { entry.close(); continue; }
 
-                    return; // Do not send anything else
-                }
+                log_d("Found a logfile to send: %s", entry.name());
+                snprintf(inTransitFilename, 100, "/logs/%d/%s", i, entry.name());
+                sendingLogfile = true;
+                lastLogfileSentTime = currentMillis;
+                sendLog(inTransitFilename);
+                entry.close();
+
+                // Do not send more than one file at the same time
+                root.close();
+                return;
             }
 
-            entry.close();
             root.close();
         }
 
