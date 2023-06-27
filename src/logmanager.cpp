@@ -8,12 +8,16 @@ static const char *TAG = "log";
 #include <timemanager.h> // getTime()
 #include <mqttmanager.h> // sendLog and isClientConnected
 
-// This does three things:
+// This does four things:
 //
 //  1. Receives log messages and writes them to a file on the disk
 //  2. When the file is "big", closes it and opens a new one
-//  3. Sends one file at a time to the controlling server and, if
-//     upload is successful, deletes the sent file
+//  3. Looks for closed log files and enqueues them to be sent
+//     over MQTT to the controlling server (taking care to only
+//     do that if we are online and if there is no file already
+//     being uploaded)
+//  4. When uploading is successful, a callback is called that
+//     deletes the file that was just sent.
 //
 // Log messages are both system logs and access logs, and they are
 // all mixed together; it is up to the server to separate them.
@@ -51,7 +55,7 @@ namespace LOGNS {
         public:
             inline void init();
             void flushSentLogfile(); // erase logfiles that have been sent ok
-            void uploadLogs();
+            void uploadLogs(); // called periodically
             void logEvent(const char* message);
             void logAccess(const char* readerID, unsigned long cardID,
                             bool authorized);
@@ -98,7 +102,8 @@ namespace LOGNS {
     }
 
     inline void Logger::createNewLogfile() {
-        if (!sdPresent) return;
+        if (!sdPresent) { return; }
+
         numberOfRecords = 0;
 
         if (logfile) {
@@ -151,13 +156,11 @@ namespace LOGNS {
     }
 
     void Logger::logAnything(const char* message) {
-        if (logfileTooBig(message)) {
-            createNewLogfile();
-        }
+        if (logfileTooBig(message)) { createNewLogfile(); }
 
         logfile.print(message);
         logfile.flush();
-        numberOfRecords++;
+        ++numberOfRecords;
     }
 
     void Logger::logAccess(const char* readerID, unsigned long cardID,
@@ -219,6 +222,7 @@ namespace LOGNS {
         File f = SD.open(logfilename);
         int size = f.size() + strlen(nextLogMessage);
         f.close();
+        // ">=" and not ">" because we will add a "\0" character
         if (size >= MAX_LOG_FILE_SIZE) { return true; }
 
         return false;
