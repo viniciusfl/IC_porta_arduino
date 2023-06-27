@@ -214,7 +214,7 @@ namespace LOGNS {
     }
 
     bool Logger::logfileTooBig(const char* nextLogMessage) {
-        if (numberOfRecords > MAX_RECORDS) { return true; }
+        if (numberOfRecords +1 > MAX_RECORDS) { return true; }
 
         File f = SD.open(logfilename);
         int size = f.size() + strlen(nextLogMessage);
