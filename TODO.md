@@ -57,8 +57,6 @@
 
 # Other short-term TODOs
 
- * Reconsider the buffer sizes for log messages (currently 192)
-
  * To actually open the door, we may use an ordinary logic level
    converter (https://www.sparkfun.com/products/12009 ): although all
    pages about this device talk about "3.3-5V", the datasheet for the
