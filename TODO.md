@@ -64,7 +64,9 @@
 
  * Choose and set license
 
- * Draw printed circuit board
+ * Draw printed circuit board: <https://www.kicad.org/>
+
+ * Make the circuit board: <https://www.pcbway.com/>
 
  * Smarter logs: we should have an in-memory circular buffer for the log
    messages. During startup, before the logfile is available, messages
