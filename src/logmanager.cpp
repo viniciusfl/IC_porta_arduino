@@ -164,12 +164,12 @@ namespace LOGNS {
                             bool authorized) {
         if (!sdPresent) return;
 
-        char buffer[100];
+        char buffer[1024];
         if (loggingWithoutTime) {
-            snprintf(buffer, 100, "%lu (ACCESS/BOOT#%d): %d %s %d %lu",
+            snprintf(buffer, 1024, "%lu (ACCESS/BOOT#%d): %d %s %d %lu",
                     millis(), bootcount, doorID, readerID, authorized, cardID);
         } else {
-            snprintf(buffer, 100, "%lu (ACCESS): %d %s %d %lu",
+            snprintf(buffer, 1024, "%lu (ACCESS): %d %s %d %lu",
                     getTime(), doorID, readerID, authorized, cardID);
         }
 
@@ -179,12 +179,12 @@ namespace LOGNS {
     void Logger::logEvent(const char* message) {
         if (!sdPresent) return;
 
-        char buffer[192];
+        char buffer[1024];
         if (loggingWithoutTime) {
-            snprintf(buffer, 192, "%lu (SYSTEM/BOOT#%d): %d  %s",
+            snprintf(buffer, 1024, "%lu (SYSTEM/BOOT#%d): %d  %s",
                      millis(), bootcount, doorID, message);
         } else {
-            snprintf(buffer, 192, "%lu (SYSTEM): %d %s",
+            snprintf(buffer, 1024, "%lu (SYSTEM): %d %s",
                      getTime(), doorID, message);
         }
 
@@ -288,9 +288,9 @@ namespace LOGNS {
         // (in that case, "%u" becomes "%s"). We may also get the system
         // time here ourselves and ignore this.
         int count;
-        char buf[192];
+        char buf[1024];
         buf[0] = 0;
-        count = vsnprintf(buf, 192, format, ap);
+        count = vsnprintf(buf, 1024, format, ap);
 
         Serial.print(buf);
         logger.logEvent(buf);
