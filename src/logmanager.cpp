@@ -270,7 +270,7 @@ namespace LOGNS {
         log_v("Finished sending logfile %s.", inTransitFilename);
         sendingLogfile = false;
         log_d("Removing sent logfile: %s", inTransitFilename);
-        SD.remove(inTransitFilename);
+        if (SD.exists(inTransitFilename)) { SD.remove(inTransitFilename); }
         inTransitFilename[0] = 0;
     }
 

@@ -61,8 +61,8 @@ namespace DBNS {
     inline bool UpdateDBManager::startDBDownload() {
         log_d("Starting DB download");
 
-        SD.remove(otherFileStatus);
-        SD.remove(otherFile);
+        if (SD.exists(otherFileStatus)) { SD.remove(otherFileStatus); };
+        if (SD.exists(otherFile)) { SD.remove(otherFile); };
 
         file = SD.open(otherFile, FILE_WRITE);
         if(!file) {
@@ -93,7 +93,7 @@ namespace DBNS {
     inline void UpdateDBManager::cancelDBDownload() {
         log_i("DB download cancelled");
         file.close();
-        SD.remove(otherFile);
+        if (SD.exists(otherFile)) { SD.remove(otherFile); };
     }
 
     inline void UpdateDBManager::activateNewDBFile() {
@@ -194,10 +194,10 @@ namespace DBNS {
     }
 
     void UpdateDBManager::clearAllDBFiles() {
-        SD.remove(currentFile);
-        SD.remove(otherFile);
-        SD.remove(currentFileStatus);
-        SD.remove(otherFileStatus);
+        if (SD.exists(currentFile)) { SD.remove(currentFile); };
+        if (SD.exists(otherFile)) { SD.remove(otherFile); };
+        if (SD.exists(currentFileStatus)) { SD.remove(currentFileStatus); };
+        if (SD.exists(otherFileStatus)) { SD.remove(otherFileStatus); };
 
         File f = SD.open(currentFileStatus, FILE_WRITE);
         f.print(0);
