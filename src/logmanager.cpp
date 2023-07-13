@@ -1,5 +1,21 @@
 static const char *TAG = "log";
 
+// TODO: adapt this when arduino-esp32 migrates to ESP-IDF version 5.
+//
+// ESP-IDF version 4, currently used by arduino-esp32, offers
+// the function compare_and_set_native(addr1, val, addr2)
+// from <compare_set.h> . In version 5, this was replaced by
+// esp_cpu_compare_and_set(addr1, val1, val2) from <esp_cpu.h>.
+//
+// compare_and_set_native(addr1, val, addr2) does not return
+// anything. If the value in addr1 is val, it swaps the
+// contents of addr1 and addr2.
+//
+// esp_cpu_compare_and_set(addr, val1, val2) returns a boolean
+// indicating if the operation succeeded or not. It checks
+// whether the value in addr in val1; if so, it changes it to
+// val2 and returns true.
+
 //#include <esp_cpu.h> // esp_cpu_compare_and_set()
 #include <compare_set.h> // compare_and_set_native()
 #include <stdlib.h> // rand()
@@ -311,15 +327,16 @@ namespace LOGNS {
         logAnything(buffer);
     }
 
+    // TODO Check the comment at the beginning of the file.
+    // This should work with ESP-IDF version >= 5
     /*
     void Logger::chooseLogfile() {
-        int id = rand() % NUM_SIMULTANEOUS_FILES;
-        logfile = &(files[id]);
-        while (not esp_cpu_compare_and_set(&(logfile->inUse), 0, 1)) {
+        int id = rand();
+        do {
             ++id;
             id %= NUM_SIMULTANEOUS_FILES;
             logfile = &(files[id]);
-        }
+        } while (not esp_cpu_compare_and_set(&(logfile->inUse), 0, 1))
     }
     */
 
@@ -414,7 +431,7 @@ namespace LOGNS {
     }
 
     // TODO traversing the dirs may take some time, so this might
-    //      make the lock unresponsive. If this proves to be the
+    //      make the system unresponsive. If this proves to be the
     //      case, we need to do something.
     bool LogManager::sendNextLogfile() {
         log_d("Searching for logs in SD to send...");
