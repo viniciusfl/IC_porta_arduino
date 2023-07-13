@@ -1,5 +1,15 @@
 # Short-term TODOs - Vinicius
 
+ * Logging is neither thread-safe nor reentrant
+
+   - According to the docs, "log calls are thread-safe", but this does not
+     seem to be true. In any case, `logmessage()` should be reentrant, but
+     it is not because `logAnything()` definitely is not.
+
+   - Check this out: <https://github.com/esp32m/logging>
+
+   - <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/pthread.html>
+
  * When downloading the DB for the first time, we should still
    check for the master key (there is some tentative code for
    this, but I am not sure it works because of the scope of
@@ -64,9 +74,11 @@
 
  * Choose and set license
 
- * Draw printed circuit board: <https://www.kicad.org/>
+ * Draw printed circuit board: <https://www.kicad.org/>,
+   <https://easyeda.com/pt>
 
- * Make the circuit board: <https://www.pcbway.com/>
+ * Make the circuit board: <https://www.pcbway.com/>,
+   <https://www.allpcb.com/activity/prototype2023.html>
 
  * Smarter logs: we should have an in-memory circular buffer for the log
    messages. During startup, before the logfile is available, messages
@@ -127,6 +139,8 @@
    - A combination of the above: if the data is not in the NVS or SPIFFS,
      check the SD card; if it is not there, try to connect to the default
      access point; if it is not available, start as an access point.
+
+   - Ver melhor isto: <https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/provisioning/index.html>
 
  * We might record things such as the doorID and net credentials in the
    NVS (non-volatile storage) with the preferences library or in the SPIFFS:
