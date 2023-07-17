@@ -1,40 +1,11 @@
 # Short-term TODOs - Vinicius
 
- * Logging is neither thread-safe nor reentrant
-
-   - According to the docs, "log calls are thread-safe", but this does not
-     seem to be true. In any case, `logmessage()` should be reentrant, but
-     it is not because `logAnything()` definitely is not.
-
-   - Check this out: <https://github.com/esp32m/logging>
-
-   - <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/pthread.html>
-
  * When downloading the DB for the first time, we should still
    check for the master key (there is some tentative code for
    this, but I am not sure it works because of the scope of
-   the variables used by `checkDoor()`.
+   the variables used by `checkDoor()`).
 
  * Check whether the timestamp is added twice to the log messages
-
- * Handle multiline log messages: we should save each message
-   to disk with a final "\0" character and, on the controlling
-   server, split messages on this character instead of "\n"
-
- * Limit log file size:
-
-   - The code in `processLogs()` that checks whether there are too many
-     messages in the current log file should be migrated to `logEvent()`
-     and `logAccess()` - CHECK IF THIS IS OK
-
-   - The code should not only check the total number of messages but
-     also the size the file would become if the current message were
-     added to it; if that value is too large, rotate the log. A good
-     limit is probably 5KB. - CHECK IF THIS IS OK
-
-   - After we make sure no file will be larger than 5KB, eliminate
-     the "malloc" in MqttManager::sendLog and use a fixed buffer
-     instead.
 
  * Error handling:
 
@@ -46,7 +17,7 @@
      that.
 
    - Check how does MQTT handle timeouts and figure out how to handle
-     timeout errors.
+     timeout (and other) errors.
 
  * Check whether openDoor, denyToOpenDoor, blinkOK, and blinkFail do
    what they are supposed to do:
@@ -66,6 +37,64 @@
 
 
 # Other short-term TODOs
+
+ * Filedescriptors
+
+   - dbmanager maintains a file open at all times: the DB file in use
+   - dbmanager also uses another file filedescriptor for the new DB file
+     being downloaded (when downloading is finished, lots of files are
+     opened and closed, but never more than 1 is open at once)
+   - logmanager maintains a file open at all times: the log file in use
+   - logmanager may also be in either of these states:
+     - sending a file (1 open file)
+     - searching for a file to send (2 open files)
+
+   This *seems* to be ok, as we never go beyond 5, which is the maximum.
+   If, however, we need to reduce this, we may:
+     - unsubscribe from the "update DB" MQTT channel. Then periodically
+       stop sending logfiles, re-subscribe to the "update DB" channel
+       to download the new DB if necessary and, after that is done,
+       unsubscribe again and resume processing logfiles.
+     - not use the SD API when searching for logfiles to send. With
+       the "normal" FAT API, instead of `openNextFile()` we may obtain
+       the *name* of the file, so we never need to have the directory
+       and the file open at the same time.
+
+ * Make activateNewDBFile() thread-safe (someone may want to open the
+   door while we are swapping the DB files). A simple solution is to
+   simply test whether the DB is available and fail if it is not (it
+   should be available again shortly, so the user just needs to try
+   again). Another is to wait for it to be available before checking
+   whether the user is authorized.
+
+ * Logging is neither thread-safe nor reentrant
+
+   - According to the docs, "log calls are thread-safe", but this does not
+     seem to be true. In any case, `logmessage()` should be reentrant, but
+     it is not because `logAnything()` definitely is not.
+
+   - Check this out: <https://github.com/esp32m/logging>
+
+   - <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/pthread.html>
+
+ * Handle multiline log messages: we should save each message
+   to disk with a final "\0" character and, on the controlling
+   server, split messages on this character instead of "\n"
+
+ * Limit log file size:
+
+   - The code in `processLogs()` that checks whether there are too many
+     messages in the current log file should be migrated to `logEvent()`
+     and `logAccess()` - CHECK IF THIS IS OK
+
+   - The code should not only check the total number of messages but
+     also the size the file would become if the current message were
+     added to it; if that value is too large, rotate the log. A good
+     limit is probably 5KB. - CHECK IF THIS IS OK
+
+   - After we make sure no file will be larger than 5KB, eliminate
+     the "malloc" in MqttManager::sendLog and use a fixed buffer
+     instead.
 
  * To actually open the door, we may use an ordinary logic level
    converter (https://www.sparkfun.com/products/12009 ): although all
