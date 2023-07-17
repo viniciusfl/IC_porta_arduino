@@ -393,7 +393,7 @@ namespace LOGNS {
             bool sendNextLogfile();
             unsigned long lastLogCheckTime = 0;
             unsigned long lastLogSentTime = 0;
-            bool findFileToSend(File& entry, const char* currentPath);
+            bool findFileToSend();
     };
 
 
@@ -430,17 +430,13 @@ namespace LOGNS {
         inTransitFilename[0] = 0;
     }
 
-    // TODO traversing the dirs may take some time, so this might
-    //      make the system unresponsive. If this proves to be the
-    //      case, we need to do something.
+    // TODO this may take some time, so it might make the system
+    //      unresponsive. If this proves to be the case, we will
+    //      need to do something.
     bool LogManager::sendNextLogfile() {
         log_d("Searching for logs in SD to send...");
 
-        File root = SD.open("/logs"); // FIXME: maybe "/logs/" ???
-        bool found = findFileToSend(root, "/logs");
-        root.close();
-
-        if (found) {
+        if (findFileToSend()) {
             log_d("Found a logfile to send: %s", inTransitFilename);
             sendingLogfile = true;
             sendLog(inTransitFilename);
@@ -452,25 +448,31 @@ namespace LOGNS {
         }
     }
 
-    bool LogManager::findFileToSend(File& entry, const char* currentPath) {
+    // This uses 2 open files (we can only have 5)
+    bool LogManager::findFileToSend() {
         bool found = false;
 
-        if (entry.isDirectory()) {
-            while (! found) {
-                File subentry = entry.openNextFile();
-                if (!subentry) { break; }
+        for (int i = 0; i < NUM_SUBDIRS && ! found; ++i) {
+            for (int j = 0; j < NUM_SIMULTANEOUS_FILES && ! found; ++j) {
+                char dirnamebuf[12];
+                snprintf(dirnamebuf, 12, "/logs/%.2d/%.2d", i, j);
+                File dir = SD.open(dirnamebuf);
 
-                char buf[30];
-                snprintf(buf, 30, "%s/%s", currentPath, entry.name());
+                while (!found) {
+                    File f = dir.openNextFile();
+                    if (!f) { break; }
 
-                found = findFileToSend(subentry, buf);
-                subentry.close();
+                    char filenamebuf[30];
+                    snprintf(filenamebuf, 30, "%s/%s", dirnamebuf , f.name());
+                    f.close();
+                    if(! logger.fileIsInUse(filenamebuf)) {
+                        strncpy(inTransitFilename, filenamebuf, 30);
+                        found = true;
+                    }
+                }
+
+                dir.close();
             }
-
-        } else if (! logger.fileIsInUse(entry.name())) {
-            snprintf(inTransitFilename, 30, "%s/%s",
-                     currentPath, entry.name());
-            found = true;
         }
 
         return found;
