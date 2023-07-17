@@ -38,6 +38,9 @@
 
 # Other short-term TODOs
 
+ * Change the logging code to use multiple memory buffers instead of
+   multiple open files
+   
  * Filedescriptors
 
    - dbmanager maintains a file open at all times: the DB file in use
