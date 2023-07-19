@@ -24,6 +24,8 @@ static const char *TAG = "log";
 
 #include <Arduino.h>
 #include <SD.h>
+#include <dirent.h>
+#include <fnmatch.h>
 
 #include <timemanager.h> // getTime()
 #include <mqttmanager.h> // sendLog() and isClientConnected()
@@ -448,30 +450,47 @@ namespace LOGNS {
         }
     }
 
-    // This uses 2 open files (we can only have 5)
+    // Using readdir() instead of SD.openNextFile() here allows us to
+    // use only one file descriptor (the directory) instead of two (the
+    // directory and the file, necessary to get the filename).
     bool LogManager::findFileToSend() {
         bool found = false;
 
         for (int i = 0; i < NUM_SUBDIRS && ! found; ++i) {
             for (int j = 0; j < NUM_SIMULTANEOUS_FILES && ! found; ++j) {
-                char dirnamebuf[12];
-                snprintf(dirnamebuf, 12, "/logs/%.2d/%.2d", i, j);
-                File dir = SD.open(dirnamebuf);
+                char dirnamebuf[15];
+                snprintf(dirnamebuf, 15, "/sd/logs/%.2d/%.2d", i, j);
+
+                DIR* dir = opendir(dirnamebuf);
 
                 while (!found) {
-                    File f = dir.openNextFile();
-                    if (!f) { break; }
+                    struct dirent* entry = readdir(dir);
 
+                    if (NULL == entry) { break; }
+
+                    int result = fnmatch("*.log", entry->d_name, 0);
+
+                    // Skip stuff like ".", ".." etc.
+                    if (result == FNM_NOMATCH) { continue; }
+
+                    if (result != 0) {
+                        log_w("Something wrong happened while "
+                              "searching for a logfile to send");
+                        break;
+                    }
+
+                    // "+3" means "skip the initial '/sd' "
                     char filenamebuf[30];
-                    snprintf(filenamebuf, 30, "%s/%s", dirnamebuf , f.name());
-                    f.close();
+                    snprintf(filenamebuf, 30, "%s/%s", dirnamebuf +3,
+                             entry->d_name);
+
                     if(! logger.fileIsInUse(filenamebuf)) {
                         strncpy(inTransitFilename, filenamebuf, 30);
                         found = true;
                     }
                 }
 
-                dir.close();
+                closedir(dir);
             }
         }
 
