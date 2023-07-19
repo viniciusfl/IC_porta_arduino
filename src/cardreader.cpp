@@ -94,10 +94,12 @@ namespace ReaderNS {
     // Notifies when a reader has been connected or disconnected.
     // Instead of a message, the seconds parameter can be anything you want --
     // Whatever you specify on `wiegand.onStateChange()`
+    // TODO: we should not try to log things inside a callback
     void IRAM_ATTR stateChanged(bool plugged, const char* message) {
         log_i("%s %s", message, plugged ? "CONNECTED" : "DISCONNECTED");
     }
 
+    // TODO: we should not try to log things inside a callback
     void IRAM_ATTR receivedDataError(Wiegand::DataError error,
                                      uint8_t* rawData, uint8_t rawBits,
                                      const char* message) {
