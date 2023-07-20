@@ -22,6 +22,8 @@ static const char* TAG = "card";
 // exactly the same time will probably fail (we use a single data buffer
 // for all readers). For our use case at least, that is irrelevant.
 
+// TODO: it is probably a good idea to put this on a high-priority task
+
 namespace ReaderNS {
 
     void IRAM_ATTR captureIncomingData(uint8_t* data, uint8_t bits,

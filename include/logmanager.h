@@ -81,6 +81,8 @@ ARDUHAL_LOG_LEVEL_VERBOSE (5)
 
 void initLog();
 
+void initDiskLog();
+
 void logAccess(const char* readerID, unsigned long cardID,
                   bool authorized);
 

@@ -35,13 +35,16 @@
  * `MASTER_KEY` should be a (hardcoded) list of possible keys (also
    using the SHA256 hash, as described above)
 
-
 # Other short-term TODOs
 
- * Change the logging code to use multiple memory buffers instead of
-   multiple open files
-   
- * Filedescriptors
+ * Logging!
+
+ * Filedescriptors - check that we are ok
+
+   - By default, the FAT filesystem is configured to allow a maximum of 5
+     simultaneously open files.
+
+   - FAT FS: <https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/storage/fatfs.html>
 
    - dbmanager maintains a file open at all times: the DB file in use
    - dbmanager also uses another file filedescriptor for the new DB file
@@ -50,18 +53,9 @@
    - logmanager maintains a file open at all times: the log file in use
    - logmanager may also be in either of these states:
      - sending a file (1 open file)
-     - searching for a file to send (2 open files)
-
-   This *seems* to be ok, as we never go beyond 5, which is the maximum.
-   If, however, we need to reduce this, we may:
-     - unsubscribe from the "update DB" MQTT channel. Then periodically
-       stop sending logfiles, re-subscribe to the "update DB" channel
-       to download the new DB if necessary and, after that is done,
-       unsubscribe again and resume processing logfiles.
-     - not use the SD API when searching for logfiles to send. With
-       the "normal" FAT API, instead of `openNextFile()` we may obtain
-       the *name* of the file, so we never need to have the directory
-       and the file open at the same time.
+     - searching for a file to send (1 open file)
+   - This all means we *probably* never have more than 4 open files at
+     the same time
 
  * Make activateNewDBFile() thread-safe (someone may want to open the
    door while we are swapping the DB files). A simple solution is to
@@ -69,16 +63,6 @@
    should be available again shortly, so the user just needs to try
    again). Another is to wait for it to be available before checking
    whether the user is authorized.
-
- * Logging is neither thread-safe nor reentrant
-
-   - According to the docs, "log calls are thread-safe", but this does not
-     seem to be true. In any case, `logmessage()` should be reentrant, but
-     it is not because `logAnything()` definitely is not.
-
-   - Check this out: <https://github.com/esp32m/logging>
-
-   - <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/pthread.html>
 
  * Handle multiline log messages: we should save each message
    to disk with a final "\0" character and, on the controlling

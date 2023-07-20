@@ -42,6 +42,8 @@ void setup() {
     while (!Serial) { ; }
     delay(2000);
 
+    initLog();
+
     currentMillis = millis();
 
     // Try to set the system time from the HW clock, so the timestamp for
@@ -55,9 +57,8 @@ void setup() {
     } else {
         log_v("SD connected.");
         sdPresent = true;
+        initDiskLog();
     }
-
-    initLog(); // Send logs to disk, after initTimeOffline() and SD.begin()
 
     initWiFi(); // The sooner the better :), but after disk logging is up
 
