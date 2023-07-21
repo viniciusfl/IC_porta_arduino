@@ -131,7 +131,7 @@ namespace LOGNS {
     } QueueMessage;
 
 #   define QUEUE_LENGTH 10
-#   define QUEUE_ITEM_SIZE sizeof(QueueMessage*)
+#   define QUEUE_ITEM_SIZE sizeof(QueueMessage)
 
     QueueHandle_t logQueue;
 
