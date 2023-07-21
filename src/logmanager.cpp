@@ -200,6 +200,7 @@ namespace LOGNS {
             while (thebuf[first++] != '\0') {
                 if (first >= RINGBUF_SIZE) { first = 0; };
             };
+            if (first >= RINGBUF_SIZE) { first = 0; };
         }
     }
 
@@ -232,6 +233,7 @@ namespace LOGNS {
 
         outbuf[j] = '\0';
         ++i;
+        if (i >= RINGBUF_SIZE) { i = 0; }
 
         if (oldfirst != first) { return false; }
 
