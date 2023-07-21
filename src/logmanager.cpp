@@ -220,17 +220,17 @@ namespace LOGNS {
     //    addchar() would simply update "first" again to the same value.
     //    More importantly, this should never happen in practice because
     //    addchar() is always run from a higher-priority thread.
-    bool Ringbuf::read(char* buf) {
+    bool Ringbuf::read(char* outbuf) {
         int i = first;
         int oldfirst = i;
         int j = 0;
 
         while (thebuf[i] != '\0') {
-            buf[j++] = thebuf[i++];
+            outbuf[j++] = thebuf[i++];
             if (i >= RINGBUF_SIZE) { i = 0; }
         }
 
-        buf[j] = '\0';
+        outbuf[j] = '\0';
         ++i;
 
         if (oldfirst != first) { return false; }
