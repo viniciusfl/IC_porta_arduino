@@ -11,6 +11,9 @@ static const char *TAG = "log";
 #include <dirent.h>
 #include <fnmatch.h>
 
+#include <nvs_flash.h>
+#include <nvs.h>
+
 #include <timemanager.h> // getTime()
 #include <mqttmanager.h> // sendLog() and isClientConnected()
 
@@ -250,33 +253,79 @@ namespace LOGNS {
             inline void init();
             int stamp(char* buf);
         private:
+            inline void getBootcountFromNVS();
             inline int countStamp(char* buf); // always uses bootcount
             inline int clockStamp(char* buf); // always uses current time
-            int bootcount;
+            uint32_t bootcount;
             bool timeAlreadySet;
     };
 
-    // TODO save this to the ESP32 flash memory instead of the SD card
-    //      We really need this because this code assumes the SD card exists
     inline void TimeStamper::init() {
-        File boot;
-
-        if (SD.exists("/bootcnt.txt")) {
-            boot = SD.open("/bootcnt.txt", FILE_READ);
-            bootcount = boot.parseInt();
-            boot.close();
-        }
-
-        ++bootcount;
-
-        boot = SD.open("/bootcnt.txt", FILE_WRITE);
-        boot.print(bootcount);
-        boot.close();
+        getBootcountFromNVS();
 
         char buf[120];
         int n = countStamp(buf);
         snprintf(buf +n, 120 -n, "|%d| (LOGGING): boot detected", doorID);
         logString(buf);
+    }
+
+    inline void TimeStamper::getBootcountFromNVS() {
+        bootcount = 1;
+
+        log_d("Initializing NVS");
+        esp_err_t err = nvs_flash_init();
+        if  ( err == ESP_ERR_NVS_NO_FREE_PAGES
+           || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+
+            // NVS partition was truncated and needs to be erased
+            ESP_ERROR_CHECK(nvs_flash_erase());
+            err = nvs_flash_init();
+        }
+        ESP_ERROR_CHECK( err );
+
+        log_v("Opening NVS");
+        nvs_handle_t nvsHandle;
+        err = nvs_open("storage", NVS_READWRITE, &nvsHandle);
+        if (err != ESP_OK) {
+            log_e("Error (%s) opening NVS handle!", esp_err_to_name(err));
+            return;
+        }
+
+        log_v("NVS OK!");
+
+        err = nvs_get_u32(nvsHandle, "bootcount", &bootcount);
+        switch (err) {
+            case ESP_OK:
+                ++bootcount;
+                break;
+            case ESP_ERR_NVS_NOT_FOUND:
+                log_d("No bootcount in NVS (this is the first boot)");
+                break;
+            default:
+                log_e("Error (%s) reading bootcount from NVS",
+                      esp_err_to_name(err));
+                nvs_close(nvsHandle);
+                return;
+        }
+
+        err = nvs_set_u32(nvsHandle, "bootcount", bootcount);
+        if (ESP_OK != err) {
+                log_e("Error (%s) writing bootcount to NVS",
+                      esp_err_to_name(err));
+                nvs_close(nvsHandle);
+                return;
+        }
+
+        log_d("Committing updates to NVS");
+        err = nvs_commit(nvsHandle);
+        if (ESP_OK != err) {
+                log_e("Error (%s) commiting bootcount to NVS",
+                      esp_err_to_name(err));
+                nvs_close(nvsHandle);
+                return;
+        }
+
+        nvs_close(nvsHandle);
     }
 
     // There is a race condition here: timeAlreadySet may be set to true
