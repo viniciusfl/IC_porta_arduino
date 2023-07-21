@@ -159,17 +159,18 @@
    - Ver melhor isto: <https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/provisioning/index.html>
 
  * We might record things such as the doorID and net credentials in the
-   NVS (non-volatile storage) with the preferences library or in the SPIFFS:
+   NVS (non-volatile storage) with the preferences library or in FFAT.
+   ESP32 supports FAT filesystems. If the flash memory contains a
+   partition labelled "ffat", it mounts that partition at the `/ffat`
+   path (check `tools/partitions/ffat.csv`). It also offers a "FFat"
+   object that apparently is similar to the "SD" object. FFat allows
+   up to 10 simultaneously open files (but it consumes 48KB of memory,
+   so adding an ffat partition reduces the available memory). The SD
+   card allows up to 5 simultaneously open files, so its memory
+   overhead is lower. I suppose that for these data, NVS is a better
+   choice.
    https://randomnerdtutorials.com/esp32-vs-code-platformio-spiffs/
    https://blog.espressif.com/building-products-creating-unique-factory-data-images-3f642832a7a3
-
- * The minimum size of an SQLite database is one page for each table and
-   each index, and the minimum page size is 512 bytes.
-   https://www.sqlite.org/pgszchng2016.html . If we change the page size
-   to 512 bytes:
-   https://www.oreilly.com/library/view/using-sqlite/9781449394592/re194.html
-   a DB with a small number of entries will probably be 2-4KB and fit
-   the NVS. We could use that to store everything we need.
 
  * It is probably safe to use up to 5KB of NVS space:
    https://stackoverflow.com/a/58562855/15695987
