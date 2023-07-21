@@ -113,7 +113,7 @@ static const char *TAG = "log";
 // hears from us on a somewhat regular basis.
 #define MAX_IDLE_TIME 3600000 // 1 hour
 
-// We check the disk periodically for logfiles to upload.
+// Check the disk periodically for logfiles to upload.
 #define LOG_SEARCH_INTERVAL 15000 // 15 seconds
 
 // Divide the log files in a few subdirectories to avoid filesystem
