@@ -357,6 +357,8 @@ namespace LOGNS {
     }
 
     inline bool Logfile::isMyCurrentName(const char* name) {
+        if (strcmp(filename, name) == 0) { return true; } // check full path
+
         const char* myname = filename +9; // skip the initial "/logs/XY/"
         return strcmp(myname, name) == 0;
     }
