@@ -620,13 +620,20 @@ namespace LOGNS {
         }
     }
    
+    // It would be better if xQueueReceive would block indefinitely if
+    // there are no messages in the queue, but apparently this behavior
+    // is not enabled with ESP32 (INCLUDE_vTaskSuspend is not 1), so
+    // we set an arbitrary timeout and check for the return status.
     void ringbufWriter(void* params) {
         QueueMessage received;
         for(;;) {
-            xQueueReceive(logQueue, &received, (TickType_t) 0);
-            ringbuf.write(received.message);
-            xTaskNotify(received.taskID, 0, eNoAction);
-            if (logToDisk) { xTaskNotify(readerTask, 0, eNoAction); }
+            if (pdTRUE == xQueueReceive(logQueue, &received,
+                                        pdMS_TO_TICKS(10000)) { // 10s
+
+                ringbuf.write(received.message);
+                xTaskNotify(received.taskID, 0, eNoAction);
+                if (logToDisk) { xTaskNotify(readerTask, 0, eNoAction); }
+            }
         }
     }
 
