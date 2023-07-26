@@ -690,8 +690,6 @@ namespace LOGNS {
     }
 
     void init() {
-        timestamper.init();
-
         logQueue = xQueueCreateStatic(QUEUE_LENGTH, QUEUE_ITEM_SIZE,
                                         queueStorage, &queueBuffer);
 
@@ -704,6 +702,8 @@ namespace LOGNS {
                                     writerTaskStackStorage,
                                     &writerTaskBuffer,
                                     tskNO_AFFINITY);
+
+        timestamper.init();
     }
 
     void initDiskLog() {
