@@ -147,7 +147,7 @@ namespace LOGNS {
                                              (void*) &msg,
                                              pdMS_TO_TICKS(400)); // 400ms
 
-        // this message will be lost; should'd really happen
+        // this message will be lost; shouldn't really happen
         if (result != pdTRUE) { return; }
 
         // wait forever, otherwise the other thread
