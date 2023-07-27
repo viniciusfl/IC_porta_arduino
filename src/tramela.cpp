@@ -77,7 +77,7 @@ void setup() {
             log_e("Failed to obtain time from both HW clock "
                   "and network too many times, restarting");
             ESP.restart(); // Desperate times call for desperate measures
-        } else if (attempts > 20) { // 40 seconds
+        } else if (attempts % 20 == 0) { // 40 seconds, 80 seconds
             log_i("Failed to obtain time from both HW clock "
                   "and network, resetting network");
 
