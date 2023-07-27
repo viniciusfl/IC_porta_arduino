@@ -628,7 +628,7 @@ namespace LOGNS {
         QueueMessage received;
         for(;;) {
             if (pdTRUE == xQueueReceive(logQueue, &received,
-                                        pdMS_TO_TICKS(10000)) { // 10s
+                                        pdMS_TO_TICKS(10000))) { // 10s
 
                 ringbuf.write(received.message);
                 xTaskNotify(received.taskID, 0, eNoAction);
