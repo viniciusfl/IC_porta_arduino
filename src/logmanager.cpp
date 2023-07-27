@@ -263,9 +263,9 @@ namespace LOGNS {
     inline void TimeStamper::init() {
         getBootcountFromNVS();
 
-        char buf[120];
+        char buf[80];
         int n = countStamp(buf);
-        snprintf(buf +n, 120 -n, "|%d| (LOGGING): boot detected", doorID);
+        snprintf(buf +n, 80 -n, "|%d| (LOGGING): boot detected", doorID);
         logString(buf);
     }
 
