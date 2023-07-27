@@ -270,9 +270,13 @@ namespace LOGNS {
     }
 
     inline void TimeStamper::getBootcountFromNVS() {
-        bootcount = 1;
+        bootcount = 0;
+        char buf[100];
+        int n;
 
-        log_d("Initializing NVS");
+        n = countStamp(buf);
+        snprintf(buf +n, 100 -n, "|%d| (LOGGING): Initializing NVS", doorID);
+        logString(buf);
         esp_err_t err = nvs_flash_init();
         if  ( err == ESP_ERR_NVS_NO_FREE_PAGES
            || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -283,15 +287,22 @@ namespace LOGNS {
         }
         ESP_ERROR_CHECK( err );
 
-        log_v("Opening NVS");
+        n = countStamp(buf);
+        snprintf(buf +n, 100 -n, "|%d| (LOGGING): Opening NVS", doorID);
+        logString(buf);
         nvs_handle_t nvsHandle;
         err = nvs_open("storage", NVS_READWRITE, &nvsHandle);
         if (err != ESP_OK) {
-            log_e("Error (%s) opening NVS handle!", esp_err_to_name(err));
+            n = countStamp(buf);
+            snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) opening "
+                     "NVS handle!", doorID, esp_err_to_name(err));
+            logString(buf);
             return;
         }
 
-        log_v("NVS OK!");
+        n = countStamp(buf);
+        snprintf(buf +n, 100 -n, "|%d| (LOGGING): NVS OK!", doorID);
+        logString(buf);
 
         err = nvs_get_u32(nvsHandle, "bootcount", &bootcount);
         switch (err) {
@@ -299,28 +310,48 @@ namespace LOGNS {
                 ++bootcount;
                 break;
             case ESP_ERR_NVS_NOT_FOUND:
-                log_d("No bootcount in NVS (this is the first boot)");
+                bootcount = 1;
+                n = countStamp(buf);
+                snprintf(buf +n, 100 -n, "|%d| (LOGGING): No bootcount "
+                         "in NVS (this is the first boot)", doorID);
+                logString(buf);
                 break;
             default:
-                log_e("Error (%s) reading bootcount from NVS",
-                      esp_err_to_name(err));
+                bootcount = 0;
+                n = countStamp(buf);
+                snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) reading "
+                         "bootcount from NVS", doorID, esp_err_to_name(err));
+                logString(buf);
                 nvs_close(nvsHandle);
                 return;
         }
+
+        n = countStamp(buf);
+        snprintf(buf +n, 100 -n, "|%d| (LOGGING): figured out "
+                 "the boot count (%d)", doorID, bootcount);
+        logString(buf);
 
         err = nvs_set_u32(nvsHandle, "bootcount", bootcount);
         if (ESP_OK != err) {
-                log_e("Error (%s) writing bootcount to NVS",
-                      esp_err_to_name(err));
+            n = countStamp(buf);
+            snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) writing "
+                         "bootcount to NVS", doorID, esp_err_to_name(err));
+                logString(buf);
                 nvs_close(nvsHandle);
                 return;
         }
 
-        log_d("Committing updates to NVS");
+        n = countStamp(buf);
+        snprintf(buf +n, 100 -n, "|%d| (LOGGING): Commiting updates to NVS",
+                 doorID);
+        logString(buf);
         err = nvs_commit(nvsHandle);
         if (ESP_OK != err) {
-                log_e("Error (%s) commiting bootcount to NVS",
-                      esp_err_to_name(err));
+                n = countStamp(buf);
+                snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) "
+                         "commiting bootcount to NVS", doorID,
+                         esp_err_to_name(err));
+                logString(buf);
                 nvs_close(nvsHandle);
                 return;
         }
