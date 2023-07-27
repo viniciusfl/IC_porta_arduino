@@ -633,11 +633,11 @@ namespace LOGNS {
     StaticQueue_t queueBuffer;
 
     StaticTask_t readerTaskBuffer;
-    StackType_t readerTaskStackStorage[2048];
+    StackType_t readerTaskStackStorage[6500];
     TaskHandle_t readerTask;
 
     StaticTask_t writerTaskBuffer;
-    StackType_t writerTaskStackStorage[1024];
+    StackType_t writerTaskStackStorage[2048];
     TaskHandle_t writerTask;
 
     void ringbufReader(void* params) {
@@ -735,7 +735,7 @@ namespace LOGNS {
         writerTask = xTaskCreateStaticPinnedToCore(
                                     ringbufWriter,
                                     "writerTask",
-                                    1024, // stack size
+                                    2048, // stack size
                                     (void*) 1, // params, we are not using this
                                     (UBaseType_t) 6, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,
@@ -751,7 +751,7 @@ namespace LOGNS {
         readerTask = xTaskCreateStaticPinnedToCore(
                                     ringbufReader,
                                     "readerTask",
-                                    2048, // stack size
+                                    6500, // stack size
                                     (void*) 1, // params, we are not using this
                                     (UBaseType_t) 5, // priority
                                     readerTaskStackStorage,
