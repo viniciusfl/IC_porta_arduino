@@ -35,7 +35,7 @@ void checkDoor() {
 }
 
 void setup() {
-    // Cannot log anything to disk before SD.begin(), so we send to Serial
+    // We always try to send logs to the serial port
     Serial.begin(115200);
 
     // wait for serial port to connect. Needed for native USB port only
