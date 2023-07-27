@@ -429,6 +429,8 @@ namespace LOGNS {
     //       size OR instead of calling createNewFile() here just set
     //       shouldRotate to true.
     inline void Logfile::log(const char* message) {
+        Serial.println(message);
+
         if (doesNotFit(message)) { createNewFile(); }
 
         file.print(message);
@@ -721,7 +723,6 @@ namespace LOGNS {
         count = vsnprintf(start, avail, format, ap);
         avail -= count;
 
-        Serial.print(buf);
         logString(buf);
 
         return 1024 - avail;
