@@ -85,7 +85,6 @@ void setup() {
         }
     }
 
-    initLog(); // Rotate logfile to use updated time
     sqlite3_initialize();
     initMqtt();
     initDBMan();
