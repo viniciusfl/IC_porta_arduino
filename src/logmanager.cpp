@@ -25,24 +25,16 @@ static const char *TAG = "log";
   buffer may still be accessed.
 
   Log messages are both system logs and access logs, and they are all
-  mixed together; it is up to the server to separate them.
+  mixed together; it is up to the server to separate them. For the
+  system logs, we reconfigure the ESP32 logging system to use our own
+  vlogEvent() function. For access logs, we use the logAccess()function.
+  For messages generated during the initialization of the logging system,
+  we use logLogEvent().
 
   We may need to log stuff before the system time is correct. When this
   happens, we (1) use millis() as the time and (2) add "BOOT#XX" (where
   "XX" is the boot count) to the log messages so that the server can
   order them.
-
-  The logEvent and logAccess functions and the TimeStamper class are
-  responsible for formatting the messages; the logString function is
-  responsible for enqueueing the messages; the ringbufWriter function
-  processes the queue and saves the messages in the Ringbuf class,
-  which stores the latest messages in memory; the ringbufReader function
-  uses the Logfile class, which reads messages from the ringbuf and
-  writes logs to disk, as well as rotates the file being written to;
-  the LogManager class is responsible for uploading the files; the
-  rest of the code is used to receive and process the log messages in
-  a thread-safe manner.
-
   -----
 
   The docs state that "log calls are thread-safe":
@@ -66,12 +58,12 @@ static const char *TAG = "log";
   What we do is:
 
   1. We replace the default log function with our own. This function
-     writes the formatted message to a buffer and sends the pointer
+     writes the message information to a buffer and sends the pointer
      to it to a FreeRTOS queue, because these queues are thread-safe
 
-  2. On a separate task, we process what comes from the queue by copying
-     the message to a ring buffer; since this is a single task, there
-     are no synchronization issues
+  2. On a separate task, we process what comes from the queue by writing
+     the formatted message to a ring buffer; since this is a single task,
+     there are no synchronization issues
 
   3. On yet another task, we read what is in the ring buffer and write
      to a logfile on disk (using the Logfile class); again, this is a
@@ -83,10 +75,10 @@ static const char *TAG = "log";
   If there is no SD card available, we do not perform steps 3 and 4;
   log messages are still temporarily available in the ring buffer.
 
-  In step 1, we use a stack-allocated memory buffer. This means we cannot
-  return to the caller right away, as that would deallocate the buffer
+  In step 1, we do not copy the data to a new buffer. This means we
+  cannot return to the caller right away, as that would deallocate the
   memory. Instead, we wait for step 2 to finish (when the data is copied
-  to another buffer).
+  to the ringbuffer).
 
   In step 2, we do not write to disk directly because we want to return
   from the log call as fast as possible, and writing to disk may take
@@ -99,6 +91,28 @@ static const char *TAG = "log";
   we are actually online and if we are not currently uploading any files
   (sending multiple files concurrently would consume too much memory).
   After the file is successfully sent, it is deleted.
+
+  Log messages are not simple strings; they are often gererated in
+  printf style, i.e., a format string and some parameters, such as
+  log_e("error %s detected", errorstring). Generating the complete
+  log message depends on allocating a new memory buffer to write
+  the message to. This may take too much stack space in some tasks
+  (notably, the system event task, which by default has a stack size
+  of 2304 bytes), so we do this in the ringbufWriter task instead.
+
+  ---
+
+  The vlogEvent, logAccess, and logLogEvent functions, along with the
+  TimeStamper class, are responsible for adding the message type and
+  timestamp to the messages and sending them over to enqueueLogMessage
+  and venqueueLogMessage. The ringbufWriter function processes the
+  queue, interprets the format string to render the complete message,
+  and saves the messages in the Ringbuf class, which stores the latest
+  messages in memory; the ringbufReader function uses the Logfile
+  class, which reads messages from the ringbuf and writes logs to disk,
+  as well as rotates the file being written to. The LogManager class is
+  responsible for uploading the files; the rest of the code is used to
+  receive and process the log messages in a thread-safe manner.
 */
 
 
