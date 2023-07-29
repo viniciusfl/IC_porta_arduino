@@ -129,34 +129,58 @@ namespace LOGNS {
 
     // We use a FreeRTOS queue to process log messages
     typedef struct {
-        const char* message;
+        const char* type; // "LOGGING", "SYSTEM", or "ACCESS"
+        const char* timestamp;
+        const char* format;
+        va_list* ap_ptr;
         TaskHandle_t taskID;
     } QueueMessage;
 
 #   define QUEUE_LENGTH 10
-#   define QUEUE_ITEM_SIZE sizeof(QueueMessage)
+#   define QUEUE_ITEM_SIZE sizeof(QueueMessage*)
 
     QueueHandle_t logQueue;
 
     bool logToDisk = false;
 
-    void logString(const char* message) {
-        QueueMessage msg = {message, xTaskGetCurrentTaskHandle()};
+    int IRAM_ATTR venqueueLogMessage(const char* type,
+                                      const char* timestamp,
+                                      const char* format, va_list& ap) {
+
+        QueueMessage msg = {type, timestamp, format, &ap,
+                            xTaskGetCurrentTaskHandle()};
+        QueueMessage* ptr = &msg;
 
         BaseType_t result = xQueueSendToBack(logQueue,
-                                             (void*) &msg,
+                                             (void*) &ptr, // ptr to ptr
                                              pdMS_TO_TICKS(400)); // 400ms
 
         // this message will be lost; shouldn't really happen
-        if (result != pdTRUE) { return; }
+        if (result != pdTRUE) { return 0; }
 
         // wait forever, otherwise the other thread
         // may access memory that is no longer valid
         // TODO: figure out a smart way to have a timeout
         //       here, not having one may freeze the system.
         //       OTOH, a problem here is very unlikely
-        xTaskNotifyWait(0, 0, NULL, 0);
+        uint32_t count;
+        xTaskNotifyWait(0, 0, &count, 0);
+        return count;
     }
+
+    int IRAM_ATTR enqueueLogMessage(const char* type,
+                                     const char* timestamp,
+                                     const char* format, ...) {
+
+        va_list ap;
+        va_start(ap, format);
+        int count = venqueueLogMessage(type, timestamp, format, ap);
+        va_end(ap);
+        return count;
+    }
+
+
+    int logLogEvent(const char* format, ...);
 
 
     // A ring buffer for null-terminated text messages. If the buffer
@@ -263,20 +287,13 @@ namespace LOGNS {
     inline void TimeStamper::init() {
         getBootcountFromNVS();
 
-        char buf[80];
-        int n = countStamp(buf);
-        snprintf(buf +n, 80 -n, "|%d| (LOGGING): boot detected", doorID);
-        logString(buf);
+        logLogEvent("boot detected");
     }
 
     inline void TimeStamper::getBootcountFromNVS() {
         bootcount = 0;
-        char buf[100];
-        int n;
 
-        n = countStamp(buf);
-        snprintf(buf +n, 100 -n, "|%d| (LOGGING): Initializing NVS", doorID);
-        logString(buf);
+        logLogEvent("Initializing NVS");
         esp_err_t err = nvs_flash_init();
         if  ( err == ESP_ERR_NVS_NO_FREE_PAGES
            || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -287,22 +304,17 @@ namespace LOGNS {
         }
         ESP_ERROR_CHECK( err );
 
-        n = countStamp(buf);
-        snprintf(buf +n, 100 -n, "|%d| (LOGGING): Opening NVS", doorID);
-        logString(buf);
+        logLogEvent("Opening NVS");
         nvs_handle_t nvsHandle;
         err = nvs_open("storage", NVS_READWRITE, &nvsHandle);
         if (err != ESP_OK) {
-            n = countStamp(buf);
-            snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) opening "
-                     "NVS handle!", doorID, esp_err_to_name(err));
-            logString(buf);
+            logLogEvent("Error (%s) opening NVS handle!",
+                        esp_err_to_name(err));
+
             return;
         }
 
-        n = countStamp(buf);
-        snprintf(buf +n, 100 -n, "|%d| (LOGGING): NVS OK!", doorID);
-        logString(buf);
+        logLogEvent("NVS OK!");
 
         err = nvs_get_u32(nvsHandle, "bootcount", &bootcount);
         switch (err) {
@@ -311,47 +323,31 @@ namespace LOGNS {
                 break;
             case ESP_ERR_NVS_NOT_FOUND:
                 bootcount = 1;
-                n = countStamp(buf);
-                snprintf(buf +n, 100 -n, "|%d| (LOGGING): No bootcount "
-                         "in NVS (this is the first boot)", doorID);
-                logString(buf);
+                logLogEvent("No bootcount in NVS (this is the first boot)" );
                 break;
             default:
                 bootcount = 0;
-                n = countStamp(buf);
-                snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) reading "
-                         "bootcount from NVS", doorID, esp_err_to_name(err));
-                logString(buf);
+                logLogEvent("Error (%s) reading bootcount from NVS",
+                            esp_err_to_name(err));
                 nvs_close(nvsHandle);
                 return;
         }
 
-        n = countStamp(buf);
-        snprintf(buf +n, 100 -n, "|%d| (LOGGING): figured out "
-                 "the boot count (%d)", doorID, bootcount);
-        logString(buf);
+        logLogEvent("This is boot #%d", bootcount);
 
         err = nvs_set_u32(nvsHandle, "bootcount", bootcount);
         if (ESP_OK != err) {
-            n = countStamp(buf);
-            snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) writing "
-                         "bootcount to NVS", doorID, esp_err_to_name(err));
-                logString(buf);
-                nvs_close(nvsHandle);
-                return;
+            logLogEvent("Error (%s) writing bootcount to NVS",
+                        esp_err_to_name(err));
+            nvs_close(nvsHandle);
+            return;
         }
 
-        n = countStamp(buf);
-        snprintf(buf +n, 100 -n, "|%d| (LOGGING): Commiting updates to NVS",
-                 doorID);
-        logString(buf);
+        logLogEvent("Commiting updates to NVS");
         err = nvs_commit(nvsHandle);
         if (ESP_OK != err) {
-                n = countStamp(buf);
-                snprintf(buf +n, 100 -n, "|%d| (LOGGING): Error (%s) "
-                         "commiting bootcount to NVS", doorID,
-                         esp_err_to_name(err));
-                logString(buf);
+                logLogEvent("Error (%s) commiting bootcount to NVS",
+                            esp_err_to_name(err));
                 nvs_close(nvsHandle);
                 return;
         }
@@ -368,12 +364,8 @@ namespace LOGNS {
         if (timeIsValid()) {
             timeAlreadySet = true;
 
-            char buf[120];
-            snprintf(buf, 120, "%lu |%d| (LOGGING): disk log for boot %d "
-                               "switched to clock time at %lu millis",
-                               getTime(), doorID, bootcount, millis());
-
-            logString(buf);
+            logLogEvent("disk log for boot %d switched to clock time "
+                        "at %lu millis", bootcount, millis());
 
             return clockStamp(buf);
         }
@@ -637,7 +629,7 @@ namespace LOGNS {
     TaskHandle_t readerTask;
 
     StaticTask_t writerTaskBuffer;
-    StackType_t writerTaskStackStorage[2048];
+    StackType_t writerTaskStackStorage[3072];
     TaskHandle_t writerTask;
 
     void ringbufReader(void* params) {
@@ -658,21 +650,43 @@ namespace LOGNS {
     // is not enabled with ESP32 (INCLUDE_vTaskSuspend is not 1), so
     // we set an arbitrary timeout and check for the return status.
     void ringbufWriter(void* params) {
-        QueueMessage received;
+        QueueMessage* received;
+        char buf[1024];
+
         for(;;) {
             if (pdTRUE == xQueueReceive(logQueue, &received,
                                         pdMS_TO_TICKS(10000))) { // 10s
 
-                ringbuf.write(received.message);
-                xTaskNotify(received.taskID, 0, eNoAction);
+                buf[0] = 0;
+                uint32_t n = snprintf(buf, 1024, "%s |%d| (%s): ",
+                                      received->timestamp,
+                                      doorID,
+                                      received->type);
+
+                n += snprintf(buf +n, 1024 -n, received->format,
+                              *(received->ap_ptr));
+
+                ringbuf.write(buf);
+                xTaskNotify(received->taskID, n, eSetValueWithOverwrite);
                 if (logToDisk) { xTaskNotify(readerTask, 0, eNoAction); }
             }
         }
     }
 
 
-    void logAccess(const char* readerID, unsigned long cardID,
-                                              bool authorized) {
+    // vlogEvent() receives a va_list, this receives "..."
+    int IRAM_ATTR logLogEvent(const char* format, ...) {
+        char buf[30];
+        timestamper.stamp(buf);
+        va_list ap;
+        va_start(ap, format);
+        int count = venqueueLogMessage("LOGGING", buf, format, ap);
+        va_end(ap);
+        return count;
+    }
+
+    int logAccess(const char* readerID, unsigned long cardID,
+                                             bool authorized) {
 
         const char* status;
         if (authorized) {
@@ -681,17 +695,15 @@ namespace LOGNS {
             status = "not authorized";
         }
 
-        char buffer[1024];
-        int tsSize = timestamper.stamp(buffer);
+        char buf[30];
+        int count = timestamper.stamp(buf);
+        count += enqueueLogMessage("ACCESS", buf, "reader %s, ID %lu %s",
+                                   readerID, cardID, status);
 
-        snprintf(buffer + tsSize, 1024 - tsSize,
-                 "|%d| (ACCESS): reader %s, ID %lu %s",
-                 doorID, readerID, cardID, status);
-
-        logString(buffer);
+        return count;
     }
 
-    int logEvent(const char* format, va_list ap) {
+    int IRAM_ATTR vlogEvent(const char* format, va_list ap) {
         // "format" is "LEVEL (%u) %s: user-defined part"
         // Where "LEVEL" is a letter (V/D/I/W/E)
         // %u is the timestamp
@@ -705,27 +717,10 @@ namespace LOGNS {
         // CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM changes that to HH:MM:SS.sss
         // (in that case, "%u" becomes "%s"). We may also get the system
         // time here ourselves and ignore this.
-        char buf[1024];
-        buf[0] = 0;
-
-        int count;
-        int avail = 1024;
-        char* start = buf;
-
-        count = timestamper.stamp(buf);
-        avail -= count;
-        start += count;
-
-        count = snprintf(start, avail, "|%d| (SYSTEM): ", doorID);
-        avail -= count;
-        start += count;
-
-        count = vsnprintf(start, avail, format, ap);
-        avail -= count;
-
-        logString(buf);
-
-        return 1024 - avail;
+        char buf[30];
+        int count = timestamper.stamp(buf);
+        count += enqueueLogMessage("SYSTEM", buf, format, ap);
+        return count;
     }
 
     void init() {
@@ -735,7 +730,7 @@ namespace LOGNS {
         writerTask = xTaskCreateStaticPinnedToCore(
                                     ringbufWriter,
                                     "writerTask",
-                                    2048, // stack size
+                                    3072, // stack size
                                     (void*) 1, // params, we are not using this
                                     (UBaseType_t) 6, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,
@@ -769,7 +764,7 @@ void initLog() {
     esp_log_level_set("*", ESP_LOG_VERBOSE);
 
     // Log messages will be processed by the function defined above
-    esp_log_set_vprintf(LOGNS::logEvent);
+    esp_log_set_vprintf(LOGNS::vlogEvent);
 }
 
 void initDiskLog() { LOGNS::initDiskLog(); }
