@@ -733,7 +733,7 @@ namespace LOGNS {
         // time here ourselves and ignore this.
         char buf[30];
         int count = timestamper.stamp(buf);
-        count += enqueueLogMessage("SYSTEM", buf, format, ap);
+        count += venqueueLogMessage("SYSTEM", buf, format, ap);
         return count;
     }
 
