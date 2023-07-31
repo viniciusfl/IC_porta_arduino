@@ -300,8 +300,6 @@ namespace LOGNS {
 
     inline void TimeStamper::init() {
         getBootcountFromNVS();
-
-        logLogEvent("boot detected");
     }
 
     inline void TimeStamper::getBootcountFromNVS() {
