@@ -675,8 +675,8 @@ namespace LOGNS {
                                       doorID,
                                       received->type);
 
-                n += snprintf(buf +n, 1024 -n, received->format,
-                              *(received->ap_ptr));
+                n += vsnprintf(buf +n, 1024 -n, received->format,
+                               *(received->ap_ptr));
 
                 ringbuf.write(buf);
                 xTaskNotify(received->taskID, n, eSetValueWithOverwrite);
