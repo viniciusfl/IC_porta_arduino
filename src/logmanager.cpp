@@ -345,7 +345,7 @@ namespace LOGNS {
                 return;
         }
 
-        logLogEvent("This is boot #%lu", bootcount);
+        logLogEvent("This is boot #%u", bootcount);
 
         err = nvs_set_u32(nvsHandle, "bootcount", bootcount);
         if (ESP_OK != err) {
@@ -376,7 +376,7 @@ namespace LOGNS {
         if (timeIsValid()) {
             timeAlreadySet = true;
 
-            logLogEvent("disk log for boot %lu switched to clock time "
+            logLogEvent("disk log for boot %u switched to clock time "
                         "at %lu millis", bootcount, millis());
 
             return clockStamp(buf);
@@ -386,7 +386,7 @@ namespace LOGNS {
     }
 
     inline int TimeStamper::countStamp(char* buf) {
-        return snprintf(buf, 30, "BOOT#%lu-%lu ", bootcount, millis());
+        return snprintf(buf, 30, "BOOT#%u-%lu ", bootcount, millis());
     }
 
     inline int TimeStamper::clockStamp(char* buf) {
