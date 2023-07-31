@@ -151,7 +151,7 @@ namespace LOGNS {
     } QueueMessage;
 
 #   define QUEUE_LENGTH 10
-#   define QUEUE_ITEM_SIZE sizeof(QueueMessage*)
+#   define QUEUE_ITEM_SIZE sizeof(QueueMessage)
 
     QueueHandle_t logQueue;
 
@@ -163,22 +163,20 @@ namespace LOGNS {
 
         QueueMessage msg = {type, timestamp, format, &ap,
                             xTaskGetCurrentTaskHandle()};
-        QueueMessage* ptr = &msg;
 
         BaseType_t result = xQueueSendToBack(logQueue,
-                                             (void*) &ptr, // ptr to ptr
+                                             (void*) &msg,
                                              pdMS_TO_TICKS(400)); // 400ms
 
         // this message will be lost; shouldn't really happen
         if (result != pdTRUE) { return 0; }
 
-        // wait forever, otherwise the other thread
-        // may access memory that is no longer valid
-        // TODO: figure out a smart way to have a timeout
-        //       here, not having one may freeze the system.
-        //       OTOH, a problem here is very unlikely
+        // We should wait forever, otherwise the other thread may access
+        // memory that is no longer valid. However, waiting forever may
+        // make the system freeze if something goes wrong, so we just
+        // wait for a "long" time (4s).
         uint32_t count;
-        xTaskNotifyWait(0, 0, &count, 0);
+        xTaskNotifyWait(0, 0, &count, pdMS_TO_TICKS(4000));
         return count;
     }
 
@@ -637,7 +635,7 @@ namespace LOGNS {
     StaticQueue_t queueBuffer;
 
     StaticTask_t readerTaskBuffer;
-    StackType_t readerTaskStackStorage[6500];
+    StackType_t readerTaskStackStorage[4096];
     TaskHandle_t readerTask;
 
     StaticTask_t writerTaskBuffer;
@@ -662,7 +660,7 @@ namespace LOGNS {
     // is not enabled with ESP32 (INCLUDE_vTaskSuspend is not 1), so
     // we set an arbitrary timeout and check for the return status.
     void ringbufWriter(void* params) {
-        QueueMessage* received;
+        QueueMessage received;
         char buf[1024];
 
         for(;;) {
@@ -671,15 +669,15 @@ namespace LOGNS {
 
                 buf[0] = 0;
                 uint32_t n = snprintf(buf, 1024, "%s |%d| (%s): ",
-                                      received->timestamp,
+                                      received.timestamp,
                                       doorID,
-                                      received->type);
+                                      received.type);
 
-                n += vsnprintf(buf +n, 1024 -n, received->format,
-                               *(received->ap_ptr));
+                n += vsnprintf(buf +n, 1024 -n, received.format,
+                               *(received.ap_ptr));
 
                 ringbuf.write(buf);
-                xTaskNotify(received->taskID, n, eSetValueWithOverwrite);
+                xTaskNotify(received.taskID, n, eSetValueWithOverwrite);
                 if (logToDisk) { xTaskNotify(readerTask, 0, eNoAction); }
             }
         }
@@ -758,7 +756,7 @@ namespace LOGNS {
         readerTask = xTaskCreateStaticPinnedToCore(
                                     ringbufReader,
                                     "readerTask",
-                                    6500, // stack size
+                                    4096, // stack size
                                     (void*) 1, // params, we are not using this
                                     (UBaseType_t) 5, // priority
                                     readerTaskStackStorage,
