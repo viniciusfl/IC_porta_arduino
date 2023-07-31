@@ -5,7 +5,10 @@
    this, but I am not sure it works because of the scope of
    the variables used by `checkDoor()`).
 
- * Check whether the timestamp is added twice to the log messages
+ * Fix log processing in the controlling server
+
+   - Received log messages are separated by "\0", not by "\n"
+   - The format of the messages has changed
 
  * Error handling:
 
@@ -37,36 +40,12 @@
 
 # Other short-term TODOs
 
- * Logging!
-
- * Filedescriptors - check that we are ok
-
-   - By default, the FAT filesystem is configured to allow a maximum of 5
-     simultaneously open files.
-
-   - FAT FS: <https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/storage/fatfs.html>
-
-   - dbmanager maintains a file open at all times: the DB file in use
-   - dbmanager also uses another file filedescriptor for the new DB file
-     being downloaded (when downloading is finished, lots of files are
-     opened and closed, but never more than 1 is open at once)
-   - logmanager maintains a file open at all times: the log file in use
-   - logmanager may also be in either of these states:
-     - sending a file (1 open file)
-     - searching for a file to send (1 open file)
-   - This all means we *probably* never have more than 4 open files at
-     the same time
-
  * Make activateNewDBFile() thread-safe (someone may want to open the
    door while we are swapping the DB files). A simple solution is to
    simply test whether the DB is available and fail if it is not (it
    should be available again shortly, so the user just needs to try
    again). Another is to wait for it to be available before checking
    whether the user is authorized.
-
- * Handle multiline log messages: we should save each message
-   to disk with a final "\0" character and, on the controlling
-   server, split messages on this character instead of "\n"
 
  * Limit log file size:
 
@@ -81,7 +60,7 @@
 
    - After we make sure no file will be larger than 5KB, eliminate
      the "malloc" in MqttManager::sendLog and use a fixed buffer
-     instead.
+     instead (check TODO comments).
 
  * To actually open the door, we may use an ordinary logic level
    converter (https://www.sparkfun.com/products/12009 ): although all
@@ -96,16 +75,14 @@
  * Make the circuit board: <https://www.pcbway.com/>,
    <https://www.allpcb.com/activity/prototype2023.html>
 
- * Smarter logs: we should have an in-memory circular buffer for the log
-   messages. During startup, before the logfile is available, messages
-   are kept there and and then flushed. During normal operation, they are
-   flushed immediately, but the buffer is accessible with a command from
-   MQTT so that we can see the latest messages even if something goes wrong
-   with the logfile. Finally, if there is a problem with the SD card, we
-   should send the log messages in the buffer over MQTT.
-
 
 # Non-critical TODOs
+
+ * Implement MQTT command to retrieve the contents of the log ringbuffer
+
+ * Use FFat when there is no SD available
+
+ * Modify the format of the log messages
 
  * Better error handling everywhere (crashing is not really an option,
    in extreme situations we should at least try restarting the MCU)
