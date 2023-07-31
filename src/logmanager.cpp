@@ -384,11 +384,11 @@ namespace LOGNS {
     }
 
     inline int TimeStamper::countStamp(char* buf) {
-        return snprintf(buf, 30, "BOOT#%u-%lu ", bootcount, millis());
+        return snprintf(buf, 30, "BOOT#%u-%lu", bootcount, millis());
     }
 
     inline int TimeStamper::clockStamp(char* buf) {
-        return snprintf(buf, 30, "%lu ", getTime());
+        return snprintf(buf, 30, "%lu", getTime());
     }
 
     TimeStamper timestamper;
@@ -473,7 +473,7 @@ namespace LOGNS {
             // a file larger than MAX_LOG_FILE_SIZE!
             n = timestamper.stamp(buf);
             snprintf(buf +n, 100 -n,
-                     "|%d| (LOGGING): Closing logfile: %s",
+                     " |%d| (LOGGING): Closing logfile: %s",
                       doorID, filename);
             file.print(buf);
             file.flush();
@@ -490,7 +490,7 @@ namespace LOGNS {
         // we never need to check for an empty file.
         n = timestamper.stamp(buf);
         snprintf(buf +n, 100 -n,
-                 "|%d| (LOGGING): Created new logfile: %s",
+                 " |%d| (LOGGING): Created new logfile: %s",
                  doorID, filename);
         file.print(buf);
         file.flush();
