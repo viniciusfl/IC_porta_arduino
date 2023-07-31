@@ -303,7 +303,7 @@ namespace LOGNS {
     inline void TimeStamper::getBootcountFromNVS() {
         bootcount = 0;
 
-        logLogEvent("Initializing NVS");
+        logLogEvent("Initializing NVS\n");
         esp_err_t err = nvs_flash_init();
         if  ( err == ESP_ERR_NVS_NO_FREE_PAGES
            || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -314,17 +314,17 @@ namespace LOGNS {
         }
         ESP_ERROR_CHECK( err );
 
-        logLogEvent("Opening NVS");
+        logLogEvent("Opening NVS\n");
         nvs_handle_t nvsHandle;
         err = nvs_open("storage", NVS_READWRITE, &nvsHandle);
         if (err != ESP_OK) {
-            logLogEvent("Error (%s) opening NVS handle!",
+            logLogEvent("Error (%s) opening NVS handle!\n",
                         esp_err_to_name(err));
 
             return;
         }
 
-        logLogEvent("NVS OK!");
+        logLogEvent("NVS OK!\n");
 
         err = nvs_get_u32(nvsHandle, "bootcount", &bootcount);
         switch (err) {
@@ -333,30 +333,30 @@ namespace LOGNS {
                 break;
             case ESP_ERR_NVS_NOT_FOUND:
                 bootcount = 1;
-                logLogEvent("No bootcount in NVS (this is the first boot)" );
+                logLogEvent("No bootcount in NVS (this is the first boot)\n" );
                 break;
             default:
                 bootcount = 0;
-                logLogEvent("Error (%s) reading bootcount from NVS",
+                logLogEvent("Error (%s) reading bootcount from NVS\n",
                             esp_err_to_name(err));
                 nvs_close(nvsHandle);
                 return;
         }
 
-        logLogEvent("This is boot #%u", bootcount);
+        logLogEvent("This is boot #%u\n", bootcount);
 
         err = nvs_set_u32(nvsHandle, "bootcount", bootcount);
         if (ESP_OK != err) {
-            logLogEvent("Error (%s) writing bootcount to NVS",
+            logLogEvent("Error (%s) writing bootcount to NVS\n",
                         esp_err_to_name(err));
             nvs_close(nvsHandle);
             return;
         }
 
-        logLogEvent("Commiting updates to NVS");
+        logLogEvent("Commiting updates to NVS\n");
         err = nvs_commit(nvsHandle);
         if (ESP_OK != err) {
-                logLogEvent("Error (%s) commiting bootcount to NVS",
+                logLogEvent("Error (%s) commiting bootcount to NVS\n",
                             esp_err_to_name(err));
                 nvs_close(nvsHandle);
                 return;
@@ -375,7 +375,7 @@ namespace LOGNS {
             timeAlreadySet = true;
 
             logLogEvent("disk log for boot %u switched to clock time "
-                        "at %lu millis", bootcount, millis());
+                        "at %lu millis\n", bootcount, millis());
 
             return clockStamp(buf);
         }
@@ -431,7 +431,7 @@ namespace LOGNS {
     //       size OR instead of calling createNewFile() here just set
     //       shouldRotate to true.
     inline void Logfile::log(const char* message) {
-        Serial.println(message);
+        Serial.print(message);
 
         if (doesNotFit(message)) { createNewFile(); }
 
