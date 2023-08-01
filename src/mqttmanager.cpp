@@ -3,7 +3,13 @@ static const char *TAG = "mqttman";
 #include <tramela.h>
 
 #include <Arduino.h>
+
+#ifdef USE_SD
 #include <SD.h>
+#else
+#include <FFat.h>
+#endif
+
 #include <mqtt_client.h>
 
 #include <mqttmanager.h>
@@ -72,7 +78,7 @@ namespace  MQTT {
 
 
     inline bool MqttManager::sendLog(const char *filename) {
-        File f = SD.open(filename, "r");
+        File f = DISK.open(filename, "r");
 
         unsigned int fileSize = f.size();
         char* pBuffer = (char*)malloc(fileSize + 1);

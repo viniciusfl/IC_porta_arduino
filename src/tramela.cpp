@@ -3,8 +3,14 @@ static const char* TAG = "main";
 #include <tramela.h>
 
 #include <Arduino.h>
+
+#ifdef USE_SD
 #include <SPI.h>
 #include <SD.h>
+#else
+#include <FFat.h>
+#endif
+
 #include <sqlite3.h>
 
 #include <networkmanager.h>
@@ -52,7 +58,11 @@ void setup() {
 
     log_v("Start program");
 
+#   ifdef USE_SD
     if (!SD.begin()) {
+#   else
+    if (!FFat.begin(true)) {
+#   endif
         log_e("Card Mount Failed...");
     } else {
         log_v("SD connected.");

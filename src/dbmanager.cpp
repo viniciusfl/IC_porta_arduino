@@ -3,8 +3,14 @@ static const char *TAG = "dbman";
 #include <tramela.h>
 
 #include <Arduino.h>
+
+#ifdef USE_SD
 #include "SPI.h"
 #include "SD.h"
+#else
+#include "FFat.h"
+#endif
+
 #include <sqlite3.h> // Just to check for SQLITE_OK
 
 #include <dbmanager.h>
@@ -61,10 +67,11 @@ namespace DBNS {
     inline bool UpdateDBManager::startDBDownload() {
         log_d("Starting DB download");
 
-        if (SD.exists(otherFileStatus)) { SD.remove(otherFileStatus); };
-        if (SD.exists(otherFile)) { SD.remove(otherFile); };
+        if (DISK.exists(otherFileStatus)) { DISK.remove(otherFileStatus); };
+        if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
 
-        file = SD.open(otherFile, FILE_WRITE);
+        file = DISK.open(otherFile, FILE_WRITE, true);
+
         if(!file) {
             log_w("Error opening file, cancelling DB Download.");
             return false;
@@ -93,7 +100,8 @@ namespace DBNS {
     inline void UpdateDBManager::cancelDBDownload() {
         log_i("DB download cancelled");
         file.close();
-        if (SD.exists(otherFile)) { SD.remove(otherFile); };
+
+        if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
     }
 
     inline void UpdateDBManager::activateNewDBFile() {
@@ -128,11 +136,12 @@ namespace DBNS {
         // use the new version of the DB. If we crash in the middle (with
         // both files containing "1"), on restart we will use "DB_A.db",
         // which may be either.
-        File f = SD.open(currentFileStatus, FILE_WRITE);
+
+        File f = DISK.open(currentFileStatus, FILE_WRITE, true);
         f.print(1);
         f.close();
 
-        f = SD.open(otherFileStatus, FILE_WRITE);
+        f = DISK.open(otherFileStatus, FILE_WRITE, true);
         f.print(0);
         f.close();
     }
@@ -140,9 +149,11 @@ namespace DBNS {
     bool UpdateDBManager::fileOK(const char *tsfile) {
         // In some exceptional circumstances, we might end up writing
         // "1" to the file more than once; that's ok, 11 > 0 too :) .
-        File f = SD.open(tsfile);
 
-        if (!f) return false;
+        if (!DISK.exists(tsfile)) { return false; }
+        File f = DISK.open(tsfile);
+
+        if (!f) { return false; }
 
         int t = 0;
         if (f.available()) {
@@ -194,15 +205,16 @@ namespace DBNS {
     }
 
     void UpdateDBManager::clearAllDBFiles() {
-        if (SD.exists(currentFile)) { SD.remove(currentFile); };
-        if (SD.exists(otherFile)) { SD.remove(otherFile); };
-        if (SD.exists(currentFileStatus)) { SD.remove(currentFileStatus); };
-        if (SD.exists(otherFileStatus)) { SD.remove(otherFileStatus); };
+        if (DISK.exists(currentFile)) { DISK.remove(currentFile); };
+        if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
+        if (DISK.exists(currentFileStatus)) { DISK.remove(currentFileStatus); };
+        if (DISK.exists(otherFileStatus)) { DISK.remove(otherFileStatus); };
 
-        File f = SD.open(currentFileStatus, FILE_WRITE);
+        File f = DISK.open(currentFileStatus, FILE_WRITE, true);
         f.print(0);
         f.close();
-        f = SD.open(otherFileStatus, FILE_WRITE);
+
+        f = DISK.open(otherFileStatus, FILE_WRITE, true);
         f.print(0);
         f.close();
     }

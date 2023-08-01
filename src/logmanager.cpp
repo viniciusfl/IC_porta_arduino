@@ -3,7 +3,12 @@ static const char *TAG = "log";
 #include <tramela.h>
 
 #include <Arduino.h>
+
+#ifdef USE_SD
 #include <SD.h>
+#else
+#include <FFat.h>
+#endif
 
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -414,11 +419,12 @@ namespace LOGNS {
     inline void Logfile::init() {
 
         // Create the log subdirectories if they do not already exist
-        SD.mkdir("/logs");
+        DISK.mkdir("/logs");
+
         char buf[10];
         for (int i = 0; i < NUM_SUBDIRS; ++i) {
             snprintf(buf, 10, "/logs/%.2d", i);
-            SD.mkdir(buf);
+            DISK.mkdir(buf);
         }
 
         filename[0] = '\0';
@@ -482,7 +488,7 @@ namespace LOGNS {
 
         chooseNewFileName();
 
-        file = SD.open(filename, FILE_WRITE);
+        file = DISK.open(filename, FILE_WRITE, true);
 
         // TODO should we use ordinary logging here and
         //      forfeit this guarantee?  
@@ -507,7 +513,7 @@ namespace LOGNS {
                                    n % NUM_SUBDIRS,
                                    n % 100000000); // 8 chars max
 
-            if (SD.exists(filename)) {
+            if (DISK.exists(filename)) {
                 ++n;
             } else {
                 validName = true;
@@ -560,7 +566,7 @@ namespace LOGNS {
         log_d("Removing sent logfile: %s", inTransitFilename);
 
         // This should never be false
-        if (SD.exists(inTransitFilename)) { SD.remove(inTransitFilename); }
+        if (DISK.exists(inTransitFilename)) { DISK.remove(inTransitFilename); }
         inTransitFilename[0] = 0;
     }
 
@@ -591,7 +597,11 @@ namespace LOGNS {
 
         for (int i = 0; i < NUM_SUBDIRS && ! found; ++i) {
             char dirnamebuf[15];
+#           ifdef USE_SD
             snprintf(dirnamebuf, 15, "/sd/logs/%.2d", i);
+#           else
+            snprintf(dirnamebuf, 15, "/ffat/logs/%.2d", i);
+#           endif
 
             DIR* dir = opendir(dirnamebuf);
 
