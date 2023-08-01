@@ -84,9 +84,6 @@
    delete log files, eliminate all DB files to "reset" the controller,
    change the device ID and credentials etc.
 
- * Use FFat when there is no SD available for logging and, if the DB
-   file is small, for the DB too
-
  * Modify the format of the log messages
 
  * Better error handling everywhere (crashing is not really an option,
