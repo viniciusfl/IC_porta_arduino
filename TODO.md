@@ -80,79 +80,57 @@
 
  * Implement MQTT command to retrieve the contents of the log ringbuffer
 
- * Use FFat when there is no SD available
+ * Implement MQTT commands to handle files in the disk: download and
+   delete log files, eliminate all DB files to "reset" the controller,
+   change the device ID and credentials etc.
+
+ * Use FFat when there is no SD available for logging and, if the DB
+   file is small, for the DB too
 
  * Modify the format of the log messages
 
  * Better error handling everywhere (crashing is not really an option,
    in extreme situations we should at least try restarting the MCU)
 
+ * Truly reentrant logging: the current code is thread-safe, but probably
+   not reentrant (it uses locks to access the queue). We might use a set
+   of shared pointers and semaphores instead of a queue, akin to what
+   was used up to commit d5a28e01e803021ed794a043f3aeebbc8cc39757.
+
  * We should be able to define the door ID, network credentials, TLS
    credentials etc. at runtime, not hardcode them in the code, but how?
 
    - When writing the code to the MCU, add the relevant information to
-     the NVS or to SPIFFS. This is not really "at runtime", but maybe
-     it's enough: since the code itself is the same for all MCUs, future
-     code upgrades (including OTA) are easy.
+     the NVS. This is not really "at runtime", but maybe it's enough:
+     since the code itself is the same for all MCUs, future code upgrades
+     (including OTA) are easy.
 
-   - Store this info in an encrypted file in the SD card. We save a pair
-     of public and private keys to each nodeMCU NVS and provide the user
-     with a program, phone app or javascript-based web page that collects
-     the data from the user (including the MCU's public key), encrypts it,
-     and returns an encrypted file for the user to save to the SD card.
-     This forces us to always have an SD card (or maybe we could connect
-     an SD card just for this initial step), to know the public key of
-     each nodeMCU (or use the same for all, which is not a great idea),
-     and to create a (admittedly, very simple) dedicated program just for
-     the initial configuration.
+   - When writing code to the MCU, store in NVS (1) a pair of private
+     and public keys that identify this MCU; (2) a public key that
+     identifies a trusted MQTT server; and (3) the name of a default
+     wifi network, along with its pre-shared key (or maybe no key
+     at all). When starting for the first time (or after pressing
+     a specific button), the MCU connects to the specified network
+     (which the user may easily create using their phone). After the
+     network connection is operational, the MCU uses mDNS to connect
+     to a local MQTT broker and exchange the data. If an attacker has
+     physical access to the MCU *and* compromises the server key, they
+     can take control of the door. So, for a generic system, a phone
+     app may be a problem, because everybody has access to the key.
 
-   - When starting for the first time (or after pressing a specific button),
-     initiate some form of network access; either start as an access point
-     (which may pose difficulties if we want to interact with a phone app,
-     as the phone would probably reject the connection because it does not
-     route to the Internet) or connect to a predefined wifi network (the
-     network name and pre-shared key may be stored in the NVS), which the
-     user may easily create using their phone. Either way, after the network
-     connection is operational, either:
+   - Check this out: <https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/provisioning/index.html>
 
-     * Provide a web form for the user to fill in (the form should also
-       inform the user about the MCU's public key);
-
-     * Use mDNS to download the data from a hardcoded local URL and also
-       to upload the MCU's public key;
-
-     * Use mDNS to connect to a local MQTT broker and exchange the data.
-
-     * This alleviates the need for an SD card. While it involves creating
-       a dedicated program or phone app, that program is needed anyway if
-       we are to interact with the MCU over the network.
-
-   - Something similar, but using bluetooth.
-
-   - A combination of the above: if the data is not in the NVS or SPIFFS,
-     check the SD card; if it is not there, try to connect to the default
-     access point; if it is not available, start as an access point.
-
-   - Ver melhor isto: <https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/provisioning/index.html>
-
- * We might record things such as the doorID and net credentials in the
-   NVS (non-volatile storage) with the preferences library or in FFAT.
-   ESP32 supports FAT filesystems. If the flash memory contains a
+ * ESP32 supports FAT filesystems. If the flash memory contains a
    partition labelled "ffat", it mounts that partition at the `/ffat`
    path (check `tools/partitions/ffat.csv`). It also offers a "FFat"
    object that apparently is similar to the "SD" object. FFat allows
    up to 10 simultaneously open files (but it consumes 48KB of memory,
    so adding an ffat partition reduces the available memory). The SD
    card allows up to 5 simultaneously open files, so its memory
-   overhead is lower. I suppose that for these data, NVS is a better
-   choice.
+   overhead is lower. In any case, this can be changed in the call
+   to `begin()`.
    https://randomnerdtutorials.com/esp32-vs-code-platformio-spiffs/
    https://blog.espressif.com/building-products-creating-unique-factory-data-images-3f642832a7a3
-
- * It is probably safe to use up to 5KB of NVS space:
-   https://stackoverflow.com/a/58562855/15695987
-   But it is also very easy to resize the NVS, check `board_build.partitions`
-   in `platformio.ini`
 
  * Should we use `sntp_set_time_sync_notification_cb()` to synchronize
    the HW clock?
@@ -195,5 +173,3 @@
 
  * Implement OTA
 
- * If the DB file is small, we should be able to eliminate the SD card and
-   use only the nodeMCU storage.
