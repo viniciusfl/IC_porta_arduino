@@ -10,7 +10,7 @@ Some important requirements:
    to weekdays or daytime only.
 
 3. We need to be able to update the list of authorized users remotely and,
-   if there are many doors, in a single step for all of them.
+   if there are many doors, for all of them without too much hassle.
 
 4. We want to save access logs locally (to guarantee persistence) and send
    them over the network to be stored remotely.
