@@ -72,7 +72,10 @@ class OurMQTT():
         def on_message(client, userdata, msg):
             userdata.on_message(client, msg)
         self.client.on_message = on_message
-
+        """         self.client.tls_set("../../certificados/TLS_generate_CA/ca.crt",
+                       "../../certificados/TLS_generate_CA/teste/pythonServer.crt",
+                       "../../certificados/TLS_generate_CA/teste/pythonServer.key",
+                       tls_version=ssl.PROTOCOL_TLSv1_2) """
         self.client.connect_async(BROKER_ADDRESS, BROKER_PORT, 60)
         self.client.loop_start()
 
@@ -91,7 +94,7 @@ class OurMQTT():
 
                 if topic == "commands":
                     os.remove(filename)
-                print("Published with sucess\n") if result[0] == 0 else print("Publish failed!\n")
+                print("Published with sucess\n") if result[] == 0 else print("Publish failed!\n")
         except:
             print(f"File {filename} not found!")
         
