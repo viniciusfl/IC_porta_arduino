@@ -94,7 +94,7 @@ class OurMQTT():
 
                 if topic == "commands":
                     os.remove(filename)
-                print("Published with sucess\n") if result[] == 0 else print("Publish failed!\n")
+                print("Published with sucess\n") if result[0] == 0 else print("Publish failed!\n")
         except:
             print(f"File {filename} not found!")
         
