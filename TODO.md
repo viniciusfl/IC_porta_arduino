@@ -1,10 +1,5 @@
 # Short-term TODOs - Vinicius
 
- * When downloading the DB for the first time, we should still
-   check for the master key (there is some tentative code for
-   this, but I am not sure it works because of the scope of
-   the variables used by `checkDoor()`).
-
  * Fix log processing in the controlling server
 
    - Received log messages are separated by "\0", not by "\n"
