@@ -106,7 +106,7 @@ namespace  MQTT {
     }
 
     inline void MqttManager::resubscribe() {
-        while (!serverStarted) { delay(1000); }
+        while (!serverStarted) { checkDoor(); delay(100); currentMillis = millis();}
 
         esp_mqtt_client_unsubscribe(client, "/topic/commands");
         esp_mqtt_client_subscribe(client, "/topic/commands", 2);

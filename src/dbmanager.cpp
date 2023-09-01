@@ -152,7 +152,6 @@ namespace DBNS {
 
         if (!DISK.exists(tsfile)) { return false; }
         File f = DISK.open(tsfile);
-
         if (!f) { return false; }
 
         int t = 0;
@@ -166,7 +165,6 @@ namespace DBNS {
     void UpdateDBManager::chooseInitialFile() {
         if (!sdPresent)
             return;
-
         currentFile = "/DB_A.db";
         otherFile = "/DB_B.db";
         currentFileStatus = "/STATUS_A.TXT";
@@ -180,7 +178,7 @@ namespace DBNS {
                 forceDBDownload();
             }
 
-            while (!findValidDB()) { delay(400); checkDoor(); }
+            while (!findValidDB()) {  checkDoor(); delay(100); currentMillis = millis();}
 
             log_d("Choosing %s as current DB.", currentFile);
             if (openDB(currentFile) != SQLITE_OK) {
