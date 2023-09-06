@@ -71,14 +71,13 @@ class OurMQTT():
 
         def on_message(client, userdata, msg):
             userdata.on_message(client, msg)
+        self.client.tls_set("../../certs/4deSetembro23/rootCA.crt",
+                       "../../certs/4deSetembro23/python.crt",
+                       "../../certs/4deSetembro23/python.key",
+                       tls_version=ssl.PROTOCOL_TLSv1_2)
         self.client.on_message = on_message
-        """         self.client.tls_set("../../certificados/TLS_generate_CA/ca.crt",
-                       "../../certificados/TLS_generate_CA/teste/pythonServer.crt",
-                       "../../certificados/TLS_generate_CA/teste/pythonServer.key",
-                       tls_version=ssl.PROTOCOL_TLSv1_2) """
         self.client.connect_async(BROKER_ADDRESS, BROKER_PORT, 60)
         self.client.loop_start()
-
 
     def publish(self, topic, filename):
         print(f"publishing {filename} on topic {topic}")
@@ -116,7 +115,7 @@ class OurMQTT():
 
 
     def process_incoming_log_messages(self, messages):
-        for msg in messages.splitlines():
+        for msg in messages.split('\0'):
             self.database.save_message(msg)
 
 
@@ -134,7 +133,7 @@ class DBwrapper():
     def create_db_tables(self, table, fields):
         self.cursor.execute(f"""CREATE TABLE IF NOT EXISTS {table}({fields}); """)
 
-    def save_access_log(bootcount, timestamp, doorID,
+    def save_access_log(self, bootcount, timestamp, doorID,
                         readerID, authOK, cardID):
 
         try:
@@ -146,7 +145,7 @@ class DBwrapper():
 
         self.connection.commit()
 
-    def save_system_log(bootcount, timestamp, doorID, logtext):
+    def save_system_log(self, bootcount, timestamp, doorID, logtext):
 
         try:
             self.cursor.execute("INSERT INTO system VALUES(?,?,?,?)",
@@ -157,10 +156,11 @@ class DBwrapper():
         self.connection.commit()
 
     def save_message(self, msg):
+        if (len(msg) <= 0): return
         msg_fields = msg.split()
         timestamp = msg_fields[0]
-        msgtype = msg_fields[1]
-        doorID = int(msg_fields[2])
+        doorID = int(msg_fields[1][1])
+        msgtype = msg_fields[2][1:-2]
         is_access = msgtype.find("ACCESS") != -1
         is_boot = msgtype.find("BOOT") != -1
 
