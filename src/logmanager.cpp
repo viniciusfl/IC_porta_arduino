@@ -442,6 +442,7 @@ namespace LOGNS {
         if (doesNotFit(message)) { createNewFile(); }
 
         file.print(message);
+        file.write(0);
         file.flush();
         ++numberOfRecords;
     }
@@ -482,6 +483,7 @@ namespace LOGNS {
                      " |%d| (LOGGING): Closing logfile: %s",
                       doorID, filename);
             file.print(buf);
+            file.write(0);
             file.flush();
             file.close();
         }
@@ -499,6 +501,7 @@ namespace LOGNS {
                  " |%d| (LOGGING): Created new logfile: %s",
                  doorID, filename);
         file.print(buf);
+        file.write(0);
         file.flush();
         numberOfRecords = 1;
     }
