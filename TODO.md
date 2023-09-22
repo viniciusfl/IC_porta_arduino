@@ -1,10 +1,5 @@
 # Short-term TODOs - Vinicius
 
- * Fix log processing in the controlling server
-
-   - Received log messages are separated by "\0", not by "\n"
-   - The format of the messages has changed
-
  * Error handling:
 
    - If we start to upload a file, we set `sendingLogfile` to true (in
