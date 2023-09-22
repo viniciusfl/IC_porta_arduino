@@ -16,7 +16,7 @@
       an sqlite DB according to its type (access or system)"""
 # ---------------------------------------------------------------------------
 
-import ssl, sys, time, logging, sqlite3, inspect, os, random
+import ssl, sys, time, logging, sqlite3, inspect, os, random, time
 
 #BROKER_ADDRESS = '10.0.2.109'
 #BROKER_PORT = 8883
@@ -54,7 +54,8 @@ class OurMQTT():
     def __init__(self):      
         self.database = DBwrapper()
         self.init_mqtt_client()
-
+        time.sleep(2)
+        self.subscribe("logs")
 
     def init_mqtt_client(self):
         self.client_id = f'python-mqtt-server-{random.randint(0, 1000)}'
@@ -171,9 +172,9 @@ class DBwrapper():
             bootcount = int(msgtype[start+1:end])
 
         if is_access:
-            readerID = int(msg_fields[3])
-            authOK = int(msg_fields[4])
-            cardID = int(msg_fields[5])
+            readerID = 1 if (msg_fields[4][-1] == "external") else 2
+            cardID = int(msg_fields[6])
+            authOK = 1 if (msg_fields[7] == "authorized") else 0
 
             self.save_access_log(bootcount, timestamp, doorID,
                                  readerID, authOK, cardID)
