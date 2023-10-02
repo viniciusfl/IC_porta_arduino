@@ -1,7 +1,7 @@
 static const char *TAG = "auth";
 
 #include <tramela.h>
-
+#include "mbedtls/md.h"
 #include <Arduino.h>
 #include <sqlite3.h>
 
@@ -14,6 +14,7 @@ class Authorizer {
         inline bool userAuthorized(const char* readerID, unsigned long cardID);
     private:
         // check the comment near Authorizer::closeDB()
+        inline char* encrypt(int cardID);
         sqlite3 *sqlitedb = NULL;
         sqlite3_stmt *dbquery = NULL;
 };
@@ -56,9 +57,11 @@ inline bool Authorizer::userAuthorized(const char* readerID,
 
     // MASTER's ID is defined in tramela.h.
     // Maybe there is a better way to manage this.
-    if (cardID == MASTER_KEY) {
-        log_w("MASTER card used, openning door.");
-        return true;
+    for (int i = 0; i < sizeof(master_keys)/sizeof(int); i++) {
+        if (cardID == master_keys[i]) {
+            log_w("MASTER card used, openning door.");
+            return true;
+        }
     }
 
     if (!sdPresent) {
@@ -73,9 +76,9 @@ inline bool Authorizer::userAuthorized(const char* readerID,
 
     log_v("Card reader %s was used. Received card ID %lu", readerID, cardID);
 
-    sqlite3_int64 card = cardID;
+    char* key = encrypt(cardID);
     sqlite3_reset(dbquery);
-    sqlite3_bind_int64(dbquery, 1, card);
+    sqlite3_bind_text(dbquery, 1, key, sizeof(key), NULL);
     sqlite3_bind_int(dbquery, 2, doorID);
 
     bool authorized = false;
@@ -91,6 +94,32 @@ inline bool Authorizer::userAuthorized(const char* readerID,
     }
 
     return authorized;
+}
+
+inline char* Authorizer::encrypt(int cardID) {
+    char const* payload = (char*) std::to_string(cardID).c_str();
+    byte shaResult[32];
+
+    mbedtls_md_context_t ctx;
+    mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+
+    const size_t payloadLength = strlen(payload);
+
+    mbedtls_md_init(&ctx);
+    mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
+    mbedtls_md_starts(&ctx);
+    mbedtls_md_update(&ctx, (const unsigned char *) payload, payloadLength);
+    mbedtls_md_finish(&ctx, shaResult);
+    mbedtls_md_free(&ctx);
+
+    Serial.print("Hash: ");
+
+    char str[3*sizeof(shaResult)];
+    for(int i= 0; i < sizeof(shaResult); i++){
+        sprintf(str+i, "%02x", (int)shaResult[i]);
+    }
+
+    return str;
 }
 
 // The sqlite3 docs say "The C parameter to sqlite3_close(C) and
