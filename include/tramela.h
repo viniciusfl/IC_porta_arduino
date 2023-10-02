@@ -1,9 +1,9 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define MASTER_KEY 12345678 
-
 #define USE_SD
+
+unsigned long master_keys[] = {2250097610, 123456};
 
 #ifdef USE_SD
 #define DISK SD
