@@ -3,7 +3,6 @@
 
 #define USE_SD
 
-unsigned long master_keys[] = {2250097610, 123456};
 
 #ifdef USE_SD
 #define DISK SD
