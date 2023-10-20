@@ -531,6 +531,7 @@ namespace LOGNS {
         public:
             void uploadLogs(); // called periodically
             void flushSentLogfile(); // erase logfiles that have been sent ok
+            void cancelUpload();
         private:
             bool sendingLogfile = false;
             char inTransitFilename[30]; // current file we're sending
@@ -539,6 +540,11 @@ namespace LOGNS {
             unsigned long lastLogSentTime = 0;
             bool findFileToSend();
     };
+
+    void LogManager::cancelUpload() {
+        sendingLogfile = false;
+        inTransitFilename[0] = 0;
+    }
 
     void LogManager::uploadLogs() {
         if (!logToDisk) { return; }
@@ -582,8 +588,11 @@ namespace LOGNS {
 
         if (findFileToSend()) {
             log_d("Found a logfile to send: %s", inTransitFilename);
+            if (!sendLog(inTransitFilename)) {
+                log_e("There was an error sending log: %s", inTransitFilename);
+                return false;
+            }
             sendingLogfile = true;
-            sendLog(inTransitFilename);
             return true;
         } else {
             log_d("No logfiles to send for now.");
@@ -803,4 +812,8 @@ void uploadLogs() {
 
 void flushSentLogfile() {
     LOGNS::manager.flushSentLogfile();
+}
+
+void cancelLogUpload() {
+    LOGNS::manager.cancelUpload();
 }

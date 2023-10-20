@@ -163,7 +163,6 @@ namespace  MQTT {
             writeToDatabaseFile(event->data, event->data_len);
             if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
                 log_i("MQTT_EVENT_DATA from /topic/database, last data");
-                // TODO: what if downloading is aborted/fails?
                 downloading = false;
                 finishDBDownload();
             } else {
@@ -173,6 +172,13 @@ namespace  MQTT {
             break;
         case MQTT_EVENT_ERROR:
             log_i("MQTT_EVENT_ERROR");
+            // Handle MQTT connection problems
+            if (downloading) {
+                downloading = false;
+                cancelDBDownload();
+            }
+            cancelLogUpload();
+
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
                 log_i("-> ", event->error_handle->esp_tls_last_esp_err);
                 log_i("reported from tls stack", event->error_handle->esp_tls_stack_err);
