@@ -54,11 +54,9 @@ class OurMQTT():
     def __init__(self):      
         self.database = DBwrapper()
         self.init_mqtt_client()
-        time.sleep(2)
-        self.subscribe("logs")
 
     def init_mqtt_client(self):
-        self.client_id = f'python-mqtt-server-{random.randint(0, 1000)}'
+        self.client_id = f'python-mqtt-server'
         self.client = mqtt_client.Client(client_id = self.client_id,
                                          clean_session = False,
                                          userdata = self)
@@ -66,6 +64,7 @@ class OurMQTT():
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
                 print("Connected to MQTT Broker!")
+                self.subscribe("logs")
             else:
                 print(f"Failed to connect, return code {rc}\n")
         self.client.on_connect = on_connect
@@ -103,7 +102,7 @@ class OurMQTT():
 
     def subscribe(self, topic):
         print(f"subscribing to topic {topic}")
-        self.client.subscribe(f"/topic/{topic}")
+        self.client.subscribe(f"/topic/{topic}", 1)
 
 
     def on_message(self, client, msg):
