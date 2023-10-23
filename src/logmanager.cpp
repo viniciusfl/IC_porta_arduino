@@ -542,6 +542,7 @@ namespace LOGNS {
     };
 
     void LogManager::cancelUpload() {
+        if (sendingLogfile) { log_d("Cancelling log file upload"); };
         sendingLogfile = false;
         inTransitFilename[0] = 0;
     }
@@ -590,6 +591,7 @@ namespace LOGNS {
             log_d("Found a logfile to send: %s", inTransitFilename);
             if (!sendLog(inTransitFilename)) {
                 log_e("There was an error sending log: %s", inTransitFilename);
+                inTransitFilename[0] = 0;
                 return false;
             }
             sendingLogfile = true;
