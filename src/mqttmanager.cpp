@@ -4,17 +4,11 @@ static const char *TAG = "mqttman";
 
 #include <Arduino.h>
 
-#ifdef USE_SD
-#include <SD.h>
-#else
-#include <FFat.h>
-#endif
-
 #include <mqtt_client.h>
 
 #include <mqttmanager.h>
 #include <networkmanager.h>
-#include <dbmanager.h> // startDBDownload etc.
+#include <dbmanager.h> // finishDBDownload etc.
 #include <cardreader.h> // openDoor etc.
 #include <keys.h>
 
@@ -23,7 +17,7 @@ namespace  MQTT {
     public:
         void init();
         inline bool serverConnected();
-        inline bool sendLog(const char *filename);
+        inline bool sendLog(const char *logData, unsigned int len);
         void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event);
         void treatCommands(const char* command);
@@ -77,20 +71,12 @@ namespace  MQTT {
     }
 
 
-    inline bool MqttManager::sendLog(const char *filename) {
-        File f = DISK.open(filename, "r");
+    inline bool MqttManager::sendLog(const char *logData, unsigned int len) {
+        if (esp_mqtt_client_enqueue(client,
+                                    "/topic/logs",
+                                    logData, len, 1, 0, 0)) { return true; }
 
-        unsigned int fileSize = f.size();
-        char* pBuffer = (char*)malloc(fileSize + 1);
-        f.read((uint8_t*) pBuffer, fileSize);
-        pBuffer[fileSize] = '\0';
-        if (!esp_mqtt_client_enqueue(client, "/topic/logs", pBuffer, fileSize, 1, 0, 0)) {
-            free(pBuffer);
-            return false;
-        }
-        free(pBuffer);
-
-        return true;
+        return false;
     }
 
     void MqttManager::treatCommands(const char* command) {
@@ -153,17 +139,9 @@ namespace  MQTT {
                 log_i("MQTT_EVENT_DATA from topic %s, first data", buffer);
             }
             // If is not a message to command topic, then it means we are downloading the DB
-            if (!downloading) {
-                if (!startDBDownload()) {
-                    // TODO: Do something smart here
-                    log_w("Cannot start download!");
-                }
-                downloading = true;
-            }
             writeToDatabaseFile(event->data, event->data_len);
             if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
                 log_i("MQTT_EVENT_DATA from /topic/database, last data");
-                downloading = false;
                 finishDBDownload();
             } else {
                 log_d("MQTT_EVENT_DATA from database", buffer);
@@ -173,10 +151,7 @@ namespace  MQTT {
         case MQTT_EVENT_ERROR:
             log_i("MQTT_EVENT_ERROR");
             // Handle MQTT connection problems
-            if (downloading) {
-                downloading = false;
-                cancelDBDownload();
-            }
+            cancelDBDownload();
             cancelLogUpload();
 
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
@@ -200,6 +175,8 @@ void initMqtt() { MQTT::mqttManager.init(); }
 
 bool isClientConnected() { return MQTT::mqttManager.serverConnected(); }
 
-bool sendLog(const char *filename) { return MQTT::mqttManager.sendLog(filename); };
+bool sendLog(const char *logData, unsigned int len) {
+    return MQTT::mqttManager.sendLog(logData, len);
+};
 
 void forceDBDownload() { MQTT::mqttManager.resubscribe(); }

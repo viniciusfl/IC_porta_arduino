@@ -2,7 +2,6 @@
 #define DB_MANAGER_H
 
 void initDBMan();
-bool startDBDownload();
 ssize_t writeToDatabaseFile(const char* data, int data_len);
 void finishDBDownload();
 void cancelDBDownload();

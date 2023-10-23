@@ -44,8 +44,8 @@
      added to it; if that value is too large, rotate the log. A good
      limit is probably 5KB. - CHECK IF THIS IS OK
 
-   - After we make sure no file will be larger than 5KB, eliminate
-     the "malloc" in MqttManager::sendLog and use a fixed buffer
+   - After we make sure no file will be larger than 5KB, eliminate the
+     "malloc" in LogManager::sendNextLogfile() and use a fixed buffer
      instead (check TODO comments).
 
  * To actually open the door, we may use an ordinary logic level

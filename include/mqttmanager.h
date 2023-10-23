@@ -5,7 +5,7 @@ void initMqtt();
 
 bool isClientConnected();
 
-bool sendLog(const char* filename); 
+bool sendLog(const char* logData, unsigned int len);
 
 void forceDBDownload();
 

@@ -589,13 +589,26 @@ namespace LOGNS {
 
         if (findFileToSend()) {
             log_d("Found a logfile to send: %s", inTransitFilename);
-            if (!sendLog(inTransitFilename)) {
+
+            // TODO: it would be nice to use a static buffer here
+            //       instead of malloc()
+            File f = DISK.open(inTransitFilename, "r");
+            unsigned int len = f.size();
+            char* buf = (char*)malloc(len + 1);
+            f.read((uint8_t*) buf, len);
+            buf[len] = '\0';
+            bool success = sendLog(buf, len);
+            free(buf);
+
+            if (success) {
+                sendingLogfile = true;
+            } else {
                 log_e("There was an error sending log: %s", inTransitFilename);
                 inTransitFilename[0] = 0;
-                return false;
             }
-            sendingLogfile = true;
-            return true;
+
+            return success;
+
         } else {
             log_d("No logfiles to send for now.");
             inTransitFilename[0] = 0;

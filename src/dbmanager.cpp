@@ -40,6 +40,7 @@ namespace DBNS {
         inline void cancelDBDownload();
 
     private:
+        bool downloading;
         const char *currentFile;
         const char *otherFile;
 
@@ -88,16 +89,28 @@ namespace DBNS {
         // NOTE (maybe FIXME): When downloading retained messages, just
         // the first block of data comes with "topic", and the other
         // blocks have empty topic.
+
+        if (!downloading) {
+            if (!startDBDownload()) {
+                // TODO: Do something smart here
+                log_w("Cannot start download!");
+                return -1;
+            }
+        }
+        downloading = true;
+
         return file.write((byte *)data, data_len);
     }
 
     inline void UpdateDBManager::finishDBDownload() {
+        downloading = false;
         file.close();
         log_d("Finished DB download");
         activateNewDBFile();
     }
 
     inline void UpdateDBManager::cancelDBDownload() {
+        downloading = false;
         log_i("DB download cancelled");
         file.close();
 
@@ -221,8 +234,6 @@ namespace DBNS {
 }
 
 void initDBMan() { DBNS::updateDBManager.init(); }
-
-bool startDBDownload() { return DBNS::updateDBManager.startDBDownload(); }
 
 ssize_t writeToDatabaseFile(const char* data, int data_len) {
     return DBNS::updateDBManager.writeToDatabaseFile(data, data_len);
