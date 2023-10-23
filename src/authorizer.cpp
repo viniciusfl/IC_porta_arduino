@@ -5,7 +5,9 @@ static const char *TAG = "auth";
 #include <Arduino.h>
 #include <sqlite3.h>
 
-const char* master_keys[] = {"3acce68667c2d4bafedb366ef9c221ebdf3ca9df1838b655603ee107d968f3c4"};
+const char* master_keys[] = {
+    "3acce68667c2d4bafedb366ef9c221ebdf3ca9df1838b655603ee107d968f3c4"
+};
 
 // This is a wrapper around SQLite which allows us
 // to query whether a user is authorized to enter.
@@ -15,8 +17,8 @@ class Authorizer {
         inline void closeDB();
         inline bool userAuthorized(const char* readerID, unsigned long cardID);
     private:
+        inline void calculate_hash(unsigned long cardID,  char* hash);
         // check the comment near Authorizer::closeDB()
-        inline void encrypt(unsigned long cardID,  char* txtShaResult);
         sqlite3 *sqlitedb = NULL;
         sqlite3_stmt *dbquery = NULL;
 };
@@ -56,12 +58,12 @@ int Authorizer::openDB(const char *filename) {
 // search element through current database
 inline bool Authorizer::userAuthorized(const char* readerID,
                                        unsigned long cardID) {
-    char key[65];
-    encrypt(cardID, key);
+    char hash[65];
+    calculate_hash(cardID, hash);
 
     // MASTER IDs are defined at the beginning of this file.
     for (int i = 0; i < sizeof(master_keys)/sizeof(master_keys[0]); i++) {
-        if (!strcmp(key, master_keys[i])) {
+        if (!strcmp(hash, master_keys[i])) {
             log_w("MASTER card used, openning door.");
             return true;
         }
@@ -85,7 +87,7 @@ inline bool Authorizer::userAuthorized(const char* readerID,
     log_v("Card reader %s was used. Received card ID %lu", readerID, cardID);
 
     sqlite3_reset(dbquery);
-    sqlite3_bind_text(dbquery, 1, key, strlen(key), NULL);
+    sqlite3_bind_text(dbquery, 1, hash, strlen(hash), NULL);
     sqlite3_bind_int(dbquery, 2, doorID);
 
     bool authorized = false;
@@ -103,22 +105,27 @@ inline bool Authorizer::userAuthorized(const char* readerID,
     return authorized;
 }
 
-inline void Authorizer::encrypt(unsigned long cardID,  char* txtShaResult) {
-    char txtID[11];
-    sprintf(txtID, "%10lu", cardID);
-
-    byte shaResult[32];
+inline void Authorizer::calculate_hash(unsigned long cardID,  char* hash) {
+    // Initialize the sha256 generator
     mbedtls_md_context_t ctx;
     mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
-
     mbedtls_md_init(&ctx);
     mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
     mbedtls_md_starts(&ctx);
-    mbedtls_md_update(&ctx, (const unsigned char *) txtID, 10);
-    mbedtls_md_finish(&ctx, shaResult);
+
+    // Convert the cardID to a string (10-digit number) and hash it
+    char buf[11];
+    sprintf(buf, "%10lu", cardID);
+    mbedtls_md_update(&ctx, (const unsigned char *) buf, 10);
+
+    // Save the resulting binary hash and close the sha256 generator
+    byte binHash[32];
+    mbedtls_md_finish(&ctx, binHash);
     mbedtls_md_free(&ctx);
+
+    // Convert the binary hash to a string (hexadecimal representation)
     for(int i = 0; i < 32; ++i){
-        snprintf(txtShaResult + 2*i, 3, "%02hhx", shaResult[i]);
+        snprintf(hash + 2*i, 3, "%02hhx", binHash[i]);
     }
 }
 
