@@ -2,15 +2,17 @@
 
  * Error handling:
 
-   - If we start to upload a file, we set `sendingLogfile` to true (in
-     logmanager.cpp). When the upload is successful, `flushSentLogfile`
-     is called and we change `sendingLogFile` to false. But if the
-     upload fails, we will probably be stuck with `sendingLogFile` as
-     true and, therefore, no more files will be sent. We should fix
-     that.
+   - When we receive a `MQTT_EVENT_PUBLISHED` event, we know that the
+     file we sent was received and, therefore, we delete it. We know
+     what file to delete because we only send one file at a time.
+     However, there *may* be a race condition: right after boot, we
+     send a file and then we receive an acknowledgement for a file we
+     sent before the boot. This would make us delete the wrong file.
+     We should check somehow that the ack corresponds to the correct
+     file; if it is not, we do nothing and we will probably send the
+     same file again later on, which is ok.
 
-   - Check how does MQTT handle timeouts and figure out how to handle
-     timeout (and other) errors.
+   - Handle other possible MQTT errors.
 
  * Check whether openDoor, denyToOpenDoor, blinkOK, and blinkFail do
    what they are supposed to do:
@@ -19,23 +21,7 @@
      should *not* switch levels during boot! Then openDoor should
      change the level of the pin for some 300ms.
 
- * Currently, we store the card IDs in the database; instead of that,
-   we should store the sha256 of the ID. Then, when reading a card, we
-   should calculate its sha256 and compare it to the DB. With this,
-   even if somebody steals the nodeMCU they will not really know the
-   IDs of the users.
-
- * `MASTER_KEY` should be a (hardcoded) list of possible keys (also
-   using the SHA256 hash, as described above)
-
 # Other short-term TODOs
-
- * Make activateNewDBFile() thread-safe (someone may want to open the
-   door while we are swapping the DB files). A simple solution is to
-   simply test whether the DB is available and fail if it is not (it
-   should be available again shortly, so the user just needs to try
-   again). Another is to wait for it to be available before checking
-   whether the user is authorized.
 
  * Limit log file size:
 
@@ -59,11 +45,12 @@
 
  * Choose and set license
 
- * Draw printed circuit board: <https://www.kicad.org/>,
-   <https://easyeda.com/pt>
+ * The circuit board was created with <https://www.kicad.org/>
 
- * Make the circuit board: <https://www.pcbway.com/>,
-   <https://www.allpcb.com/activity/prototype2023.html>
+ * Make the circuit board:
+   * <https://www.pcbway.com/>
+   * <https://www.allpcb.com/activity/prototype2023.html>
+   * In Brazil: <https://pcbbrasil.com.br>
 
 
 # Non-critical TODOs
