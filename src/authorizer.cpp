@@ -16,7 +16,7 @@ class Authorizer {
         inline bool userAuthorized(const char* readerID, unsigned long cardID);
     private:
         // check the comment near Authorizer::closeDB()
-        inline char* encrypt(unsigned long cardID);
+        inline void encrypt(unsigned long cardID,  char* txtShaResult);
         sqlite3 *sqlitedb = NULL;
         sqlite3_stmt *dbquery = NULL;
 };
@@ -56,9 +56,10 @@ int Authorizer::openDB(const char *filename) {
 // search element through current database
 inline bool Authorizer::userAuthorized(const char* readerID,
                                        unsigned long cardID) {
-    char* key = encrypt(cardID);
-    // MASTER's ID is defined in tramela.h.
-    // Maybe there is a better way to manage this.
+    char key[65];
+    encrypt(cardID, key);
+
+    // MASTER IDs are defined at the beginning of this file.
     for (int i = 0; i < sizeof(master_keys)/sizeof(master_keys[0]); i++) {
         if (!strcmp(key, master_keys[i])) {
             log_w("MASTER card used, openning door.");
@@ -67,13 +68,17 @@ inline bool Authorizer::userAuthorized(const char* readerID,
     }
     if (!sdPresent) {
         log_e("Cannot read SD, denying access");
-        free(key);
         return false;
     }
 
+    // This is necessary because someone might open the door during
+    // our DB file swap. We wait for up to 500 milliseconds for the
+    // swap to complete.
+    unsigned long start = millis();
+    while (sqlitedb == NULL && millis() - start < 500) {}
+
     if (sqlitedb == NULL) {
         log_e("Cannot read DB, denying access");
-        free(key);
         return false;
     }
 
@@ -91,8 +96,6 @@ inline bool Authorizer::userAuthorized(const char* readerID,
         rc = sqlite3_step(dbquery);
     }
 
-    free(key);
-
     if (rc != SQLITE_DONE) {
         log_e("Error querying DB: %s", sqlite3_errmsg(sqlitedb));
     }
@@ -100,28 +103,23 @@ inline bool Authorizer::userAuthorized(const char* readerID,
     return authorized;
 }
 
-inline char* Authorizer::encrypt(unsigned long cardID) {
-    char payload[12];
-    sprintf(payload, "%lu", cardID);
+inline void Authorizer::encrypt(unsigned long cardID,  char* txtShaResult) {
+    char txtID[11];
+    sprintf(txtID, "%10lu", cardID);
 
     byte shaResult[32];
     mbedtls_md_context_t ctx;
     mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
 
-    const size_t payloadLength = strlen(payload);
     mbedtls_md_init(&ctx);
     mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 0);
     mbedtls_md_starts(&ctx);
-    mbedtls_md_update(&ctx, (const unsigned char *) payload, payloadLength);
+    mbedtls_md_update(&ctx, (const unsigned char *) txtID, 10);
     mbedtls_md_finish(&ctx, shaResult);
     mbedtls_md_free(&ctx);
-
-    char* result = (char*)malloc(2 * sizeof(shaResult) + 1); // Twice the size plus 1 for null-termination
-    for(int i= 0; i < sizeof(shaResult); i++){
-        sprintf(&result[i * 2], "%02x", (int)shaResult[i]);
+    for(int i = 0; i < 32; ++i){
+        snprintf(txtShaResult + 2*i, 3, "%02hhx", shaResult[i]);
     }
-
-    return result;
 }
 
 // The sqlite3 docs say "The C parameter to sqlite3_close(C) and
