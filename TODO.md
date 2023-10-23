@@ -1,6 +1,6 @@
 # Short-term TODOs - Vinicius
 
- * Error handling:
+ * Use `event_data` to identify MQTT messages:
 
    - When we receive a `MQTT_EVENT_PUBLISHED` event, we know that the
      file we sent was received and, therefore, we delete it. We know
@@ -12,7 +12,17 @@
      file; if it is not, we do nothing and we will probably send the
      same file again later on, which is ok.
 
-   - Handle other possible MQTT errors.
+   - In the same vein, when we receive an `MQTT_EVENT_ERROR`, this may
+     concern *either* a logfile being uploaded *or* a DB file being
+     downloaded; again, we need to check what event does the error
+     correspond to.
+
+   - To solve these two problems, we need to use the `event_data`
+     pointer. It is currently used to point to the MqttManager
+     instance, but that is not really necessary (there is only one
+     instance of those).
+
+ * Handle other possible MQTT errors.
 
  * Check whether openDoor, denyToOpenDoor, blinkOK, and blinkFail do
    what they are supposed to do:
