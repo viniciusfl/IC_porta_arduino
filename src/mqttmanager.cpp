@@ -128,18 +128,22 @@ namespace  MQTT {
                 log_i("MQTT_EVENT_DATA from topic %s", buffer);
                 snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
                 this->treatCommands(buffer);
-            } else if (!strcmp(buffer, "/topic/database")) { /* Just for log purposes */
-                log_i("MQTT_EVENT_DATA from topic %s, first data", buffer);
-            }
-            // If is not a message to command topic, then it means we are downloading the DB
-            writeToDatabaseFile(event->data, event->data_len);
-            if (event->total_data_len - event->current_data_offset - event->data_len <= 0){
-                log_i("MQTT_EVENT_DATA from /topic/database, last data");
-                finishDBDownload();
             } else {
-                log_d("MQTT_EVENT_DATA from database", buffer);
+                // If it's not a command, it's a DB to download
+                writeToDatabaseFile(event->data, event->data_len);
+                if (event->total_data_len == event->data_len) {
+                    log_i("MQTT_EVENT_DATA from /topic/database -- full message");
+                } else if (event->current_data_offset == 0) {
+                    log_i("MQTT_EVENT_DATA from topic/database -- first");
+                } else if (event->total_data_len
+                                    - event->current_data_offset
+                                    - event->data_len <= 0) {
+                    log_i("MQTT_EVENT_DATA from /topic/database -- last");
+                    finishDBDownload();
+                } else {
+                    log_d("MQTT_EVENT_DATA from /topic/database -- ongoing");
+                }
             }
-
             break;
         case MQTT_EVENT_ERROR:
             log_i("MQTT_EVENT_ERROR");

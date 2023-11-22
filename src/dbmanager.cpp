@@ -86,10 +86,6 @@ namespace DBNS {
     inline ssize_t UpdateDBManager::writeToDatabaseFile(const char* data,
                                                         int data_len) {
 
-        // NOTE (maybe FIXME): When downloading retained messages, just
-        // the first block of data comes with "topic", and the other
-        // blocks have empty topic.
-
         if (!downloading) {
             if (!startDBDownload()) {
                 // TODO: Do something smart here
