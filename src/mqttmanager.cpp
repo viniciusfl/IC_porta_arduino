@@ -13,6 +13,11 @@ static const char *TAG = "mqttman";
 #include <keys.h>
 
 namespace  MQTT {
+    // This is a "real" function (not a method) that hands
+    // the received event over to the MqttManager object.
+    void callback_handler(void *handler_args, esp_event_base_t base,
+                          int32_t event_id, void *event_data);
+
     class MqttManager {
     public:
         void init();
@@ -27,16 +32,6 @@ namespace  MQTT {
 
         esp_mqtt_client_handle_t client;
     };
-
-    // This is a "real" function (not a method) that hands
-    // the received event over to the MqttManager object.
-    void callback_handler(void *handler_args, esp_event_base_t base,
-                          int32_t event_id, void *event_data) {
-
-        esp_mqtt_event_handle_t event = (esp_mqtt_event_t *) event_data;
-        MqttManager *obj = (MqttManager *)event->user_context;
-        obj->mqtt_event_handler(handler_args, base, event_id, event);
-    }
 
 
     inline bool MqttManager::serverConnected() {
@@ -54,7 +49,6 @@ namespace  MQTT {
             .client_id = buffer,
             .disable_clean_session = true,
             .keepalive = 180000, //FIXME:
-            .user_context = this,
             .cert_pem = brokerCert,
             .client_cert_pem = espCertPem,
             .client_key_pem = espCertKey,  
@@ -167,6 +161,17 @@ namespace  MQTT {
     }
 
     MqttManager mqttManager;
+
+
+    // This is a "real" function (not a method) that hands
+    // the received event over to the MqttManager object.
+    void callback_handler(void *handler_args, esp_event_base_t base,
+                          int32_t event_id, void *event_data) {
+
+        esp_mqtt_event_handle_t event = (esp_mqtt_event_t *) event_data;
+        mqttManager.mqtt_event_handler(handler_args, base, event_id, event);
+    }
+
 }
 
 
