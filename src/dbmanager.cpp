@@ -99,6 +99,8 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::finishDBDownload() {
+        if (not downloading) { return; }
+
         downloading = false;
         file.close();
         log_d("Finished DB download");
@@ -106,6 +108,8 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::cancelDBDownload() {
+        if (not downloading) { return; }
+
         downloading = false;
         log_i("DB download cancelled");
         file.close();

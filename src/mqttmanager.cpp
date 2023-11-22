@@ -98,6 +98,7 @@ namespace  MQTT {
 
     void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event) {
+
         esp_mqtt_client_handle_t client = event->client;
         switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
@@ -110,6 +111,8 @@ namespace  MQTT {
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
             log_i("MQTT_EVENT_DISCONNECTED");
+            cancelDBDownload();
+            cancelLogUpload();
             break;
         case MQTT_EVENT_SUBSCRIBED:
             log_i("MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
