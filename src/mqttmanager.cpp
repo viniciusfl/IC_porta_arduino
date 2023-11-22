@@ -105,8 +105,9 @@ namespace  MQTT {
             log_i("MQTT_EVENT_CONNECTED");
             serverStarted = true;
             esp_mqtt_client_subscribe(client, "/topic/commands", 2);
-            if (sdPresent)
+            if (sdPresent) {
                 esp_mqtt_client_subscribe(client, "/topic/database", 2);
+            }
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
