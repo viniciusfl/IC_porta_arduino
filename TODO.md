@@ -1,6 +1,7 @@
 # Short-term TODOs - Vinicius
 
- * Use `event_data` to identify MQTT messages:
+ * CHECK WHETHER THIS IS WORKING OK:
+   - Use `event->msg_id` to identify MQTT messages:
 
    - When we receive a `MQTT_EVENT_PUBLISHED` event, we know that the
      file we sent was received and, therefore, we delete it. We know
@@ -9,18 +10,8 @@
      send a file and then we receive an acknowledgement for a file we
      sent before the boot. This would make us delete the wrong file.
      We should check somehow that the ack corresponds to the correct
-     file; if it is not, we do nothing and we will probably send the
+     file; if it does not, we do nothing and we will probably send the
      same file again later on, which is ok.
-
-   - In the same vein, when we receive an `MQTT_EVENT_ERROR`, this may
-     concern *either* a logfile being uploaded *or* a DB file being
-     downloaded; again, we need to check what event does the error
-     correspond to.
-
-   - To solve these two problems, we need to use the `event_data`
-     pointer. It is currently used to point to the MqttManager
-     instance, but that is not really necessary (there is only one
-     instance of those).
 
  * Handle other possible MQTT errors.
 

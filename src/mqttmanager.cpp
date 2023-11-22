@@ -29,6 +29,12 @@ namespace  MQTT {
         inline void resubscribe();
     private: 
         bool serverStarted = false;
+        int inTransitMessageIDs[5];
+        int nextFreeID;
+        void addMessageID(int);
+        void removeMessageID(int);
+        int findMessageID(int);
+        void resetMessageList();
 
         esp_mqtt_client_handle_t client;
     };
@@ -40,6 +46,8 @@ namespace  MQTT {
 
     // This should be called from setup()
     inline void MqttManager::init() {
+        resetMessageList();
+
         char buffer[50]; 
         snprintf(buffer, 50, "ESP_KEYLOCK_ID-%d", doorID);
 
@@ -63,12 +71,41 @@ namespace  MQTT {
         esp_mqtt_client_start(client);
     }
 
+    void MqttManager::resetMessageList() {
+        nextFreeID = 0;
+        for (int i = 0; i < 5; ++i) {inTransitMessageIDs[i] = -1;}
+    }
+
+    void MqttManager::addMessageID(int id) {
+        if (findMessageID(id) >= 0) { return; }
+        inTransitMessageIDs[nextFreeID++] = id;
+    }
+
+    void MqttManager::removeMessageID(int id) {
+        int pos = findMessageID(id);
+        if (pos < 0) { return; }
+        for (int i = pos; i < 4; ++i) {
+            inTransitMessageIDs[i] = inTransitMessageIDs[i+1];
+        }
+        inTransitMessageIDs[5] = -1;
+        --nextFreeID;
+    }
+
+    int MqttManager::findMessageID(int id) {
+        for (int i = 0; i < 5; ++i) {
+            if (inTransitMessageIDs[i] == id) { return i; }
+        }
+        return -1;
+    }
 
     inline bool MqttManager::sendLog(const char *logData, unsigned int len) {
-        if (esp_mqtt_client_enqueue(client,
+        int result = esp_mqtt_client_enqueue(client,
                                     "/topic/logs",
-                                    logData, len, 1, 0, 0)) { return true; }
-
+                                    logData, len, 1, 0, 0);
+        if (result > 0) {
+            addMessageID(result);
+            return true;
+        }
         return false;
     }
 
@@ -114,6 +151,7 @@ namespace  MQTT {
             log_i("MQTT_EVENT_DISCONNECTED");
             cancelDBDownload();
             cancelLogUpload();
+            resetMessageList();
             break;
         case MQTT_EVENT_SUBSCRIBED:
             log_i("MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
@@ -123,7 +161,10 @@ namespace  MQTT {
             break;
         case MQTT_EVENT_PUBLISHED:
             log_i("MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
-            flushSentLogfile();
+            if (findMessageID(event->msg_id)) {
+                removeMessageID(event->msg_id);
+                flushSentLogfile();
+            }
             break;
         case MQTT_EVENT_DATA:
             char buffer[100];
@@ -137,12 +178,14 @@ namespace  MQTT {
                 writeToDatabaseFile(event->data, event->data_len);
                 if (event->total_data_len == event->data_len) {
                     log_i("MQTT_EVENT_DATA from /topic/database -- full message");
+                    addMessageID(event->msg_id);
                 } else if (event->current_data_offset == 0) {
                     log_i("MQTT_EVENT_DATA from topic/database -- first");
                 } else if (event->total_data_len
                                     - event->current_data_offset
                                     - event->data_len <= 0) {
                     log_i("MQTT_EVENT_DATA from /topic/database -- last");
+                    removeMessageID(event->msg_id);
                     finishDBDownload();
                 } else {
                     log_d("MQTT_EVENT_DATA from /topic/database -- ongoing");
@@ -154,6 +197,7 @@ namespace  MQTT {
             // Handle MQTT connection problems
             cancelDBDownload();
             cancelLogUpload();
+            resetMessageList();
 
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
                 log_i("-> ", event->error_handle->esp_tls_last_esp_err);
