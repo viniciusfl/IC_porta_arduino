@@ -32,7 +32,7 @@ namespace DBNS {
 
     class UpdateDBManager {
     public:
-        inline void init();
+        inline void init(bool diskOK);
 
         inline bool startDBDownload(); // Open the "other" file for writing
         inline ssize_t writeToDatabaseFile(const char* data, int data_len);
@@ -40,6 +40,7 @@ namespace DBNS {
         inline void cancelDBDownload();
 
     private:
+        bool diskOK;
         bool downloading;
         const char *currentFile;
         const char *otherFile;
@@ -59,13 +60,16 @@ namespace DBNS {
     };  
 
     // This should be called from setup()
-    inline void UpdateDBManager::init() {
-        if (sdPresent) {
-            chooseInitialFile();
-        }
+    inline void UpdateDBManager::init(bool diskOK) {
+        this->diskOK = diskOK;
+        if (diskOK) { chooseInitialFile(); }
     }
 
     inline bool UpdateDBManager::startDBDownload() {
+        if (not diskOK) {
+            log_d("Ignoring attempt to download DB -- no disk available");
+            return true;
+        }
         log_d("Starting DB download");
 
         if (DISK.exists(otherFileStatus)) { DISK.remove(otherFileStatus); };
@@ -86,6 +90,8 @@ namespace DBNS {
     inline ssize_t UpdateDBManager::writeToDatabaseFile(const char* data,
                                                         int data_len) {
 
+        if (not diskOK) { return data_len; }
+
         if (!downloading) {
             if (!startDBDownload()) {
                 // TODO: Do something smart here
@@ -99,6 +105,8 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::finishDBDownload() {
+        if (not diskOK) { return; }
+
         if (not downloading) { return; }
 
         downloading = false;
@@ -108,6 +116,8 @@ namespace DBNS {
     }
 
     inline void UpdateDBManager::cancelDBDownload() {
+        if (not diskOK) { return; }
+
         if (not downloading) { return; }
 
         downloading = false;
@@ -176,8 +186,8 @@ namespace DBNS {
     }
 
     void UpdateDBManager::chooseInitialFile() {
-        if (!sdPresent)
-            return;
+        if (not diskOK) { return; }
+
         currentFile = "/DB_A.db";
         otherFile = "/DB_B.db";
         currentFileStatus = "/STATUS_A.TXT";
@@ -233,7 +243,7 @@ namespace DBNS {
     UpdateDBManager updateDBManager;
 }
 
-void initDBMan() { DBNS::updateDBManager.init(); }
+void initDBMan(bool diskOK) { DBNS::updateDBManager.init(diskOK); }
 
 ssize_t writeToDatabaseFile(const char* data, int data_len) {
     return DBNS::updateDBManager.writeToDatabaseFile(data, data_len);

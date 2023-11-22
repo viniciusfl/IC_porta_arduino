@@ -23,7 +23,7 @@ static const char* TAG = "main";
 int doorID = 1;
 
 unsigned long currentMillis;
-bool sdPresent = false;
+bool diskOK = false;
 
 const char* lastReaderID;
 unsigned long int lastCardID;
@@ -65,8 +65,8 @@ void setup() {
 #   endif
         log_e("Card Mount Failed...");
     } else {
-        log_v("SD connected.");
-        sdPresent = true;
+        log_v("Disk available.");
+        diskOK = true;
         initDiskLog();
     }
 
@@ -95,9 +95,9 @@ void setup() {
         }
     }
 
-    sqlite3_initialize();
+    if (diskOK) { sqlite3_initialize(); }
     initMqtt();
-    initDBMan();
+    initDBMan(diskOK);
 }
 
 void loop() {

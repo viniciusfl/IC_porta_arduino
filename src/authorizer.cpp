@@ -68,10 +68,6 @@ inline bool Authorizer::userAuthorized(const char* readerID,
             return true;
         }
     }
-    if (!sdPresent) {
-        log_e("Cannot read SD, denying access");
-        return false;
-    }
 
     // This is necessary because someone might open the door during
     // our DB file swap. We wait for up to 500 milliseconds for the

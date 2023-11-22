@@ -127,10 +127,8 @@ namespace  MQTT {
         esp_mqtt_client_unsubscribe(client, "/topic/commands");
         esp_mqtt_client_subscribe(client, "/topic/commands", 2);
 
-        if (sdPresent) {
-            esp_mqtt_client_unsubscribe(client, "/topic/database");
-            esp_mqtt_client_subscribe(client, "/topic/database", 2);
-        }
+        esp_mqtt_client_unsubscribe(client, "/topic/database");
+        esp_mqtt_client_subscribe(client, "/topic/database", 2);
     }
 
     void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
@@ -142,9 +140,7 @@ namespace  MQTT {
             log_i("MQTT_EVENT_CONNECTED");
             serverStarted = true;
             esp_mqtt_client_subscribe(client, "/topic/commands", 2);
-            if (sdPresent) {
-                esp_mqtt_client_subscribe(client, "/topic/database", 2);
-            }
+            esp_mqtt_client_subscribe(client, "/topic/database", 2);
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
