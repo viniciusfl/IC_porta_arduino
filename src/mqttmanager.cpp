@@ -23,7 +23,6 @@ namespace  MQTT {
         void treatCommands(const char* command);
         inline void resubscribe();
     private: 
-        bool downloading = false;
         bool serverStarted = false;
 
         esp_mqtt_client_handle_t client;
