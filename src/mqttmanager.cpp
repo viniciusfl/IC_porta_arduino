@@ -11,6 +11,7 @@ static const char *TAG = "mqttman";
 #include <dbmanager.h> // finishDBDownload etc.
 #include <cardreader.h> // openDoor etc.
 #include <keys.h>
+#include <firmwareOTA.h>
 
 namespace  MQTT {
     // This is a "real" function (not a method) that hands
@@ -35,6 +36,7 @@ namespace  MQTT {
         void removeMessageID(int);
         int findMessageID(int);
         void resetMessageList();
+        int isDownloadingDB = 0; // 1 - downloading DB, 2 - downloading firmware 
 
         esp_mqtt_client_handle_t client;
     };
@@ -57,10 +59,10 @@ namespace  MQTT {
             .client_id = buffer,
             .disable_clean_session = true,
             .keepalive = 180000, //FIXME:
-            .cert_pem = brokerCert,
+            /* .cert_pem = brokerCert,
             .client_cert_pem = espCertPem,
             .client_key_pem = espCertKey,  
-            .transport = MQTT_TRANSPORT_OVER_SSL,
+            .transport = MQTT_TRANSPORT_OVER_SSL, */
             .skip_cert_common_name_check = true, // FIXME:
         };
 
@@ -87,7 +89,7 @@ namespace  MQTT {
         for (int i = pos; i < 4; ++i) {
             inTransitMessageIDs[i] = inTransitMessageIDs[i+1];
         }
-        inTransitMessageIDs[5] = -1;
+        inTransitMessageIDs[4] = -1;
         --nextFreeID;
     }
 
@@ -128,7 +130,7 @@ namespace  MQTT {
         esp_mqtt_client_subscribe(client, "/topic/commands", 2);
 
         esp_mqtt_client_unsubscribe(client, "/topic/database");
-        esp_mqtt_client_subscribe(client, "/topic/database", 2);
+        //esp_mqtt_client_subscribe(client, "/topic/database", 2);
     }
 
     void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
@@ -140,7 +142,8 @@ namespace  MQTT {
             log_i("MQTT_EVENT_CONNECTED");
             serverStarted = true;
             esp_mqtt_client_subscribe(client, "/topic/commands", 2);
-            esp_mqtt_client_subscribe(client, "/topic/database", 2);
+            // esp_mqtt_client_subscribe(client, "/topic/database", 2);
+            esp_mqtt_client_subscribe(client, "/topic/firmware", 0);
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
@@ -170,21 +173,42 @@ namespace  MQTT {
                 snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
                 this->treatCommands(buffer);
             } else {
-                // If it's not a command, it's a DB to download
-                writeToDatabaseFile(event->data, event->data_len);
-                if (event->total_data_len == event->data_len) {
-                    log_i("MQTT_EVENT_DATA from /topic/database -- full message");
+                // If it's not a command, it's a DB to download or a firmware update
+                if (event->current_data_offset == 0) {
+                    if (!strcmp(buffer, "/topic/firmware")) {
+                        log_i("MQTT_EVENT_DATA from /topic/firmware -- full message");
+                        isDownloadingDB = 0;
+                    } else{
+                        log_i("MQTT_EVENT_DATA from /topic/database -- full message");
+                        isDownloadingDB = 1;
+                    }
                     addMessageID(event->msg_id);
-                } else if (event->current_data_offset == 0) {
-                    log_i("MQTT_EVENT_DATA from topic/database -- first");
-                } else if (event->total_data_len
-                                    - event->current_data_offset
-                                    - event->data_len <= 0) {
-                    log_i("MQTT_EVENT_DATA from /topic/database -- last");
-                    removeMessageID(event->msg_id);
-                    finishDBDownload();
+                }
+                /* if (isDownloadingDB) {
+                    if (event->current_data_offset == 0) {
+                        log_i("MQTT_EVENT_DATA from topic/database -- first");
+                    } else if (event->total_data_len
+                                        - event->current_data_offset
+                                        - event->data_len <= 0) {
+                        log_i("MQTT_EVENT_DATA from /topic/database -- last");
+                        removeMessageID(event->msg_id);
+                        finishDBDownload();
+                        isDownloadingDB = 0;
+                    } else {
+                        log_d("MQTT_EVENT_DATA from /topic/database -- ongoing");
+                    }
+                    return;
+                } */
+
+                writeToFile(event->data, event->data_len);
+                if (event->current_data_offset == 0) {
+                    log_i("MQTT_EVENT_DATA from topic/firmware -- first");
+                } else if (event->total_data_len - event->current_data_offset - event->data_len <= 0) {
+                    log_i("MQTT_EVENT_DATA from /topic/firmware -- last");
+                    /* removeMessageID(event->msg_id); */
+                    performUpdate();
                 } else {
-                    log_d("MQTT_EVENT_DATA from /topic/database -- ongoing");
+                    /* log_d("MQTT_EVENT_DATA from /topic/firmware -- ongoing %d", event->current_data_offset); */
                 }
             }
             break;
