@@ -52,7 +52,8 @@ Therefore:
    a secondary table in the same DB for logging. Still, we chose to always
    upload a complete DB when there are changes because (1) incremental
    updates might fail more often and (2) we already need to upload a
-   complete DB to initialize/reset a door controller.
+   complete DB to initialize/reset a door controller. Still, we may review
+   this in the future.
 
 # Initialization steps
 

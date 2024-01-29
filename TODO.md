@@ -62,7 +62,24 @@
    delete log files, eliminate all DB files to "reset" the controller,
    change the device ID and credentials etc.
 
- * Modify the format of the log messages
+ * Implement MQTT command to make sql updates to the DB (add/remove
+   users). While we prefer to update the whole DB each time, this is
+   obviously much faster. But how to harmonize these small updates
+   with the full DB uploads?
+   - Alter the DB on the ESP (so that the changes are applied quickly)
+     then update the DB on the server and let the ESP download it.
+     This is simple and should work fine.
+   - Same, but also create a "DB version"; sql updates always include
+     an update to this version too, so the ESP realizes that its DB
+     version matches that on the server and skips the download. This
+     complicates the DB download process.
+   - Only perform a full DB download during the initial setup, when
+     an error is detected or when we receive a command to forcibly
+     update the DB. This works and is reasonably simple (just subscribe
+     and unsubscribe to the DB topic as needed). If we choose to go
+     with this, we may also use the DB for logging.
+
+ * Modify the format of the log messages - is this done already???
 
  * Better error handling everywhere (crashing is not really an option,
    in extreme situations we should at least try restarting the MCU)
