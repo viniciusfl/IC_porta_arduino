@@ -6,9 +6,9 @@ static const char *TAG = "ota";
 
 #include <Update.h>
 
-#ifdef USE_DISK
+#ifdef USE_SD
 #include "SPI.h"
-#include "DISK.h"
+#include "SD.h"
 #else
 #include "FFat.h"
 #endif
@@ -42,8 +42,7 @@ namespace OTA{
 
 
     bool FirmwareUpdater::startOTAUpdate() {
-        if (DISK.exists(filename)) 
-            DISK.remove(filename);
+        if (DISK.exists(filename)) { DISK.remove(filename); }
 
         file = DISK.open(filename, FILE_WRITE);
         if (!file) {
@@ -73,6 +72,7 @@ namespace OTA{
             log_e("There is not enough space in memory for binary");
             return false;
         }
+        return true;
     }
 
     void FirmwareUpdater::processOTAUpdate() {
@@ -97,10 +97,10 @@ namespace OTA{
     FirmwareUpdater firmware;
 }
 
-void writeToFile(const char* data, int data_len) {
+void writeToFirmwareFile(const char* data, int data_len) {
     OTA::firmware.writeBinary(data, data_len);
 }
 
-void performUpdate() {
+void performFirmwareUpdate() {
     OTA::firmware.processOTAUpdate();
 }

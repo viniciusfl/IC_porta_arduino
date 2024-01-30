@@ -13,7 +13,10 @@ static const char *TAG = "mqttman";
 #include <keys.h>
 #include <firmwareOTA.h>
 
+
 namespace  MQTT {
+    enum DownloadType { DB, FIRMWARE, NONE };
+
     // This is a "real" function (not a method) that hands
     // the received event over to the MqttManager object.
     void callback_handler(void *handler_args, esp_event_base_t base,
@@ -26,21 +29,20 @@ namespace  MQTT {
         inline bool sendLog(const char *logData, unsigned int len);
         void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
                                 int32_t event_id, esp_mqtt_event_handle_t event);
-        void treatCommands(const char* command);
+        void handleCommand(const char* command);
         inline void resubscribe();
     private: 
         bool serverStarted = false;
         int inTransitMessageIDs[5];
         int nextFreeID;
-        void addMessageID(int);
-        void removeMessageID(int);
+        void rememberMessage(int);
+        void forgetMessage(int);
         int findMessageID(int);
         void resetMessageList();
-        int isDownloadingDB = 0; // 1 - downloading DB, 0 - downloading firmware 
+        enum DownloadType downloading; // DB, FIRMWARE, or NONE
 
         esp_mqtt_client_handle_t client;
     };
-
 
     inline bool MqttManager::serverConnected() {
         return serverStarted;
@@ -78,12 +80,12 @@ namespace  MQTT {
         for (int i = 0; i < 5; ++i) {inTransitMessageIDs[i] = -1;}
     }
 
-    void MqttManager::addMessageID(int id) {
+    void MqttManager::rememberMessage(int id) {
         if (findMessageID(id) >= 0) { return; }
         inTransitMessageIDs[nextFreeID++] = id;
     }
 
-    void MqttManager::removeMessageID(int id) {
+    void MqttManager::forgetMessage(int id) {
         int pos = findMessageID(id);
         if (pos < 0) { return; }
         for (int i = pos; i < 4; ++i) {
@@ -105,13 +107,13 @@ namespace  MQTT {
                                     "/topic/logs",
                                     logData, len, 1, 0, 0);
         if (result > 0) {
-            addMessageID(result);
+            rememberMessage(result);
             return true;
         }
         return false;
     }
 
-    void MqttManager::treatCommands(const char* command) {
+    void MqttManager::handleCommand(const char* command) {
         if (!strcmp(command, "openDoor")) {
             log_v("Received command to open door.");
             openDoorCommand();
@@ -160,56 +162,86 @@ namespace  MQTT {
         case MQTT_EVENT_PUBLISHED:
             log_i("MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
             if (findMessageID(event->msg_id)) {
-                removeMessageID(event->msg_id);
+                forgetMessage(event->msg_id);
                 flushSentLogfile();
             }
             break;
         case MQTT_EVENT_DATA:
             char buffer[100];
             snprintf(buffer, 100, "%.*s",  event->topic_len, event->topic);
+
+            // Commands always fit in a single message
             if (!strcmp(buffer, "/topic/commands")) {
                 log_i("MQTT_EVENT_DATA from topic %s", buffer);
                 snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
-                this->treatCommands(buffer);
-            } else {
-                // If it's not a command, it's a DB to download or a firmware update
-                if (event->current_data_offset == 0) {
-                    if (!strcmp(buffer, "/topic/firmware")) {
-                        log_i("MQTT_EVENT_DATA from /topic/firmware -- full message");
-                        isDownloadingDB = 0;
-                    } else{
-                        log_i("MQTT_EVENT_DATA from /topic/database -- full message");
-                        isDownloadingDB = 1;
-                    }
-                    addMessageID(event->msg_id);
-                }
-                if (isDownloadingDB) {
-                    if (event->current_data_offset == 0) {
-                        log_i("MQTT_EVENT_DATA from topic/database -- first");
-                    } else if (event->total_data_len
-                                        - event->current_data_offset
-                                        - event->data_len <= 0) {
-                        log_i("MQTT_EVENT_DATA from /topic/database -- last");
-                        removeMessageID(event->msg_id);
-                        finishDBDownload();
-                        isDownloadingDB = 0;
-                    } else {
-                        log_d("MQTT_EVENT_DATA from /topic/database -- ongoing");
-                    }
-                    return;
+                this->handleCommand(buffer);
+                break;
+            }
+
+            // File downloads are normally split into multiple "slices",
+            // so they result in multiple events; when this happens, the
+            // topic is only present in the first one, so we need to
+            // remember it. We also remember the ID of the message being
+            // received just to detect if some error causes a different
+            // download to start.
+
+            // The file was not split. This should not
+            // really happen, but let's handle it anyway
+            if (event->total_data_len == event->data_len) {
+                if (!strcmp(buffer, "/topic/firmware")) {
+                    log_i("MQTT_EVENT_DATA from /topic/firmware -- full message");
+                    writeToFirmwareFile(event->data, event->data_len);
+                    performFirmwareUpdate();
+                } else {
+                    log_i("MQTT_EVENT_DATA from /topic/database -- full message");
+                    writeToDatabaseFile(event->data, event->data_len);
+                    finishDBDownload();
                 }
 
-                writeToFile(event->data, event->data_len);
-                if (event->current_data_offset == 0) {
-                    log_i("MQTT_EVENT_DATA from topic/firmware -- first");
-                } else if (event->total_data_len - event->current_data_offset - event->data_len <= 0) {
-                    log_i("MQTT_EVENT_DATA from /topic/firmware -- last");
-                    removeMessageID(event->msg_id);
-                    performUpdate();
+                break;
+            }
+
+            // First slice
+            if (event->current_data_offset == 0) {
+                if (!strcmp(buffer, "/topic/firmware")) {
+                    downloading = FIRMWARE;
+                    log_i("MQTT_EVENT_DATA from /topic/firmware -- first");
                 } else {
-                    log_d("MQTT_EVENT_DATA from /topic/firmware -- ongoing %d", event->current_data_offset);
+                    downloading = DB;
+                    log_i("MQTT_EVENT_DATA from /topic/database -- first");
+                }
+
+                rememberMessage(event->msg_id);
+            }
+
+            bool lastSlice;
+            lastSlice = event->total_data_len - event->current_data_offset
+                                              - event->data_len <= 0;
+
+            if (downloading == FIRMWARE) {
+                writeToFirmwareFile(event->data, event->data_len);
+                if (lastSlice) {
+                    log_i("MQTT_EVENT_DATA from /topic/firmware -- last");
+                    performFirmwareUpdate();
+                    downloading = NONE;
+                    forgetMessage(event->msg_id);
+                } else {
+                    log_d("MQTT_EVENT_DATA from /topic/firmware -- ongoing %d",
+                            event->current_data_offset);
+                }
+            } else {
+                writeToDatabaseFile(event->data, event->data_len);
+                if (lastSlice) {
+                    log_i("MQTT_EVENT_DATA from /topic/database -- last");
+                    finishDBDownload();
+                    downloading = NONE;
+                    forgetMessage(event->msg_id);
+                } else {
+                    log_d("MQTT_EVENT_DATA from /topic/database -- ongoing %d",
+                            event->current_data_offset);
                 }
             }
+
             break;
         case MQTT_EVENT_ERROR:
             log_i("MQTT_EVENT_ERROR");

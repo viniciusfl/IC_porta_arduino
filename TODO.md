@@ -1,5 +1,7 @@
 # Short-term TODOs - Vinicius
 
+ * Certificates etc. in mqttmanager.cpp
+
  * CHECK WHETHER THIS IS WORKING OK:
    - Use `event->msg_id` to identify MQTT messages:
 
