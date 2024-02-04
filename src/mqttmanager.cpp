@@ -114,14 +114,38 @@ namespace  MQTT {
     }
 
     void MqttManager::handleCommand(const char* command) {
-        if (!strcmp(command, "openDoor")) {
-            log_v("Received command to open door.");
-            openDoorCommand();
-        } else if (!strcmp(command, "reboot")) {
-            log_v("Received command to reboot ESP.");
-            ESP.restart();
-        } else {
+        char cmd[20];
+        strncpy(cmd, command, sizeof(cmd));
+        int commaDivisor = -1;
+
+        for (int i = 0; command[i] != '\0'; i++) {
+            if (command[i] == '/') {
+                commaDivisor = i;
+                break;
+            }
+        }
+
+        if (commaDivisor == -1) {
             log_e("Invalid command: %s", command);
+            return;
+        }
+
+        char identifier[4];
+        strncpy(identifier, cmd, commaDivisor);
+        identifier[commaDivisor] = '\0';
+
+        int cmdValue = atoi(cmd + commaDivisor + 1);
+
+        if (!strcmp(identifier, "all") || cmdValue == doorID) {
+            if (!strcmp(cmd + commaDivisor + 1, "openDoor")) {
+                log_v("Received command to open door.");
+                openDoorCommand();
+            } else if (!strcmp(cmd + commaDivisor + 1, "reboot")) {
+                log_v("Received command to reboot ESP.");
+                ESP.restart();
+            } else {
+                log_e("Invalid command: %s", command);
+            }
         }
     }
 
@@ -130,6 +154,9 @@ namespace  MQTT {
 
         esp_mqtt_client_unsubscribe(client, "/topic/commands");
         esp_mqtt_client_subscribe(client, "/topic/commands", 2);
+
+        esp_mqtt_client_unsubscribe(client, "/topic/firmware");
+        esp_mqtt_client_subscribe(client, "/topic/firmware", 2);
 
         esp_mqtt_client_unsubscribe(client, "/topic/database");
         esp_mqtt_client_subscribe(client, "/topic/database", 2);
@@ -145,12 +172,14 @@ namespace  MQTT {
             serverStarted = true;
             esp_mqtt_client_subscribe(client, "/topic/commands", 2);
             esp_mqtt_client_subscribe(client, "/topic/database", 2);
+            esp_mqtt_client_subscribe(client, "/topic/firmware", 2);
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
             log_i("MQTT_EVENT_DISCONNECTED");
             cancelDBDownload();
             cancelLogUpload();
+            cancelFirmwareDownload();
             resetMessageList();
             break;
         case MQTT_EVENT_SUBSCRIBED:
@@ -248,6 +277,7 @@ namespace  MQTT {
             // Handle MQTT connection problems
             cancelDBDownload();
             cancelLogUpload();
+            cancelFirmwareDownload();
             resetMessageList();
 
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
