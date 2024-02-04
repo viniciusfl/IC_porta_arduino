@@ -29,6 +29,8 @@ CMD_DIR = "."
 CMD_PATTERNS = ["*.txt"]
 DB_DIR = "upload"
 DB_PATTERNS = ["*.db"]
+FM_PATTERNS = ["*.bin"]
+
 
 DB_NAME = "messages.db"
 TABLES = {
@@ -71,10 +73,10 @@ class OurMQTT():
 
         def on_message(client, userdata, msg):
             userdata.on_message(client, msg)
-        self.client.tls_set("../../certs/4deSetembro23/rootCA.crt",
+        """ self.client.tls_set("../../certs/4deSetembro23/rootCA.crt",
                        "../../certs/4deSetembro23/python.crt",
                        "../../certs/4deSetembro23/python.key",
-                       tls_version=ssl.PROTOCOL_TLSv1_2)
+                       tls_version=ssl.PROTOCOL_TLSv1_2) """
         self.client.on_message = on_message
         self.client.connect_async(BROKER_ADDRESS, BROKER_PORT, 60)
         self.client.loop_start()
@@ -190,7 +192,7 @@ from watchdog.observers import Observer
 from watchdog.events import LoggingEventHandler, PatternMatchingEventHandler
 
 class DiskMonitor():
-    def __init__(self, cmdHandler, dbUploadHandler):
+    def __init__(self, cmdHandler, dbUploadHandler, fmUploadHandler):
 
         self.cmdObserver = Observer()
         self.cmdObserver.schedule(FileMonitor(CMD_PATTERNS, cmdHandler),
@@ -200,14 +202,20 @@ class DiskMonitor():
         self.dbObserver = Observer()
         self.dbObserver.schedule(FileMonitor(DB_PATTERNS, dbUploadHandler),
                                  DB_DIR)
-
         self.dbObserver.start()
+
+        self.firmwareObserver = Observer()
+        self.firmwareObserver.schedule(FileMonitor(FM_PATTERNS, fmUploadHandler),
+                                  DB_DIR)
+        self.firmwareObserver.start()
 
     def stop(self):
         self.cmdObserver.stop()
         self.dbObserver.stop()
+        self.firmwareObserver.stop()
         self.cmdObserver.join()
         self.dbObserver.join()
+        self.firmwareObserver.join()
 
 
 # TODO: prevent "repeated" events when a file is created and modified.
@@ -252,14 +260,21 @@ class Main():
 
         def dbUploadHandler(filename):
             theMain.sendDB(filename)
+
+        def fmUploadHandler(filename):
+            theMain.sendFM(filename)
+
         self.mqtt = OurMQTT()
-        self.diskMonitor = DiskMonitor(cmdHandler, dbUploadHandler)
+        self.diskMonitor = DiskMonitor(cmdHandler, dbUploadHandler, fmUploadHandler)
     
     def sendDB(self, filename):
         self.mqtt.publish("database", filename)
 
     def sendCommand(self, filename):
         self.mqtt.publish("commands", filename)
+
+    def sendFM(self, filename):
+        self.mqtt.publish("firmware", filename)
 
     def stop(self):
         self.diskMonitor.stop()
