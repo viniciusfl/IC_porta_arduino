@@ -53,11 +53,13 @@ namespace OTA{
         running = esp_ota_get_running_partition();
 
         if (configured != running) {
-            log_e("Configured OTA boot partition at offset 0x%08"PRIx32", but running from offset 0x%08"PRIx32,
+            log_e("Configured OTA boot partition at offset %#x, "
+                  "but running from offset %#x",
                     configured->address, running->address);
 
-            log_e("This can happen if either the OTA boot data or preferred boot image become corrupted somehow.");
-                    Serial.println();
+            log_e("This can happen if either the OTA boot data or "
+                  "preferred boot image become corrupted somehow.");
+                    Serial.println(); // TODO: what is this?
 
         }
 
