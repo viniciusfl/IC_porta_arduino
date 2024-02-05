@@ -649,9 +649,14 @@ namespace LOGNS {
                     break;
                 }
 
-                // "+3" means "skip the initial '/sd' "
+                // "+3/+5" means "skip the initial '/sd' or '/ffat' "
                 char filenamebuf[30];
-                snprintf(filenamebuf, 30, "%s/%s", dirnamebuf +3,
+                snprintf(filenamebuf, 30, "%s/%s", dirnamebuf
+#               ifdef USE_SD
+                        +3,
+#               else
+                        +5,
+#               endif
                          entry->d_name);
 
                 if(! logfile.isMyCurrentName(filenamebuf)) {
