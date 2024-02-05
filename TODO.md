@@ -167,3 +167,17 @@
 
  * Implement OTA
 
+ * When we initialize for the first time, there is no DB file on disk and
+   we have never been subscribed to the DB topic before. Two things happen
+   in parallel:
+
+   1. After we subscribe, we start downloading the DB file, as it is a
+      "retain" message
+   2. We call `chooseInitialFile()`, which calls `forceDBDownload()` when
+      there is no local file.
+
+   Since there is no local DB on disk, `chooseInitialFile()` enqueues an
+   unsubscribe/subscribe sequence in the mqtt client. This means that,
+   when the download triggered by the first subscription is complete,
+   we unsubscribe/subscribe and start downloading again. Not great, but
+   not terrible either (fixing this is not entirely trivial).
