@@ -282,9 +282,9 @@ namespace  MQTT {
 
             if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
                 log_i("-> ", event->error_handle->esp_tls_last_esp_err);
-                log_i("reported from tls stack", event->error_handle->esp_tls_stack_err);
-                log_i("captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
-                log_i("Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+                log_i("   reported from tls stack", event->error_handle->esp_tls_stack_err);
+                log_i("   captured as transport's socket errno",  event->error_handle->esp_transport_sock_errno);
+                log_i("   Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
             }
             break;
         case MQTT_EVENT_BEFORE_CONNECT:
