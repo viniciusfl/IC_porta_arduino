@@ -40,8 +40,9 @@ namespace ReaderNS {
 
     Wiegand external;
 
+#   ifdef TWO_READERS
     Wiegand internal;
-
+#   endif
     // We read the Wiegand data in a callback with interrupts disabled; to make
     // this callback as short as possible and pass this data to the "normal"
     // program flow, we use these:
@@ -125,6 +126,7 @@ namespace ReaderNS {
         external.setPin1State(digitalRead(EXTERNAL_D1));
     }
 
+#   ifdef TWO_READERS
     void IRAM_ATTR setInternal0PinState() {
         internal.setPin0State(digitalRead(INTERNAL_D0));
     }
@@ -132,7 +134,7 @@ namespace ReaderNS {
     void IRAM_ATTR setInternal1PinState() {
         internal.setPin1State(digitalRead(INTERNAL_D1));
     }
-
+#   endif
 
     // This should be called from setup()
     inline void initCardReaders() {
@@ -143,23 +145,26 @@ namespace ReaderNS {
         external.onStateChange(stateChanged, "External card reader state changed: ");
         external.begin(Wiegand::LENGTH_ANY, true);
 
+        // Initialize pins for first Wiegand reader (external) as INPUT
+        pinMode(EXTERNAL_D0, INPUT);
+        pinMode(EXTERNAL_D1, INPUT);
+        pinMode(EXTERNAL_BEEP, OUTPUT);
+        digitalWrite(EXTERNAL_BEEP, HIGH);
+
+#       ifdef TWO_READERS
         // Install listeners and initialize second Wiegand reader
         internal.onReceive(captureIncomingData, "internal");
         internal.onReceiveError(receivedDataError, "Internal card reader error: ");
         internal.onStateChange(stateChanged, "Internal card reader state changed: ");
         internal.begin(Wiegand::LENGTH_ANY, true);
 
-        // Initialize pins for first Wiegand reader (external) as INPUT
-        pinMode(EXTERNAL_D0, INPUT);
-        pinMode(EXTERNAL_D1, INPUT);
-        pinMode(INTERNAL_BEEP, OUTPUT);
-        digitalWrite(INTERNAL_BEEP, HIGH);
 
         // Initialize pins for second Wiegand reader (internal) as INPUT
         pinMode(INTERNAL_D0, INPUT);
         pinMode(INTERNAL_D1, INPUT);
-        pinMode(EXTERNAL_BEEP, OUTPUT);
-        digitalWrite(EXTERNAL_BEEP, HIGH);
+        pinMode(INTERNAL_BEEP, OUTPUT);
+        digitalWrite(INTERNAL_BEEP, HIGH);
+#       endif
 
         // We define the interrupt handlers with IRAM_ATTR; it is not really
         // necessary to use ESP_INTR_FLAG_IRAM:
@@ -176,7 +181,7 @@ namespace ReaderNS {
         attachInterrupt(digitalPinToInterrupt(EXTERNAL_D1),
                         &setExternal1PinState,
                         CHANGE);
-
+#   ifdef TWO_READERS
         // Initialize interrupt handler for second Wiegand reader pins
         attachInterrupt(digitalPinToInterrupt(INTERNAL_D0),
                         &setInternal0PinState,
@@ -185,14 +190,16 @@ namespace ReaderNS {
         attachInterrupt(digitalPinToInterrupt(INTERNAL_D1),
                         &setInternal1PinState,
                         CHANGE);
-
+#   endif
         // Register the initial pin state for first Wiegand reader pins
         external.setPin0State(digitalRead(EXTERNAL_D0));
         external.setPin1State(digitalRead(EXTERNAL_D1));
+#   ifdef TWO_READERS
 
         // Register the initial pin state for second Wiegand reader pins
         internal.setPin0State(digitalRead(INTERNAL_D0));
         internal.setPin1State(digitalRead(INTERNAL_D1));
+#   endif
     }
 
     unsigned long lastFlush = 0;
@@ -209,7 +216,9 @@ namespace ReaderNS {
         // Only very recent versions of the arduino framework
         // for ESP32 support interrupts()/noInterrupts()
         portDISABLE_INTERRUPTS();
+#   ifdef TWO_READERS
         internal.flush();
+#   endif
         external.flush();
         portENABLE_INTERRUPTS();
 
@@ -240,7 +249,7 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
 void blinkOk(const char* reader) {
 
     int pin;
-    if (strcmp(reader, "internal")) {
+    if (!strcmp(reader, "internal")) {
         pin = INTERNAL_BEEP;
     } else {
         pin = EXTERNAL_BEEP;
@@ -264,7 +273,7 @@ void blinkOk(const char* reader) {
 
 void blinkFail(const char* reader) {
     int pin;
-    if (strcmp(reader, "internal")) {
+    if (!strcmp(reader, "internal")) {
         pin = INTERNAL_BEEP;
     } else {
         pin = EXTERNAL_BEEP;
