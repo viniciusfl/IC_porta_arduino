@@ -26,8 +26,8 @@ static const char *TAG = "log";
   This code writes log messages to disk files (guaranteeing they are not
   lost if the system is shut down) and uploads these files over MQTT when
   the network is available. It also maintains a ring buffer in memory with
-  the latest log messages. If there is no SD card available, this ring
-  buffer may still be accessed.
+  the latest log messages. If there is no storage available, at least this
+  ring buffer may still be accessed.
 
   Log messages are both system logs and access logs, and they are all
   mixed together; it is up to the server to separate them. For the
@@ -77,7 +77,7 @@ static const char *TAG = "log";
   4. On the default task, we periodically check for files to send over
      MQTT.
 
-  If there is no SD card available, we do not perform steps 3 and 4;
+  If there is no storage available, we do not perform steps 3 and 4;
   log messages are still temporarily available in the ring buffer.
 
   In step 1, we do not copy the data to a new buffer. This means we
