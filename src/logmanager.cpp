@@ -596,6 +596,7 @@ namespace LOGNS {
             unsigned int len = f.size();
             char* buf = (char*)malloc(len + 1);
             f.read((uint8_t*) buf, len);
+            f.close();
             buf[len] = '\0';
             bool success = sendLog(buf, len);
             free(buf);
