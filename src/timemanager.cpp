@@ -116,7 +116,7 @@ namespace TimeNS {
 
     void TimeManager::update() {
         if (!HWClockExists) {
-            log_w("Cannot update HW clock time (HW clock not found).");
+            log_d("Cannot update HW clock time (HW clock not found).");
             return;
         }
 
