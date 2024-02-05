@@ -287,6 +287,9 @@ namespace  MQTT {
                 log_i("Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
             }
             break;
+        case MQTT_EVENT_BEFORE_CONNECT:
+            log_d("Ready to connect to mqtt broker");
+            break;
         default:
             log_i("Other event id:%d", event->event_id);
             break;
