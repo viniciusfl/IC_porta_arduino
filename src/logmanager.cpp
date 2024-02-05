@@ -482,6 +482,7 @@ namespace LOGNS {
             snprintf(buf +n, 100 -n,
                      " |%d| (LOGGING): Closing logfile: %s",
                       doorID, filename);
+            Serial.println(buf);
             file.print(buf);
             file.write(0);
             file.flush();
@@ -500,6 +501,7 @@ namespace LOGNS {
         snprintf(buf +n, 100 -n,
                  " |%d| (LOGGING): Created new logfile: %s",
                  doorID, filename);
+        Serial.println(buf);
         file.print(buf);
         file.write(0);
         file.flush();
