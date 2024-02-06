@@ -95,11 +95,11 @@ static const char *TAG = "log";
   log message depends on allocating a new memory buffer to write
   the message to. This may take too much stack space in some tasks
   (notably, the system event task, which by default has a stack size
-  of 2304 bytes), so we need to be smart here; the best solution is
-  to replace the FreeRTOS queues with ESP32 ring buffers:
+  of 2304 bytes), so we need to be smart here. We would like to replace
+  the FreeRTOS queues with ESP32 ring buffers:
   https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos_additions.html#ring-buffers
-  This, however, adds some complications, as they are not thread-safe,
-  so we need to handle synchronization ourselves.
+  But there is no "fromISR" version of some functions:
+  https://github.com/espressif/esp-idf/issues/10527
 
   ---
 
