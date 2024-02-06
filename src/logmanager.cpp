@@ -150,13 +150,13 @@ namespace LOGNS {
                                       const char* timestamp,
                                       const char* format, va_list& ap) {
 
-        char buf[1024];
+        char buf[512];
 
         buf[0] = 0;
-        uint32_t written = snprintf(buf, 1024, "%s |%d| (%s): ",
+        uint32_t written = snprintf(buf, 512, "%s |%d| (%s): ",
                                     timestamp, doorID, type);
 
-        written += vsnprintf(buf +written, 1024 -written, format, ap);
+        written += vsnprintf(buf +written, 512 -written, format, ap);
 
         BaseType_t result = xQueueSendToBackFromISR(logQueue,
                                                     (void*) &buf, NULL);
@@ -655,14 +655,14 @@ namespace LOGNS {
 
     LogManager manager;
 
-#   define QUEUE_LENGTH 10
-#   define QUEUE_ITEM_SIZE 1024
+#   define QUEUE_LENGTH 5
+#   define QUEUE_ITEM_SIZE 512
 
     uint8_t queueStorage[QUEUE_LENGTH * QUEUE_ITEM_SIZE];
     StaticQueue_t queueBuffer;
 
     StaticTask_t writerTaskBuffer;
-    StackType_t writerTaskStackStorage[4096];
+    StackType_t writerTaskStackStorage[3072];
     TaskHandle_t writerTask;
 
     // It would be better if xQueueReceive would block indefinitely if
@@ -672,7 +672,7 @@ namespace LOGNS {
     // Since we are using this, we also create a new log file when
     // there is nothing to do.
     void ringbufWriter(void* params) {
-        char buf[1024];
+        char buf[512];
 
         for(;;) {
             if (pdTRUE == xQueueReceive(logQueue, &buf,
