@@ -754,6 +754,8 @@ namespace LOGNS {
     void initDiskLog() {
         logfile.init();
         logToDisk = true;
+        // TODO: read whatever remains in the memory ringbuffer
+        //       and save it to disk
     }
 }
 
