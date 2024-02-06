@@ -752,7 +752,7 @@ namespace LOGNS {
 
         char buf[30];
         int count = timestamper.stamp(buf);
-        count += enqueueLogMessage("ACCESS", buf, "reader %s, ID %lu %s",
+        count += enqueueLogMessage("ACCESS", buf, "reader %s, ID %lu %s\n",
                                    readerID, cardID, status);
 
         return count;
