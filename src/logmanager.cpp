@@ -245,8 +245,6 @@ namespace LOGNS {
     // 3. We may update "first" after addchar() has tested for its value.
     //    That would not be a problem because, like in the case above,
     //    addchar() would simply update "first" again to the same value.
-    //    More importantly, this should never happen in practice because
-    //    addchar() is always run from a higher-priority thread.
     bool Ringbuf::read(char* outbuf) {
         int i = first;
         int oldfirst = i;
@@ -746,7 +744,7 @@ namespace LOGNS {
                                     "writerTask",
                                     4096, // stack size
                                     (void*) 1, // params, we are not using this
-                                    (UBaseType_t) 6, // priority; the MQTT task uses 5
+                                    (UBaseType_t) 1, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,
                                     &writerTaskBuffer,
                                     tskNO_AFFINITY);
