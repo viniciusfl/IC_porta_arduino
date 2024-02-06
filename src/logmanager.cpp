@@ -658,8 +658,8 @@ namespace LOGNS {
 #   define QUEUE_LENGTH 5
 #   define QUEUE_ITEM_SIZE 512
 
-    uint8_t queueStorage[QUEUE_LENGTH * QUEUE_ITEM_SIZE];
-    StaticQueue_t queueBuffer;
+    DRAM_ATTR uint8_t queueStorage[QUEUE_LENGTH * QUEUE_ITEM_SIZE];
+    DRAM_ATTR StaticQueue_t queueBuffer;
 
     StaticTask_t writerTaskBuffer;
     StackType_t writerTaskStackStorage[3072];
@@ -744,7 +744,7 @@ namespace LOGNS {
                                     "writerTask",
                                     3072, // stack size
                                     (void*) 1, // params, we are not using this
-                                    (UBaseType_t) 1, // priority; the MQTT task uses 5
+                                    (UBaseType_t) 6, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,
                                     &writerTaskBuffer,
                                     tskNO_AFFINITY);
