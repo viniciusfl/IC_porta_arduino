@@ -417,8 +417,6 @@ namespace LOGNS {
     //       size OR instead of calling createNewFile() here just set
     //       shouldRotate to true.
     inline void Logfile::log(const char* message) {
-        Serial.print(message);
-
         if (doesNotFit(message)) { createNewFile(); }
 
         file.print(message);
@@ -678,6 +676,7 @@ namespace LOGNS {
             if (pdTRUE == xQueueReceive(logQueue, &buf,
                                         pdMS_TO_TICKS(10000))) { // 10s
                 ringbuf.write(buf);
+                Serial.print(buf);
                 if (logToDisk) { logfile.log(buf); }
             } else {
                 if (logfile.shouldRotate) { logfile.createNewFile(); }
