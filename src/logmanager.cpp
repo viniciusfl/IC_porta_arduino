@@ -63,47 +63,43 @@ static const char *TAG = "log";
   What we do is:
 
   1. We replace the default log function with our own. This function
-     writes the message information to a buffer and sends the pointer
-     to it to a FreeRTOS queue, because these queues are thread-safe
+     formats the log message and writes it to a FreeRTOS queue, because
+     these queues are thread-safe
 
-  2. On a separate task, we process what comes from the queue by writing
+  2. On a separate task, we process what comes from the queue, writing
      the formatted message to a ring buffer; since this is a single task,
-     there are no synchronization issues
+     there are no synchronization issues. If disk logging is enabled,
+     this task also writes the message to disk.
 
-  3. On yet another task, we read what is in the ring buffer and write
-     to a logfile on disk (using the Logfile class); again, this is a
-     single task, so there are no synchronization issues.
-
-  4. On the default task, we periodically check for files to send over
+  3. On the default task, we periodically check for files to send over
      MQTT.
 
-  If there is no storage available, we do not perform steps 3 and 4;
-  log messages are still temporarily available in the ring buffer.
+  If there is no storage available, log messages are still temporarily
+  available in the ring buffer.
 
-  In step 1, we do not copy the data to a new buffer. This means we
-  cannot return to the caller right away, as that would deallocate the
-  memory. Instead, we wait for step 2 to finish (when the data is copied
-  to the ringbuffer).
-
-  In step 2, we do not write to disk directly because we want to return
+  We do not write to disk directly in step 1 because we want to return
   from the log call as fast as possible, and writing to disk may take
   a long time.
 
-  In step 3, we close the current file and create a new one if it gets
+  In step 2, we close the current file and create a new one if it gets
   "big" (files need to fit in memory to be uploaded over MQTT).
 
-  In step 4, we take care to only send a file if it is already closed, if
+  In step 3, we take care to only send a file if it is already closed, if
   we are actually online and if we are not currently uploading any files
   (sending multiple files concurrently would consume too much memory).
   After the file is successfully sent, it is deleted.
 
-  Log messages are not simple strings; they are often gererated in
-  printf style, i.e., a format string and some parameters, such as
+  TODO: Log messages are not simple strings; they are often gererated
+  in printf style, i.e., a format string and some parameters, such as
   log_e("error %s detected", errorstring). Generating the complete
   log message depends on allocating a new memory buffer to write
   the message to. This may take too much stack space in some tasks
   (notably, the system event task, which by default has a stack size
-  of 2304 bytes), so we do this in the ringbufWriter task instead.
+  of 2304 bytes), so we need to be smart here; the best solution is
+  to replace the FreeRTOS queues with ESP32 ring buffers:
+  https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos_additions.html#ring-buffers
+  This, however, adds some complications, as they are not thread-safe,
+  so we need to handle synchronization ourselves.
 
   ---
 
@@ -146,18 +142,6 @@ static const char *TAG = "log";
 
 namespace LOGNS {
 
-    // We use a FreeRTOS queue to process log messages
-    typedef struct {
-        const char* type; // "LOGGING", "SYSTEM", or "ACCESS"
-        const char* timestamp;
-        const char* format;
-        va_list* ap_ptr;
-        TaskHandle_t taskID;
-    } QueueMessage;
-
-#   define QUEUE_LENGTH 10
-#   define QUEUE_ITEM_SIZE sizeof(QueueMessage)
-
     QueueHandle_t logQueue;
 
     bool logToDisk = false;
@@ -166,23 +150,21 @@ namespace LOGNS {
                                       const char* timestamp,
                                       const char* format, va_list& ap) {
 
-        QueueMessage msg = {type, timestamp, format, &ap,
-                            xTaskGetCurrentTaskHandle()};
+        char buf[1024];
 
-        BaseType_t result = xQueueSendToBack(logQueue,
-                                             (void*) &msg,
-                                             pdMS_TO_TICKS(400)); // 400ms
+        buf[0] = 0;
+        uint32_t written = snprintf(buf, 1024, "%s |%d| (%s): ",
+                                    timestamp, doorID, type);
+
+        written += vsnprintf(buf +written, 1024 -written, format, ap);
+
+        BaseType_t result = xQueueSendToBackFromISR(logQueue,
+                                                    (void*) &buf, NULL);
 
         // this message will be lost; shouldn't really happen
         if (result != pdTRUE) { return 0; }
 
-        // We should wait forever, otherwise the other thread may access
-        // memory that is no longer valid. However, waiting forever may
-        // make the system freeze if something goes wrong, so we just
-        // wait for a "long" time (4s).
-        uint32_t count;
-        xTaskNotifyWait(0, 0, &count, pdMS_TO_TICKS(4000));
-        return count;
+        return written;
     }
 
     int IRAM_ATTR enqueueLogMessage(const char* type,
@@ -675,55 +657,32 @@ namespace LOGNS {
 
     LogManager manager;
 
+#   define QUEUE_LENGTH 10
+#   define QUEUE_ITEM_SIZE 1024
 
     uint8_t queueStorage[QUEUE_LENGTH * QUEUE_ITEM_SIZE];
     StaticQueue_t queueBuffer;
-
-    StaticTask_t readerTaskBuffer;
-    StackType_t readerTaskStackStorage[5120];
-    TaskHandle_t readerTask;
 
     StaticTask_t writerTaskBuffer;
     StackType_t writerTaskStackStorage[4096];
     TaskHandle_t writerTask;
 
-    void ringbufReader(void* params) {
-        char buf[1024];
-
-        for (;;) {
-            if (ringbuf.empty()) {
-                if (logfile.shouldRotate) { logfile.createNewFile(); }
-                xTaskNotifyWait(0, 0, NULL, pdMS_TO_TICKS(400)); // 400ms
-            }
-
-            if (!ringbuf.empty() and ringbuf.read(buf)) { logfile.log(buf); }
-        }
-    }
-   
     // It would be better if xQueueReceive would block indefinitely if
     // there are no messages in the queue, but apparently this behavior
     // is not enabled with ESP32 (INCLUDE_vTaskSuspend is not 1), so
     // we set an arbitrary timeout and check for the return status.
+    // Since we are using this, we also create a new log file when
+    // there is nothing to do.
     void ringbufWriter(void* params) {
-        QueueMessage received;
         char buf[1024];
 
         for(;;) {
-            if (pdTRUE == xQueueReceive(logQueue, &received,
+            if (pdTRUE == xQueueReceive(logQueue, &buf,
                                         pdMS_TO_TICKS(10000))) { // 10s
-
-                buf[0] = 0;
-                uint32_t n = snprintf(buf, 1024, "%s |%d| (%s): ",
-                                      received.timestamp,
-                                      doorID,
-                                      received.type);
-
-                n += vsnprintf(buf +n, 1024 -n, received.format,
-                               *(received.ap_ptr));
-
                 ringbuf.write(buf);
-                xTaskNotify(received.taskID, n, eSetValueWithOverwrite);
-                if (logToDisk) { xTaskNotify(readerTask, 0, eNoAction); }
+                if (logToDisk) { logfile.log(buf); }
+            } else {
+                if (logfile.shouldRotate) { logfile.createNewFile(); }
             }
         }
     }
@@ -797,17 +756,6 @@ namespace LOGNS {
 
     void initDiskLog() {
         logfile.init();
-
-        readerTask = xTaskCreateStaticPinnedToCore(
-                                    ringbufReader,
-                                    "readerTask",
-                                    5120, // stack size
-                                    (void*) 1, // params, we are not using this
-                                    (UBaseType_t) 5, // priority
-                                    readerTaskStackStorage,
-                                    &readerTaskBuffer,
-                                    tskNO_AFFINITY);
-
         logToDisk = true;
     }
 }
