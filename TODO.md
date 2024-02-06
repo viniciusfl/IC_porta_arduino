@@ -18,13 +18,14 @@
  * Handle other possible MQTT errors.
 
  * Check whether openDoor, denyToOpenDoor, blinkOK, and blinkFail do
-   what they are supposed to do:
-
-   - We should choose an output pin to activate the door; this pin
-     should *not* switch levels during boot! Then openDoor should
-     change the level of the pin for some 300ms.
+   what they are supposed to do
 
 # Other short-term TODOs
+
+ * The DB is downloaded every time the MCU boots
+
+ * Logging may potentially exhaust the available memory (check the TODO
+   in `logmanager.cpp`)
 
  * Limit log file size:
 
@@ -40,11 +41,6 @@
    - After we make sure no file will be larger than 5KB, eliminate the
      "malloc" in LogManager::sendNextLogfile() and use a fixed buffer
      instead (check TODO comments).
-
- * To actually open the door, we may use an ordinary logic level
-   converter (https://www.sparkfun.com/products/12009 ): although all
-   pages about this device talk about "3.3-5V", the datasheet for the
-   BSS138 allows for up to 50V Drain-Source and +-20V Gate-Source DDP
 
  * Choose and set license
 
