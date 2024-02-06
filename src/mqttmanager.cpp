@@ -97,7 +97,7 @@ namespace  MQTT {
 
     int MqttManager::findMessageID(int id) {
         for (int i = 0; i < 5; ++i) {
-            if (inTransitMessageIDs[i] == id) { return 1; }
+            if (inTransitMessageIDs[i] == id) { return i; }
         }
         return -1;
     }
