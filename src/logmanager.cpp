@@ -655,7 +655,7 @@ namespace LOGNS {
 
     LogManager manager;
 
-#   define QUEUE_LENGTH 5
+#   define QUEUE_LENGTH 10
 #   define QUEUE_ITEM_SIZE 512
 
     DRAM_ATTR uint8_t queueStorage[QUEUE_LENGTH * QUEUE_ITEM_SIZE];
