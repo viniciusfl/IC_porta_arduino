@@ -742,7 +742,7 @@ namespace LOGNS {
         writerTask = xTaskCreateStaticPinnedToCore(
                                     ringbufWriter,
                                     "writerTask",
-                                    4096, // stack size
+                                    3072, // stack size
                                     (void*) 1, // params, we are not using this
                                     (UBaseType_t) 1, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,
