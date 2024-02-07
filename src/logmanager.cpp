@@ -712,8 +712,22 @@ namespace LOGNS {
     void initDiskLog() {
         logfile.init();
         logToDisk = true;
-        // TODO: read whatever remains in the memory ringbuffer
-        //       and save it to disk
+
+        // Send old messages that are still available in memory to disk
+        UBaseType_t count;
+        vRingbufferGetInfo(latestMessages, NULL, NULL, NULL, NULL, &count);
+
+        while (count > 0) {
+            size_t len;
+            char* buf = (char*) xRingbufferReceive(latestMessages, &len,
+                                                     pdMS_TO_TICKS(200));
+            // Should never be null...
+            if (buf != NULL) {
+                logfile.log(buf);
+                vRingbufferReturnItem(latestMessages, (void*) buf);
+            }
+            vRingbufferGetInfo(latestMessages, NULL, NULL, NULL, NULL, &count);
+        }
     }
 }
 
