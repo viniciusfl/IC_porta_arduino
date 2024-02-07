@@ -743,7 +743,7 @@ namespace LOGNS {
                                     "writerTask",
                                     4096, // stack size
                                     (void*) 1, // params, we are not using this
-                                    (UBaseType_t) 6, // priority; the MQTT task uses 5
+                                    (UBaseType_t) 4, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,
                                     &writerTaskBuffer,
                                     tskNO_AFFINITY);
