@@ -26,6 +26,12 @@ static const char* TAG = "card";
 
 namespace ReaderNS {
 
+    // We should not log things inside a callback,
+    // so we store the message and log it later
+    char connectedMsg[192];
+    char disconnectedMsg[192];
+    char readErrorMsg[192];
+
     void IRAM_ATTR captureIncomingData(uint8_t* data, uint8_t bits,
                                        const char* reader);
 
@@ -99,7 +105,11 @@ namespace ReaderNS {
     // Whatever you specify on `wiegand.onStateChange()`
     // TODO: we should not try to log things inside a callback
     void IRAM_ATTR stateChanged(bool plugged, const char* message) {
-        log_i("%s %s", message, plugged ? "CONNECTED" : "DISCONNECTED");
+        if (plugged) {
+            snprintf(connectedMsg, 192, "%s %s", message, "CONNECTED");
+        } else {
+            snprintf(disconnectedMsg, 192, "%s %s", message, "DISCONNECTED");
+        }
     }
 
     // TODO: we should not try to log things inside a callback
@@ -114,8 +124,8 @@ namespace ReaderNS {
             snprintf(buf + 2*i, 3, "%02hhx", rawData[i]);
         }
 
-        log_i("%s %s - Raw data: %u bits / %s", message,
-              Wiegand::DataErrorStr(error), rawBits, buf);
+        snprintf(readErrorMsg, 192, "%s %s - Raw data: %u bits / %s",
+                    message, Wiegand::DataErrorStr(error), rawBits, buf);
     }
 
     void IRAM_ATTR setExternal0PinState() {
@@ -138,6 +148,10 @@ namespace ReaderNS {
 
     // This should be called from setup()
     inline void initCardReaders() {
+
+        connectedMsg[0] = 0;
+        disconnectedMsg[0] = 0;
+        readErrorMsg[0] = 0;
 
         // Install listeners and initialize first Wiegand reader
         external.onReceive(captureIncomingData, "external");
@@ -210,6 +224,21 @@ namespace ReaderNS {
         // We could run this on every loop, but since we
         // disable interrupts it might be better not to.
         if (currentMillis - lastFlush < 20) return false;
+
+        if (connectedMsg[0] != 0) {
+            log_i("%s", connectedMsg);
+            connectedMsg[0] = 0;
+        }
+
+        if (disconnectedMsg[0] != 0) {
+            log_i("%s", disconnectedMsg);
+            disconnectedMsg[0] = 0;
+        }
+
+        if (readErrorMsg[0] != 0) {
+            log_i("%s", readErrorMsg);
+            readErrorMsg[0] = 0;
+        }
 
         lastFlush = currentMillis;
 
