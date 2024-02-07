@@ -125,7 +125,7 @@ static const char *TAG = "log";
 // send out information to the broker regularly, so it is easier
 // to detect whether we crashed or lost connectivity.
 #define MAX_RECORDS 100
-#define MAX_LOG_FILE_SIZE 5000 // 5kb
+#define MAX_LOG_FILE_SIZE 5000 // 5kb; this is a soft limit!!
 
 // If we have no file to send and the current log file has not been
 // rotated for this long, rotate it so we send something to the
@@ -350,9 +350,6 @@ namespace LOGNS {
         createNewFile();
     }
 
-    // TODO: either make sure we never go over a specific maximum file
-    //       size OR instead of calling createNewFile() here just set
-    //       shouldRotate to true.
     inline void Logfile::log(const char* message) {
         if (doesNotFit(message)) { createNewFile(); }
 
@@ -456,6 +453,7 @@ namespace LOGNS {
             unsigned long lastLogCheckTime = 0;
             unsigned long lastLogSentTime = 0;
             bool findFileToSend();
+            char sendBuf[MAX_LOG_FILE_SIZE + 1000]; // MAX... is a soft limit
     };
 
     void LogManager::cancelUpload() {
@@ -507,16 +505,11 @@ namespace LOGNS {
         if (findFileToSend()) {
             log_d("Found a logfile to send: %s", inTransitFilename);
 
-            // TODO: it would be nice to use a static buffer here
-            //       instead of malloc()
             File f = DISK.open(inTransitFilename, "r");
             unsigned int len = f.size();
-            char* buf = (char*)malloc(len + 1);
-            f.read((uint8_t*) buf, len);
+            f.read((uint8_t*) sendBuf, len);
             f.close();
-            buf[len] = '\0';
-            bool success = sendLog(buf, len);
-            free(buf);
+            bool success = sendLog(sendBuf, len);
 
             if (success) {
                 sendingLogfile = true;
