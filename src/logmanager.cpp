@@ -86,8 +86,8 @@ static const char *TAG = "log";
 
   In step 3, we take care to only send a file if it is already closed, if
   we are actually online and if we are not currently uploading any files
-  (sending multiple files concurrently would consume too much memory).
-  After the file is successfully sent, it is deleted.
+  (enqueuing multiple files would consume too much memory).  After the
+  file is successfully sent, it is deleted.
 
   TODO: Log messages are not simple strings; they are often gererated
   in printf style, i.e., a format string and some parameters, such as
@@ -95,11 +95,9 @@ static const char *TAG = "log";
   log message depends on allocating a new memory buffer to write
   the message to. This may take too much stack space in some tasks
   (notably, the system event task, which by default has a stack size
-  of 2304 bytes), so we need to be smart here. We would like to replace
-  the FreeRTOS queues with ESP32 ring buffers:
+  of 2304 bytes), so we need to be smart here. We should replace the
+  FreeRTOS queues with ESP32 ring buffers:
   https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos_additions.html#ring-buffers
-  But there is no "fromISR" version of some functions:
-  https://github.com/espressif/esp-idf/issues/10527
 
   ---
 
