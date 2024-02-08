@@ -56,16 +56,16 @@ namespace  MQTT {
         snprintf(buffer, 50, "ESP_KEYLOCK_ID-%d", doorID);
 
         const esp_mqtt_client_config_t mqtt_cfg = {
-            .host = "10.0.2.109",
+            .host = "143.107.44.136",
             .port = 8883, 
             .client_id = buffer,
             .disable_clean_session = true,
-            .keepalive = 180000, //FIXME:
-            /* .cert_pem = brokerCert,
+            .keepalive = 180000,
+            .cert_pem = brokerCert,
             .client_cert_pem = espCertPem,
             .client_key_pem = espCertKey,  
-            .transport = MQTT_TRANSPORT_OVER_SSL, */
-            .skip_cert_common_name_check = true, // FIXME:
+            .transport = MQTT_TRANSPORT_OVER_SSL,
+            .skip_cert_common_name_check=true,
         };
 
         client = esp_mqtt_client_init(&mqtt_cfg);

@@ -9,14 +9,17 @@ static const char* TAG = "card";
 #include <cardreader.h>
 
 // pins for card reader 1 (external)
-#define EXTERNAL_D0  26
-#define EXTERNAL_D1  27
-#define EXTERNAL_BEEP 16
+#define EXTERNAL_D0  35
+#define EXTERNAL_D1  34
+#define EXTERNAL_BEEP 4
+#define EXTERNAL_LED 2
 
 // pins for card reader 2 (internal)
 #define INTERNAL_D0  33
 #define INTERNAL_D1  25
 #define INTERNAL_BEEP 32
+
+#define DOOR_OPEN 13
 
 // Note that, with more than one reader, trying to read two cards at
 // exactly the same time will probably fail (we use a single data buffer
@@ -149,8 +152,9 @@ namespace ReaderNS {
         pinMode(EXTERNAL_D0, INPUT);
         pinMode(EXTERNAL_D1, INPUT);
         pinMode(EXTERNAL_BEEP, OUTPUT);
+        pinMode(DOOR_OPEN, OUTPUT);
         digitalWrite(EXTERNAL_BEEP, HIGH);
-
+        pinMode(EXTERNAL_LED, OUTPUT);
 #       ifdef TWO_READERS
         // Install listeners and initialize second Wiegand reader
         internal.onReceive(captureIncomingData, "internal");
@@ -254,21 +258,35 @@ void blinkOk(const char* reader) {
     } else {
         pin = EXTERNAL_BEEP;
     }
-
+    digitalWrite(EXTERNAL_LED, HIGH);
     // first beep
     digitalWrite(pin, LOW);
-    delay(150);
+    int startMillis = millis();
+    currentMillis = startMillis;
+    while (currentMillis - startMillis < 50) {
+        currentMillis = millis();
+    }
 
     // pause
+    startMillis = millis();
+    currentMillis = startMillis;
     digitalWrite(pin, HIGH);
-    delay(150);
+    while (currentMillis - startMillis < 10) {
+        currentMillis = millis();
+    }
+
 
     // second beep
+    startMillis = millis();
+    currentMillis = startMillis;
     digitalWrite(pin, LOW);
-    delay(150);
-
+    while (currentMillis - startMillis < 50) {
+        currentMillis = millis();
+    }
     // stop beeping
     digitalWrite(pin, HIGH);
+    digitalWrite(EXTERNAL_LED, LOW);
+
 };
 
 void blinkFail(const char* reader) {
@@ -279,9 +297,13 @@ void blinkFail(const char* reader) {
         pin = EXTERNAL_BEEP;
     }
 
+    digitalWrite(EXTERNAL_LED, HIGH);
     digitalWrite(pin, LOW);
     delay(600);
     digitalWrite(pin, HIGH);
+    digitalWrite(EXTERNAL_LED, LOW);
+
+
 };
 
 void openDoorCommand() {
@@ -293,6 +315,9 @@ bool openDoor(const char* reader) {
     if (NULL != reader) {
         blinkOk(reader);
     }
+    digitalWrite(DOOR_OPEN, HIGH);
+    delay(500);
+    digitalWrite(DOOR_OPEN, LOW);
     return true;
 }
 
