@@ -31,6 +31,7 @@ namespace  MQTT {
                                 int32_t event_id, esp_mqtt_event_handle_t event);
         void handleCommand(const char* command);
         inline void resubscribe();
+        inline bool resubscribing();
     private: 
         bool serverStarted = false;
         int inTransitMessageIDs[5];
@@ -42,6 +43,10 @@ namespace  MQTT {
         enum DownloadType downloading; // DB, FIRMWARE, or NONE
 
         esp_mqtt_client_handle_t client;
+
+        bool resubscribeDBRequested;
+        int subscribeRequestID;
+        int unsubscribeRequestID;
     };
 
     inline bool MqttManager::serverConnected() {
@@ -56,7 +61,7 @@ namespace  MQTT {
         snprintf(buffer, 50, "ESP_KEYLOCK_ID-%d", doorID);
 
         const esp_mqtt_client_config_t mqtt_cfg = {
-            .host = "143.107.44.136",
+            .host = "mosquito.ime.usp.br",
             .port = 8883, 
             .client_id = buffer,
             .disable_clean_session = true,
@@ -150,16 +155,14 @@ namespace  MQTT {
     }
 
     inline void MqttManager::resubscribe() {
-        while (!serverStarted) { checkDoor(); delay(100); currentMillis = millis();}
+        if (resubscribeDBRequested) { return; }
 
-        esp_mqtt_client_unsubscribe(client, "/topic/commands");
-        esp_mqtt_client_subscribe(client, "/topic/commands", 2);
+        resubscribeDBRequested = true;
+    }
 
-        esp_mqtt_client_unsubscribe(client, "/topic/firmware");
-        esp_mqtt_client_subscribe(client, "/topic/firmware", 2);
-
-        esp_mqtt_client_unsubscribe(client, "/topic/database");
-        esp_mqtt_client_subscribe(client, "/topic/database", 2);
+    inline bool MqttManager::resubscribing() {
+        if (resubscribeDBRequested or downloading != NONE) { return true; }
+        return false;
     }
 
     void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
@@ -171,8 +174,16 @@ namespace  MQTT {
             log_i("MQTT_EVENT_CONNECTED");
             serverStarted = true;
             esp_mqtt_client_subscribe(client, "/topic/commands", 2);
-            esp_mqtt_client_subscribe(client, "/topic/database", 2);
             esp_mqtt_client_subscribe(client, "/topic/firmware", 2);
+
+            if (resubscribeDBRequested) {
+                unsubscribeRequestID = esp_mqtt_client_unsubscribe(client,
+                                                       "/topic/database");
+            } else {
+                subscribeRequestID = 0;
+                unsubscribeRequestID = 0;
+                esp_mqtt_client_subscribe(client, "/topic/database", 2);
+            }
             break;
         case MQTT_EVENT_DISCONNECTED:
             serverStarted = false;
@@ -183,9 +194,19 @@ namespace  MQTT {
             resetMessageList();
             break;
         case MQTT_EVENT_SUBSCRIBED:
+            if (resubscribeDBRequested
+                    and event->msg_id == subscribeRequestID) {
+                subscribeRequestID = 0;
+            }
             log_i("MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_UNSUBSCRIBED:
+            if (resubscribeDBRequested
+                    and event->msg_id == unsubscribeRequestID) {
+                unsubscribeRequestID = 0;
+                subscribeRequestID = esp_mqtt_client_subscribe(client,
+                                                "/topic/database", 2);
+            }
             log_i("MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
             break;
         case MQTT_EVENT_PUBLISHED:
@@ -224,6 +245,9 @@ namespace  MQTT {
                 } else {
                     log_i("MQTT_EVENT_DATA from /topic/database -- full message");
                     writeToDatabaseFile(event->data, event->data_len);
+                    if (resubscribeDBRequested and subscribeRequestID == 0) {
+                        resubscribeDBRequested = false;
+                    }
                     finishDBDownload();
                 }
 
@@ -262,6 +286,10 @@ namespace  MQTT {
                 writeToDatabaseFile(event->data, event->data_len);
                 if (lastSlice) {
                     log_i("MQTT_EVENT_DATA from /topic/database -- last");
+
+                    if (resubscribeDBRequested and subscribeRequestID == 0) {
+                        resubscribeDBRequested = false;
+                    }
                     finishDBDownload();
                     downloading = NONE;
                     forgetMessage(event->msg_id);
@@ -320,3 +348,5 @@ bool sendLog(const char *logData, unsigned int len) {
 };
 
 void forceDBDownload() { MQTT::mqttManager.resubscribe(); }
+
+bool resubscribing() { return MQTT::mqttManager.resubscribing(); }

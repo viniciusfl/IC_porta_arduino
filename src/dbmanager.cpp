@@ -196,12 +196,11 @@ namespace DBNS {
         bool success = false;
 
         while (!success) {
-            if (!findValidDB()) {
+            while (!findValidDB()) {
                 clearAllDBFiles();
                 forceDBDownload();
+                checkDoor(); delay(100); currentMillis = millis();
             }
-
-            while (!findValidDB()) {  checkDoor(); delay(100); currentMillis = millis();}
 
             log_d("Choosing %s as current DB.", currentFile);
             if (openDB(currentFile) != SQLITE_OK) {
@@ -226,6 +225,8 @@ namespace DBNS {
     }
 
     void UpdateDBManager::clearAllDBFiles() {
+        if (resubscribing) { return; }
+
         if (DISK.exists(currentFile)) { DISK.remove(currentFile); };
         if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
         if (DISK.exists(currentFileStatus)) { DISK.remove(currentFileStatus); };

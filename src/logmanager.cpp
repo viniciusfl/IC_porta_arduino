@@ -10,7 +10,7 @@ static const char *TAG = "log";
 #include <FFat.h>
 #endif
 
-#include <freertos/queue.h>
+#include "freertos/ringbuf.h"
 #include <freertos/task.h>
 
 #include <dirent.h>
@@ -21,6 +21,8 @@ static const char *TAG = "log";
 
 #include <timemanager.h> // getTime()
 #include <mqttmanager.h> // sendLog() and isClientConnected()
+
+#include <tempbufsmanager.h>
 
 /*
   This code writes log messages to disk files (guaranteeing they are not
@@ -47,7 +49,7 @@ static const char *TAG = "log";
 
   But this is not exactly true: the default code simply calls vfprintf.
   This works because, by default, log messages go to the UART, and writes
-  to the UART are essetially atomic (because they busy-wait until all
+  to the UART are essentially atomic (because they busy-wait until all
   data is written):
   https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/storage/vfs.html?highlight=vfs#standard-io-streams-stdin-stdout-stderr
 
@@ -63,19 +65,20 @@ static const char *TAG = "log";
   What we do is:
 
   1. We replace the default log function with our own. This function
-     formats the log message and writes it to a FreeRTOS queue, because
-     these queues are thread-safe
+     formats the log message and writes it to a FreeRTOS/ESP Ringbuffer,
+     because they are thread-safe (the docs do not really state that,
+     but they are modeled after FreeRTOS queues, which are).
 
-  2. On a separate task, we process what comes from the queue, writing
-     the formatted message to a ring buffer; since this is a single task,
-     there are no synchronization issues. If disk logging is enabled,
-     this task also writes the message to disk.
+  2. On a separate task ("logWriter"), we process what comes from the
+     Ringbuffer: we output the received messages to the serial port and,
+     if disk storage is available, we also write them to disk. Either way,
+     we also store the messages in a second ring buffer ("latestMessages"),
+     so at least the most recent log messages are temporarily available
+     in memory. Since this is a single task, there are no synchronization
+     issues.
 
   3. On the default task, we periodically check for files to send over
      MQTT.
-
-  If there is no storage available, log messages are still temporarily
-  available in the ring buffer.
 
   We do not write to disk directly in step 1 because we want to return
   from the log call as fast as possible, and writing to disk may take
@@ -86,34 +89,33 @@ static const char *TAG = "log";
 
   In step 3, we take care to only send a file if it is already closed, if
   we are actually online and if we are not currently uploading any files
-  (sending multiple files concurrently would consume too much memory).
-  After the file is successfully sent, it is deleted.
+  (enqueuing multiple files would consume too much memory).  After the
+  file is successfully sent, it is deleted.
 
-  TODO: Log messages are not simple strings; they are often gererated
-  in printf style, i.e., a format string and some parameters, such as
+  Log messages are not simple strings; they are often gererated in
+  printf style, i.e., a format string and some parameters, such as
   log_e("error %s detected", errorstring). Generating the complete
-  log message depends on allocating a new memory buffer to write
-  the message to. This may take too much stack space in some tasks
-  (notably, the system event task, which by default has a stack size
-  of 2304 bytes), so we need to be smart here. We would like to replace
-  the FreeRTOS queues with ESP32 ring buffers:
+  log message depends on a memory buffer to write the message to.
+  This might take too much stack space in some tasks (notably, the
+  system event task, which by default has a stack size of 2304 bytes),
+  so we do not use the stack; instead, we use a preallocated buffer
+  (check tempbufsmanager.h). We then copy this to the Ringbuffer,
+  which saves some memory (the memory allocated in the ringbuffer
+  is the size of the message) and is readable by reference later on,
+  alleviating the need for another copy.
   https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos_additions.html#ring-buffers
-  But there is no "fromISR" version of some functions:
-  https://github.com/espressif/esp-idf/issues/10527
 
   ---
 
   The vlogEvent, logAccess, and logLogEvent functions, along with the
   TimeStamper class, are responsible for adding the message type and
   timestamp to the messages and sending them over to enqueueLogMessage
-  and venqueueLogMessage. The ringbufWriter function processes the
-  queue, interprets the format string to render the complete message,
-  and saves the messages in the Ringbuf class, which stores the latest
-  messages in memory; the ringbufReader function uses the Logfile
-  class, which reads messages from the ringbuf and writes logs to disk,
-  as well as rotates the file being written to. The LogManager class is
-  responsible for uploading the files; the rest of the code is used to
-  receive and process the log messages in a thread-safe manner.
+  and venqueueLogMessage. These format the complete message and send
+  it to the Ringbuffer. The logWriter function processes the messages
+  from the Ringbuffer, saving them to disk using the Logfile class,
+  which also rotates the file being written to. The LogManager class
+  is responsible for uploading the files; the rest of the code is used
+  to receive and process the log messages in a thread-safe manner.
 */
 
 
@@ -123,7 +125,7 @@ static const char *TAG = "log";
 // send out information to the broker regularly, so it is easier
 // to detect whether we crashed or lost connectivity.
 #define MAX_RECORDS 100
-#define MAX_LOG_FILE_SIZE 5000 // 5kb
+#define MAX_LOG_FILE_SIZE 5000 // 5kb; this is a soft limit!!
 
 // If we have no file to send and the current log file has not been
 // rotated for this long, rotate it so we send something to the
@@ -138,31 +140,53 @@ static const char *TAG = "log";
 // performance issues.
 #define NUM_SUBDIRS 10
 
-#define RINGBUF_SIZE 5000
-
 namespace LOGNS {
 
-    QueueHandle_t logQueue;
+    // preallocated mem buffers, so we do not exhaust the stack
+    TempBufsManager bufsman;
 
+    RingbufHandle_t ringbuf; // Communication between logging tasks
+
+    RingbufHandle_t latestMessages; // Keep the latest logs in memory
+
+    // This changes to true when we detect the available storage type
     bool logToDisk = false;
 
     int IRAM_ATTR venqueueLogMessage(const char* type,
                                       const char* timestamp,
                                       const char* format, va_list& ap) {
 
-        char buf[512];
+        int buf_id = bufsman.get();
+        char* tmpbuf = bufsman[buf_id];
+        tmpbuf[0] = 0;
 
-        buf[0] = 0;
-        uint32_t written = snprintf(buf, 512, "%s |%d| (%s): ",
+        uint32_t written = snprintf(tmpbuf, MAX_LOGMSG_SIZE, "%s |%d| (%s): ",
                                     timestamp, doorID, type);
 
-        written += vsnprintf(buf +written, 512 -written, format, ap);
+        written += vsnprintf(tmpbuf +written, MAX_LOGMSG_SIZE -written,
+                             format, ap);
 
-        BaseType_t result = xQueueSendToBackFromISR(logQueue,
-                                                    (void*) &buf, NULL);
+        BaseType_t result;
+        char* outbuf;
+        result = xRingbufferSendAcquire(ringbuf, (void**) &outbuf,
+                                        written +1, pdMS_TO_TICKS(400));
 
         // this message will be lost; shouldn't really happen
-        if (result != pdTRUE) { return 0; }
+        if (result != pdTRUE) {
+            bufsman.release(buf_id);
+            return 0;
+        }
+
+        outbuf[0] = 0;
+        strncpy(outbuf, tmpbuf, written +1);
+        bufsman.release(buf_id);
+
+        result = xRingbufferSendComplete(ringbuf, (void*) outbuf);
+        // this message will be lost; REALLY shouldn't happen
+        if (result != pdTRUE) {
+            vRingbufferReturnItem(ringbuf, (void*) outbuf);
+            return 0;
+        }
 
         return written;
     }
@@ -180,93 +204,6 @@ namespace LOGNS {
 
 
     int logLogEvent(const char* format, ...);
-
-
-    // A ring buffer for null-terminated text messages. If the buffer
-    // fills up, older messages are dropped.
-    //
-    // This may be written to and read from at the same time with no
-    // locking (but only one reader and one writer at a time). If the
-    // buffer fills up, there may be a race condition as the reader
-    // processes a message that the writer has dropped. In that case,
-    // read() detects there was a problem and returns false to indicate
-    // that whatever was written out is garbage.
-    class Ringbuf {
-        public:
-            Ringbuf() {
-                first = last = 0;
-                thebuf[0] = '\0';
-            }
-
-            inline bool empty() { return last == first; };
-            inline void write(const char* message);
-            bool read(char* buf); // always check empty() before calling this
-        private:
-            int first;
-            int last;
-            char thebuf[RINGBUF_SIZE];
-            void addchar(char a);
-    };
-
-    inline void Ringbuf::write(const char* message) {
-        if (message == NULL or *message == '\0') { return; };
-
-        const char* i = message;
-        while (*i != '\0') { addchar(*i++); };
-        addchar('\0');
-    }
-
-    void Ringbuf::addchar(char a) {
-        thebuf[last++] = a;
-
-        if (last >= RINGBUF_SIZE) { last = 0; };
-
-        // The buffer is full; let's drop the first message
-        if (last == first) {
-            while (thebuf[first++] != '\0') {
-                if (first >= RINGBUF_SIZE) { first = 0; };
-            };
-            if (first >= RINGBUF_SIZE) { first = 0; };
-        }
-    }
-
-    // There are three race conditions here:
-    //
-    // 1. If the buffer fills up, the contents of "thebuf" may be
-    //    overwritten by the writing thread while we are processing it,
-    //    so we use "oldfirst" to detect that
-    //
-    // 2. We may update "first" after addchar() has already updated it.
-    //    That is not a problem because we would set it to the same
-    //    value that addchar() did, which is the beginning of the next
-    //    message (unless there were two overwritten messages, but that
-    //    is not likely)
-    //
-    // 3. We may update "first" after addchar() has tested for its value.
-    //    That would not be a problem because, like in the case above,
-    //    addchar() would simply update "first" again to the same value.
-    bool Ringbuf::read(char* outbuf) {
-        int i = first;
-        int oldfirst = i;
-        int j = 0;
-
-        while (thebuf[i] != '\0') {
-            outbuf[j++] = thebuf[i++];
-            if (i >= RINGBUF_SIZE) { i = 0; }
-        }
-
-        outbuf[j] = '\0';
-        ++i;
-        if (i >= RINGBUF_SIZE) { i = 0; }
-
-        if (oldfirst != first) { return false; }
-
-        first = i;
-
-        return true;
-    }
-
-    Ringbuf ringbuf;
 
 
     class TimeStamper {
@@ -413,12 +350,7 @@ namespace LOGNS {
         createNewFile();
     }
 
-    // TODO: either make sure we never go over a specific maximum file
-    //       size OR instead of calling createNewFile() here just set
-    //       shouldRotate to true.
     inline void Logfile::log(const char* message) {
-        Serial.print(message);
-
         if (doesNotFit(message)) { createNewFile(); }
 
         file.print(message);
@@ -474,7 +406,7 @@ namespace LOGNS {
         file = DISK.open(filename, FILE_WRITE, true);
 
         // TODO should we use ordinary logging here and
-        //      forfeit this guarantee?  
+        //      forfeit this guarantee?
         // No logfile is ever empty because of this, so
         // we never need to check for an empty file.
         n = timestamper.stamp(buf);
@@ -521,6 +453,7 @@ namespace LOGNS {
             unsigned long lastLogCheckTime = 0;
             unsigned long lastLogSentTime = 0;
             bool findFileToSend();
+            char sendBuf[MAX_LOG_FILE_SIZE + 1000]; // MAX... is a soft limit
     };
 
     void LogManager::cancelUpload() {
@@ -572,16 +505,11 @@ namespace LOGNS {
         if (findFileToSend()) {
             log_d("Found a logfile to send: %s", inTransitFilename);
 
-            // TODO: it would be nice to use a static buffer here
-            //       instead of malloc()
             File f = DISK.open(inTransitFilename, "r");
             unsigned int len = f.size();
-            char* buf = (char*)malloc(len + 1);
-            f.read((uint8_t*) buf, len);
+            f.read((uint8_t*) sendBuf, len);
             f.close();
-            buf[len] = '\0';
-            bool success = sendLog(buf, len);
-            free(buf);
+            bool success = sendLog(sendBuf, len);
 
             if (success) {
                 sendingLogfile = true;
@@ -655,30 +583,56 @@ namespace LOGNS {
 
     LogManager manager;
 
-#   define QUEUE_LENGTH 5
-#   define QUEUE_ITEM_SIZE 512
 
-    uint8_t queueStorage[QUEUE_LENGTH * QUEUE_ITEM_SIZE];
-    StaticQueue_t queueBuffer;
+    DRAM_ATTR uint8_t ringbufStorage[5120];
+    DRAM_ATTR StaticRingbuffer_t ringbufState;
+
+    uint8_t latestMessagesStorage[5120];
+    StaticRingbuffer_t latestMessagesState;
 
     StaticTask_t writerTaskBuffer;
-    StackType_t writerTaskStackStorage[3072];
+    StackType_t writerTaskStackStorage[4096];
     TaskHandle_t writerTask;
 
-    // It would be better if xQueueReceive would block indefinitely if
-    // there are no messages in the queue, but apparently this behavior
-    // is not enabled with ESP32 (INCLUDE_vTaskSuspend is not 1), so
-    // we set an arbitrary timeout and check for the return status.
-    // Since we are using this, we also create a new log file when
-    // there is nothing to do.
-    void ringbufWriter(void* params) {
-        char buf[512];
+    // It would be better if xRinbgufferReceive would block indefinitely
+    // when there are no messages in it, but apparently this behavior is
+    // not enabled with ESP32 (INCLUDE_vTaskSuspend is not 1), so we set
+    // an arbitrary timeout and check for the return status. While we are
+    // at it, we also check whether it is time to create a new log file
+    // when this timeouts, as that means there is nothing else to do.
+    void logWriter(void* params) {
+        char *buf;
+        size_t len;
 
         for(;;) {
-            if (pdTRUE == xQueueReceive(logQueue, &buf,
-                                        pdMS_TO_TICKS(10000))) { // 10s
-                ringbuf.write(buf);
+            buf = (char*) xRingbufferReceive(ringbuf, &len,
+                                             pdMS_TO_TICKS(10000));
+
+            if (buf != NULL) {
+                Serial.print(buf);
+
+                // Save a copy for later, dropping older messages if there
+                // is not enough space. This is not atomic, but that is
+                // ok: we are the only ones *inserting* data here, so we
+                // will never believe there is space when there is not.
+                // The worst that can happen is, we delete a message
+                // unnecessarily when more space is made available by
+                // some other task.
+                size_t avail = xRingbufferGetCurFreeSize(latestMessages);
+                while (avail < len +1) {
+                    size_t oldlen;
+                    void* oldmsg = xRingbufferReceive(latestMessages,
+                                        &oldlen, pdMS_TO_TICKS(200));
+                    vRingbufferReturnItem(latestMessages, oldmsg);
+                    avail = xRingbufferGetCurFreeSize(latestMessages);
+                }
+
+                // This REALLY should not fail; if it does, too bad
+                BaseType_t result = xRingbufferSend(latestMessages, buf,
+                                         strlen(buf) +1, pdMS_TO_TICKS(200));
+
                 if (logToDisk) { logfile.log(buf); }
+                vRingbufferReturnItem(ringbuf, (void*) buf);
             } else {
                 if (logfile.shouldRotate) { logfile.createNewFile(); }
             }
@@ -736,15 +690,18 @@ namespace LOGNS {
     }
 
     void init() {
-        logQueue = xQueueCreateStatic(QUEUE_LENGTH, QUEUE_ITEM_SIZE,
-                                        queueStorage, &queueBuffer);
+        ringbuf = xRingbufferCreateStatic(5120, RINGBUF_TYPE_NOSPLIT,
+                                           ringbufStorage, &ringbufState);
+
+        latestMessages = xRingbufferCreateStatic(5120, RINGBUF_TYPE_NOSPLIT,
+                               latestMessagesStorage, &latestMessagesState);
 
         writerTask = xTaskCreateStaticPinnedToCore(
-                                    ringbufWriter,
+                                    logWriter,
                                     "writerTask",
-                                    3072, // stack size
+                                    4096, // stack size
                                     (void*) 1, // params, we are not using this
-                                    (UBaseType_t) 1, // priority; the MQTT task uses 5
+                                    (UBaseType_t) 4, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,
                                     &writerTaskBuffer,
                                     tskNO_AFFINITY);
@@ -755,6 +712,22 @@ namespace LOGNS {
     void initDiskLog() {
         logfile.init();
         logToDisk = true;
+
+        // Send old messages that are still available in memory to disk
+        UBaseType_t count;
+        vRingbufferGetInfo(latestMessages, NULL, NULL, NULL, NULL, &count);
+
+        while (count > 0) {
+            size_t len;
+            char* buf = (char*) xRingbufferReceive(latestMessages, &len,
+                                                     pdMS_TO_TICKS(200));
+            // Should never be null...
+            if (buf != NULL) {
+                logfile.log(buf);
+                vRingbufferReturnItem(latestMessages, (void*) buf);
+            }
+            vRingbufferGetInfo(latestMessages, NULL, NULL, NULL, NULL, &count);
+        }
     }
 }
 

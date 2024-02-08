@@ -9,4 +9,6 @@ bool sendLog(const char* logData, unsigned int len);
 
 void forceDBDownload();
 
+bool resubscribing();
+
 #endif

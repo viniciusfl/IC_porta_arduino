@@ -17,30 +17,9 @@
 
  * Handle other possible MQTT errors.
 
- * Check whether openDoor, denyToOpenDoor, blinkOK, and blinkFail do
-   what they are supposed to do
-
 # Other short-term TODOs
 
  * The DB is downloaded every time the MCU boots
-
- * Logging may potentially exhaust the available memory (check the TODO
-   in `logmanager.cpp`)
-
- * Limit log file size:
-
-   - The code in `processLogs()` that checks whether there are too many
-     messages in the current log file should be migrated to `logEvent()`
-     and `logAccess()` - CHECK IF THIS IS OK
-
-   - The code should not only check the total number of messages but
-     also the size the file would become if the current message were
-     added to it; if that value is too large, rotate the log. A good
-     limit is probably 5KB. - CHECK IF THIS IS OK
-
-   - After we make sure no file will be larger than 5KB, eliminate the
-     "malloc" in LogManager::sendNextLogfile() and use a fixed buffer
-     instead (check TODO comments).
 
  * Choose and set license
 
@@ -77,15 +56,8 @@
      and unsubscribe to the DB topic as needed). If we choose to go
      with this, we may also use the DB for logging.
 
- * Modify the format of the log messages - is this done already???
-
  * Better error handling everywhere (crashing is not really an option,
    in extreme situations we should at least try restarting the MCU)
-
- * Truly reentrant logging: the current code is thread-safe, but probably
-   not reentrant (it uses locks to access the queue). We might use a set
-   of shared pointers and semaphores instead of a queue, akin to what
-   was used up to commit d5a28e01e803021ed794a043f3aeebbc8cc39757.
 
  * We should be able to define the door ID, network credentials, TLS
    credentials etc. at runtime, not hardcode them in the code, but how?
@@ -161,8 +133,6 @@
    so the query is ready to run on the next iteration. This, however, is
    not trivial, because the DB may be updated at some point.
 
- * Implement OTA
-
  * When we initialize for the first time, there is no DB file on disk and
    we have never been subscribed to the DB topic before. Two things happen
    in parallel:
@@ -177,3 +147,6 @@
    when the download triggered by the first subscription is complete,
    we unsubscribe/subscribe and start downloading again. Not great, but
    not terrible either (fixing this is not entirely trivial).
+
+ * Many things use "poor-man's parallel processing"; we should use
+   actual tasks instead.
