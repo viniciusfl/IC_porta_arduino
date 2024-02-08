@@ -392,7 +392,7 @@ namespace LOGNS {
             // a file larger than MAX_LOG_FILE_SIZE!
             n = timestamper.stamp(buf);
             snprintf(buf +n, 100 -n,
-                     " |%d| (LOGGING): Closing logfile: %s",
+                     " |%d| (LOGGING): Closing logfile: %s\n",
                       doorID, filename);
             Serial.println(buf);
             file.print(buf);
@@ -411,7 +411,7 @@ namespace LOGNS {
         // we never need to check for an empty file.
         n = timestamper.stamp(buf);
         snprintf(buf +n, 100 -n,
-                 " |%d| (LOGGING): Created new logfile: %s",
+                 " |%d| (LOGGING): Created new logfile: %s\n",
                  doorID, filename);
         Serial.println(buf);
         file.print(buf);
