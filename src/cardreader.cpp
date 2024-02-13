@@ -277,7 +277,7 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
 //FIXME: intelbras card reader has one cable for beep 
 // and other for activating led. 
 // controlid should have these two as well, but beep cable
-// activate both sound and led, while led pin doesnt do nothing
+// activate both sound and led, while led pin does nothing
 
 // another "problem" i found is that intelbras beep fails a little if 
 // turned on for less than 200ms
