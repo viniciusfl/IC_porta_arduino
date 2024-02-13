@@ -170,6 +170,7 @@ namespace ReaderNS {
         pinMode(EXTERNAL_BEEP, OUTPUT);
         pinMode(DOOR_OPEN, OUTPUT);
         digitalWrite(EXTERNAL_BEEP, HIGH);
+        digitalWrite(DOOR_OPEN, LOW);
         pinMode(EXTERNAL_LED, OUTPUT);
 #       ifdef TWO_READERS
         // Install listeners and initialize second Wiegand reader
@@ -295,32 +296,18 @@ void blinkOk(const char* reader) {
 #   endif
 
     digitalWrite(EXTERNAL_LED, HIGH);
-    // first beep
-    digitalWrite(pin, LOW);
-    int startMillis = millis();
-    currentMillis = startMillis;
-    while (currentMillis - startMillis < 50) {
-        currentMillis = millis();
-    }
 
-    // pause
-    startMillis = millis();
-    currentMillis = startMillis;
-    digitalWrite(pin, HIGH);
-    while (currentMillis - startMillis < 10) {
-        currentMillis = millis();
-    }
+    digitalWrite(pin, LOW); // beep
+    unsigned long start = millis();
+    while (millis() - start < 50) { }
+    digitalWrite(pin, HIGH); // stop
+    start = millis();
+    while (millis() - start < 25) { } // wait
+    digitalWrite(pin, LOW); // beep
+    start = millis();
+    while (millis() - start < 50) { }
+    digitalWrite(pin, HIGH); // stop
 
-
-    // second beep
-    startMillis = millis();
-    currentMillis = startMillis;
-    digitalWrite(pin, LOW);
-    while (currentMillis - startMillis < 50) {
-        currentMillis = millis();
-    }
-    // stop beeping
-    digitalWrite(pin, HIGH);
     digitalWrite(EXTERNAL_LED, LOW);
 
 };
@@ -352,10 +339,10 @@ void openDoorCommand() {
 
 bool openDoor(const char* reader) {
     log_v("Opened door");
+    digitalWrite(DOOR_OPEN, HIGH);
     if (NULL != reader) {
         blinkOk(reader);
     }
-    digitalWrite(DOOR_OPEN, HIGH);
     delay(500);
     digitalWrite(DOOR_OPEN, LOW);
     return true;
