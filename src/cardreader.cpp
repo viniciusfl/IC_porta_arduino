@@ -14,10 +14,12 @@ static const char* TAG = "card";
 #define EXTERNAL_BEEP 4
 #define EXTERNAL_LED 2
 
+#ifdef TWO_READERS
 // pins for card reader 2 (internal)
 #define INTERNAL_D0  33
 #define INTERNAL_D1  25
 #define INTERNAL_BEEP 32
+#endif
 
 #define DOOR_OPEN 13
 
@@ -282,11 +284,16 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
 void blinkOk(const char* reader) {
 
     int pin;
+#   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
         pin = INTERNAL_BEEP;
     } else {
         pin = EXTERNAL_BEEP;
     }
+#   else
+    pin = EXTERNAL_BEEP;
+#   endif
+
     digitalWrite(EXTERNAL_LED, HIGH);
     // first beep
     digitalWrite(pin, LOW);
@@ -320,11 +327,15 @@ void blinkOk(const char* reader) {
 
 void blinkFail(const char* reader) {
     int pin;
+#   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
         pin = INTERNAL_BEEP;
     } else {
         pin = EXTERNAL_BEEP;
     }
+#   else
+    pin = EXTERNAL_BEEP;
+#   endif
 
     digitalWrite(EXTERNAL_LED, HIGH);
     digitalWrite(pin, LOW);
