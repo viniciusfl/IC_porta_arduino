@@ -584,8 +584,8 @@ namespace LOGNS {
     LogManager manager;
 
 
-    DRAM_ATTR uint8_t ringbufStorage[5120];
-    DRAM_ATTR StaticRingbuffer_t ringbufState;
+    uint8_t ringbufStorage[5120];
+    StaticRingbuffer_t ringbufState;
 
     uint8_t latestMessagesStorage[5120];
     StaticRingbuffer_t latestMessagesState;
