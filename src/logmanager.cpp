@@ -634,7 +634,9 @@ namespace LOGNS {
                 if (logToDisk) { logfile.log(buf); }
                 vRingbufferReturnItem(ringbuf, (void*) buf);
             } else {
-                if (logfile.shouldRotate) { logfile.createNewFile(); }
+                if (logToDisk and logfile.shouldRotate) {
+                    logfile.createNewFile();
+                }
             }
         }
     }
