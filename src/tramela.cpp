@@ -61,7 +61,7 @@ void setup() {
 #   ifdef USE_SD
     if (!SD.begin()) {
 #   else
-    if (!FFat.begin(true)) {
+    if (!FFat.begin(true, "/ffat", 5)) {
 #   endif
         log_e("Card Mount Failed...");
     } else {
