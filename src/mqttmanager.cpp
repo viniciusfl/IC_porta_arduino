@@ -27,7 +27,7 @@ namespace  MQTT {
         void init();
         inline bool serverConnected();
         inline bool sendLog(const char *logData, unsigned int len);
-        void mqtt_event_handler(void *handler_args, esp_event_base_t base, 
+        void mqtt_event_handler(void *handler_args, esp_event_base_t base,
                                 int32_t event_id, esp_mqtt_event_handle_t event);
         void handleCommand(const char* command);
         inline void resubscribe();
@@ -165,7 +165,7 @@ namespace  MQTT {
         return false;
     }
 
-    void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base, 
+    void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base,
                                 int32_t event_id, esp_mqtt_event_handle_t event) {
 
         esp_mqtt_client_handle_t client = event->client;
