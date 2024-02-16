@@ -497,7 +497,7 @@ namespace LOGNS {
     //      need to do something. A simple idea is to put this in
     //      a low-priority task.
     bool LogManager::sendNextLogfile() {
-        log_d("Searching for logs in SD to send...");
+        log_v("Searching for logs in SD to send...");
 
         if (findFileToSend()) {
             log_d("Found a logfile to send: %s", inTransitFilename);

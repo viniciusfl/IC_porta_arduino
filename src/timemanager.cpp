@@ -71,7 +71,7 @@ namespace TimeNS {
 
             settimeofday(&tv, NULL);
             timeOK = true;
-            log_v("Date/time provisionally set from hardware clock.");
+            log_i("Date/time provisionally set from hardware clock.");
         }
 
         return timeOK;
@@ -100,7 +100,7 @@ namespace TimeNS {
             // HW clock for the first time
             update();
 
-            log_v("Date/time are set!");
+            log_i("Date/time are set!");
         }
 
         return timeOK;

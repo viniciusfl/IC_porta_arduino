@@ -276,7 +276,7 @@ namespace  MQTT {
                     downloading = NONE;
                     forgetMessage(event->msg_id);
                 } else {
-                    log_d("MQTT_EVENT_DATA from /topic/firmware -- ongoing %d",
+                    log_v("MQTT_EVENT_DATA from /topic/firmware -- ongoing %d",
                             event->current_data_offset);
                 }
             } else {
@@ -291,7 +291,7 @@ namespace  MQTT {
                     downloading = NONE;
                     forgetMessage(event->msg_id);
                 } else {
-                    log_d("MQTT_EVENT_DATA from /topic/database -- ongoing %d",
+                    log_v("MQTT_EVENT_DATA from /topic/database -- ongoing %d",
                             event->current_data_offset);
                 }
             }

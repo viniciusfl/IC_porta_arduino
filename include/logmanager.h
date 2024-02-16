@@ -77,7 +77,8 @@ ARDUHAL_LOG_LEVEL_VERBOSE (5)
 */
 
 // must be defined before loading Arduino.h !
-#define CORE_DEBUG_LEVEL ARDUHAL_LOG_LEVEL_VERBOSE
+//#define CORE_DEBUG_LEVEL ARDUHAL_LOG_LEVEL_VERBOSE
+#define CORE_DEBUG_LEVEL ARDUHAL_LOG_LEVEL_DEBUG
 
 void initLog();
 

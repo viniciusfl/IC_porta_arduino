@@ -38,7 +38,7 @@ int Authorizer::openDB(const char *filename) {
     {
         log_e("Can't open database: %s", sqlite3_errmsg(sqlitedb));
     } else {
-        log_v("Opened database successfully %s", filename);
+        log_d("Opened database successfully %s", filename);
         rc = sqlite3_prepare_v2(sqlitedb,
                                 "SELECT EXISTS(SELECT * FROM auth "
                                 "WHERE userID=? AND doorID=?)",
@@ -49,7 +49,7 @@ int Authorizer::openDB(const char *filename) {
                   sqlite3_errstr(sqlite3_extended_errcode(sqlitedb)),
                   sqlite3_errmsg(sqlitedb));
         } else {
-            log_v("Prepared statement created");
+            log_d("Prepared statement created");
         }
     }
 
@@ -81,7 +81,7 @@ inline bool Authorizer::userAuthorized(const char* readerID,
         return false;
     }
 
-    log_v("Card reader %s was used. Received card ID %lu", readerID, cardID);
+    log_d("Card reader %s was used. Received card ID %lu", readerID, cardID);
 
     sqlite3_reset(dbquery);
     sqlite3_bind_text(dbquery, 1, hash, strlen(hash), NULL);
