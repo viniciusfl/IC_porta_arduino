@@ -6,7 +6,8 @@ static const char *TAG = "auth";
 #include <sqlite3.h>
 
 const char* master_keys[] = {
-    "3acce68667c2d4bafedb366ef9c221ebdf3ca9df1838b655603ee107d968f3c4"
+    "3acce68667c2d4bafedb366ef9c221ebdf3ca9df1838b655603ee107d968f3c4",
+    "19b20713d9ad41dc020114f5c2101083a1f8791bcc450a3fc2fb2cbee2d560d1"
 };
 
 // This is a wrapper around SQLite which allows us
