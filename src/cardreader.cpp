@@ -335,6 +335,9 @@ void blinkFail(const char* reader) {
 
 void openDoorCommand() {
     log_v("Opened door");
+    digitalWrite(DOOR_OPEN, HIGH);
+    delay(500);
+    digitalWrite(DOOR_OPEN, LOW);
 }
 
 bool openDoor(const char* reader) {
