@@ -167,12 +167,15 @@ class DBwrapper():
 
     def save_message(self, msg):
         if (len(msg) <= 0): return
-        msg_fields = msg.split()
-        timestamp = msg_fields[0]
-        doorID = int(msg_fields[1][1])
-        msgtype = msg_fields[2][1:-2]
-        is_access = msgtype.find("ACCESS") != -1
-        is_boot = msgtype.find("BOOT") != -1
+        try:
+            msg_fields = msg.split()
+            timestamp = msg_fields[0]
+            doorID = int(msg_fields[1][1])
+            msgtype = msg_fields[2][1:-2]
+            is_access = msgtype.find("ACCESS") != -1
+            is_boot = msgtype.find("BOOT") != -1
+        except:
+            return
 
         bootcount = 0
         if is_boot:
