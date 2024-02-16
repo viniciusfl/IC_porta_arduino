@@ -19,9 +19,10 @@
 import ssl, sys, time, logging, sqlite3, inspect, os, random, time
 
 #BROKER_ADDRESS = '10.0.2.109'
-#BROKER_PORT = 8883
-BROKER_ADDRESS = "localhost"
-BROKER_PORT = 1883
+BROKER_PORT = 8883
+#BROKER_ADDRESS = "localhost"
+BROKER_ADDRESS = "mosquito.ime.usp.br"
+#BROKER_PORT = 1883
 
 SLEEP_TIME = 1
 
