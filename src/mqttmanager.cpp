@@ -119,37 +119,34 @@ namespace  MQTT {
     }
 
     void MqttManager::handleCommand(const char* command) {
-        char cmd[20];
-        strncpy(cmd, command, 20);
-        int commaDivisor = -1;
+        int slashpos;
 
-        for (int i = 0; command[i] != '\0' && i < 20; i++) {
-            if (command[i] == '/') {
-                commaDivisor = i;
-                break;
-            }
+        for (slashpos = 0; slashpos < 20; ++slashpos) {
+            if (command[slashpos] == 0) { slashpos = 20; }
+            if (command[slashpos] == '/') { break; }
         }
 
-        if (commaDivisor == -1) {
+        if (slashpos >= 20) {
             log_e("Invalid command: %s", command);
             return;
         }
 
-        char identifier[4];
-        strncpy(identifier, cmd, commaDivisor);
+        char recipient[4];
+        strncpy(recipient, command, slashpos);
+        char us[4];
+        snprintf(us, 4, "%d", doorID);
 
-        int cmdValue = atoi(identifier);
-
-        if (!strcmp(identifier, "all") || cmdValue == doorID) {
-            if (!strcmp(cmd + commaDivisor + 1, "openDoor")) {
-                log_v("Received command to open door.");
+        if (!strcmp(recipient, "all") or !strcmp(recipient, us)) {
+            const char* actualCommand = command + slashpos +1;
+            if (!strcmp(actualCommand, "openDoor")) {
+                log_i("Received command to open door.");
                 openDoorCommand();
-            } else if (!strcmp(cmd + commaDivisor + 1, "reboot")) {
-                log_v("Received command to reboot ESP.");
+            } else if (!strcmp(actualCommand, "reboot")) {
+                log_i("Received command to reboot ESP.");
                 delay(1000); // time to flush pending logs
                 esp_restart();
             } else {
-                log_e("Invalid command: %s", command);
+                log_e("Invalid command: %s", actualCommand);
             }
         }
     }
