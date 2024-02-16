@@ -1,20 +1,20 @@
 # Short-term TODOs
 
+ * When logging access, we should register the hash, not the ID, so
+   if someone steals a logfile they cannot fabricate a valid key card
+
  * We should have a "master key" that forces a reboot (in case mqtt
    communication is broken)
 
- * The event handler for when a card is read should be handled by a
-   separate, high priority task, but this would consume more memory;
-   how to do this?
+ * Error handling: check return status of more function calls for
+   memory allocation failures etc.
 
  * The DB is downloaded every time the MCU boots; during this time, the
    lock is unresponsive
 
- * Try to reduce memory usage (maybe reduce the maximum log file size
-   to 2-3K, or store them as larger files and split them before sending)
-
- * Error handling: check return status of more function calls for
-   memory allocation failures etc.
+ * The event handler for when a card is read should be handled by a
+   separate, high priority task, but this would consume more memory;
+   how to do this?
 
  * Choose and set license
 
@@ -30,8 +30,6 @@
 
  * Include the mechanical "open" button and the corresponding resistors
    and diode to the schematic.
-
- * Implement MQTT command to retrieve the contents of the log ringbuffer
 
  * Implement MQTT commands to handle files in the disk: download and
    delete log files, eliminate all DB files to "reset" the controller,
@@ -79,18 +77,6 @@
      app may be a problem, because everybody has access to the key.
 
    - Check this out: <https://docs.espressif.com/projects/esp-idf/en/v4.4.5/esp32/api-reference/provisioning/index.html>
-
- * ESP32 supports FAT filesystems. If the flash memory contains a
-   partition labelled "ffat", it mounts that partition at the `/ffat`
-   path (check `tools/partitions/ffat.csv`). It also offers a "FFat"
-   object that apparently is similar to the "SD" object. FFat allows
-   up to 10 simultaneously open files (but it consumes 48KB of memory,
-   so adding an ffat partition reduces the available memory). The SD
-   card allows up to 5 simultaneously open files, so its memory
-   overhead is lower. In any case, this can be changed in the call
-   to `begin()`.
-   https://randomnerdtutorials.com/esp32-vs-code-platformio-spiffs/
-   https://blog.espressif.com/building-products-creating-unique-factory-data-images-3f642832a7a3
 
  * Should we use `sntp_set_time_sync_notification_cb()` to synchronize
    the HW clock?
@@ -147,4 +133,8 @@
    not terrible either (fixing this is not entirely trivial).
 
  * Many things use "poor-man's parallel processing"; we should use
-   actual tasks instead.
+   actual tasks instead, but that uses additional memory...
+
+ * If we need to reduce memory usage, we may try reducing the maximum log
+   file size to 2-3K, or store them as larger files and split them before
+   sending
