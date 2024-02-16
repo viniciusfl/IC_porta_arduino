@@ -1,25 +1,13 @@
-# Short-term TODOs - Vinicius
+# Short-term TODOs
 
- * Certificates etc. in mqttmanager.cpp
+ * The DB is downloaded every time the MCU boots; during this time, the
+   lock is unresponsive
 
- * CHECK WHETHER THIS IS WORKING OK:
-   - Use `event->msg_id` to identify MQTT messages:
+ * Try to reduce memory usage (maybe reduce the maximum log file size
+   to 2-3K, or store them as larger files and split them before sending)
 
-   - When we receive a `MQTT_EVENT_PUBLISHED` event, we know that the
-     file we sent was received and, therefore, we delete it. We know
-     what file to delete because we only send one file at a time.
-     However, there *may* be a race condition: right after boot, we
-     send a file and then we receive an acknowledgement for a file we
-     sent before the boot. This would make us delete the wrong file.
-     We should check somehow that the ack corresponds to the correct
-     file; if it does not, we do nothing and we will probably send the
-     same file again later on, which is ok.
-
- * Handle other possible MQTT errors.
-
-# Other short-term TODOs
-
- * The DB is downloaded every time the MCU boots
+ * Error handling: check return status of more function calls for
+   memory allocation failures etc.
 
  * Choose and set license
 
@@ -32,6 +20,9 @@
 
 
 # Non-critical TODOs
+
+ * Include the mechanical "open" button and the corresponding resistors
+   and diode to the schematic.
 
  * Implement MQTT command to retrieve the contents of the log ringbuffer
 
