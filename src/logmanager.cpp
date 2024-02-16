@@ -748,14 +748,8 @@ void logAccess(const char* readerID, unsigned long cardID,
     LOGNS::logAccess(readerID, cardID, authorized);
 }
 
-void uploadLogs() {
-    LOGNS::manager.uploadLogs();
-}
+void uploadLogs() { LOGNS::manager.uploadLogs(); }
 
-void flushSentLogfile() {
-    LOGNS::manager.flushSentLogfile();
-}
+void flushSentLogfile() { LOGNS::manager.flushSentLogfile(); }
 
-void cancelLogUpload() {
-    LOGNS::manager.cancelUpload();
-}
+void cancelLogUpload() { LOGNS::manager.cancelUpload(); }

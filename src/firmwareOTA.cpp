@@ -11,7 +11,6 @@ static const char *TAG = "ota";
 #include "nvs.h"
 #include "nvs_flash.h"
 
-
 #ifdef USE_SD
 #include "SPI.h"
 #include "SD.h"
@@ -19,7 +18,7 @@ static const char *TAG = "ota";
 #include "FFat.h"
 #endif
 
-namespace OTA{
+namespace OTA {
     class FirmwareUpdater {
         public:
             int writeBinary(const char* data, int length);
@@ -35,8 +34,8 @@ namespace OTA{
 
             esp_ota_handle_t update_handle;
             int binary_file_length = 0;
-
     };
+
 
     void FirmwareUpdater::cancelFirmwareDownload() {
         downloading = false;
@@ -45,48 +44,51 @@ namespace OTA{
 
 
     bool FirmwareUpdater::startOTAUpdate() {
-        update_handle = 0 ;
-        update_partition = NULL;
-        log_i("Starting OTA example task");
-
         configured = esp_ota_get_boot_partition();
         running = esp_ota_get_running_partition();
+        if (configured == NULL or running == NULL) { return false; }
 
+        // This is *probably* not a fatal error, so just log it
         if (configured != running) {
-            log_e("Configured OTA boot partition at offset %#x, "
+            log_w("Configured OTA boot partition at offset %#x, "
                   "but running from offset %#x",
                     configured->address, running->address);
 
-            log_e("This can happen if either the OTA boot data or "
+            log_w("This can happen if either the OTA boot data or "
                   "preferred boot image become corrupted somehow.");
-                    Serial.println(); // TODO: what is this?
-
         }
 
         update_partition = esp_ota_get_next_update_partition(NULL);
+        if (update_partition == NULL) { return false; }
+
+        esp_err_t status = esp_ota_begin(update_partition,
+                                         OTA_WITH_SEQUENTIAL_WRITES,
+                                         &update_handle);
+
+        if (status != ESP_OK) { return false; }
 
         binary_file_length = 0;
-        esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
-
-        log_i("Started OTA configuration!");
         downloading = true;
         return true;
     }
 
 
-
-
     int FirmwareUpdater::writeBinary(const char* ota_write_data, int length) {
         if (!downloading) {
+            log_i("Starting OTA update");
             if (!startOTAUpdate()) {
-                log_e("Cannot start download!");
+                log_w("OTA: Cannot start download!");
                 return -1;
+            } else {
+                log_d("OTA update started");
             }
         }
 
         if (length > 0) {
-            int err = esp_ota_write( update_handle, (const void *)ota_write_data, length);
+            int err = esp_ota_write(update_handle,
+                                    (const void *) ota_write_data, length);
             if (err != ESP_OK) {
+                log_w("OTA: Error writing data, aborting");
                 esp_ota_abort(update_handle);
             }
             binary_file_length += length;
@@ -108,9 +110,10 @@ namespace OTA{
 
         err = esp_ota_set_boot_partition(update_partition);
         if (err != ESP_OK) {
-           log_e("esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
-
+           log_e("esp_ota_set_boot_partition failed (%s)!",
+                 esp_err_to_name(err));
         }
+
         log_w("Prepare to restart system!");
         delay(1000); // time to flush pending logs
         esp_restart();
@@ -119,14 +122,11 @@ namespace OTA{
     FirmwareUpdater firmware;
 }
 
+
 void writeToFirmwareFile(const char* data, int data_len) {
     OTA::firmware.writeBinary(data, data_len);
 }
 
-void performFirmwareUpdate() {
-    OTA::firmware.processOTAUpdate();
-}
+void performFirmwareUpdate() { OTA::firmware.processOTAUpdate(); }
 
-void cancelFirmwareDownload() {
-    OTA::firmware.cancelFirmwareDownload();
-}
+void cancelFirmwareDownload() { OTA::firmware.cancelFirmwareDownload(); }

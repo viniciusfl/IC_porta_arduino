@@ -13,7 +13,6 @@ static const char *TAG = "mqttman";
 #include <keys.h>
 #include <firmwareOTA.h>
 
-
 namespace  MQTT {
     enum DownloadType { DB, FIRMWARE, NONE };
 
@@ -49,9 +48,7 @@ namespace  MQTT {
         int unsubscribeRequestID;
     };
 
-    inline bool MqttManager::serverConnected() {
-        return serverStarted;
-    }
+    inline bool MqttManager::serverConnected() { return serverStarted; }
 
     // This should be called from setup()
     inline void MqttManager::init() {
@@ -162,8 +159,9 @@ namespace  MQTT {
         return false;
     }
 
-    void MqttManager::mqtt_event_handler(void *handler_args, esp_event_base_t base,
-                                int32_t event_id, esp_mqtt_event_handle_t event) {
+    void MqttManager::mqtt_event_handler(void *handler_args,
+                                    esp_event_base_t base, int32_t event_id,
+                                    esp_mqtt_event_handle_t event) {
 
         esp_mqtt_client_handle_t client = event->client;
         switch ((esp_mqtt_event_id_t)event_id) {
@@ -332,7 +330,6 @@ namespace  MQTT {
         esp_mqtt_event_handle_t event = (esp_mqtt_event_t *) event_data;
         mqttManager.mqtt_event_handler(handler_args, base, event_id, event);
     }
-
 }
 
 

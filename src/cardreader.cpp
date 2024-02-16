@@ -1,12 +1,11 @@
 static const char* TAG = "card";
 
 #include <tramela.h>
-
 #include <Arduino.h>
-
 #include <Wiegand.h>
-
 #include <cardreader.h>
+
+#define DOOR_OPEN 13
 
 // pins for card reader 1 (external)
 #define EXTERNAL_D0  35
@@ -19,15 +18,12 @@ static const char* TAG = "card";
 #define INTERNAL_D0  33
 #define INTERNAL_D1  25
 #define INTERNAL_BEEP 32
+#define INTERNAL_LED 0
 #endif
-
-#define DOOR_OPEN 13
 
 // Note that, with more than one reader, trying to read two cards at
 // exactly the same time will probably fail (we use a single data buffer
 // for all readers). For our use case at least, that is irrelevant.
-
-// TODO: it is probably a good idea to put this on a high-priority task
 
 namespace ReaderNS {
 
@@ -108,7 +104,6 @@ namespace ReaderNS {
     // Notifies when a reader has been connected or disconnected.
     // Instead of a message, the seconds parameter can be anything you want --
     // Whatever you specify on `wiegand.onStateChange()`
-    // TODO: we should not try to log things inside a callback
     void IRAM_ATTR stateChanged(bool plugged, const char* message) {
         if (plugged) {
             snprintf(connectedMsg, 192, "%s %s", message, "CONNECTED");
@@ -117,7 +112,6 @@ namespace ReaderNS {
         }
     }
 
-    // TODO: we should not try to log things inside a callback
     void IRAM_ATTR receivedDataError(Wiegand::DataError error,
                                      uint8_t* rawData, uint8_t rawBits,
                                      const char* message) {
@@ -154,37 +148,39 @@ namespace ReaderNS {
     // This should be called from setup()
     inline void initCardReaders() {
 
+        pinMode(DOOR_OPEN, OUTPUT);
+        digitalWrite(DOOR_OPEN, LOW);
+
         connectedMsg[0] = 0;
         disconnectedMsg[0] = 0;
         readErrorMsg[0] = 0;
 
+        // Initialize pins for first Wiegand reader (external) as INPUT
+        pinMode(EXTERNAL_D0, INPUT);
+        pinMode(EXTERNAL_D1, INPUT);
+        pinMode(EXTERNAL_LED, OUTPUT);
+        pinMode(EXTERNAL_BEEP, OUTPUT);
+        digitalWrite(EXTERNAL_BEEP, HIGH);
+        digitalWrite(EXTERNAL_LED, HIGH);
         // Install listeners and initialize first Wiegand reader
         external.onReceive(captureIncomingData, "external");
         external.onReceiveError(receivedDataError, "External card reader error: ");
         external.onStateChange(stateChanged, "External card reader state changed: ");
         external.begin(Wiegand::LENGTH_ANY, true);
 
-        // Initialize pins for first Wiegand reader (external) as INPUT
-        pinMode(EXTERNAL_D0, INPUT);
-        pinMode(EXTERNAL_D1, INPUT);
-        pinMode(EXTERNAL_BEEP, OUTPUT);
-        pinMode(DOOR_OPEN, OUTPUT);
-        digitalWrite(EXTERNAL_BEEP, HIGH);
-        digitalWrite(DOOR_OPEN, LOW);
-        pinMode(EXTERNAL_LED, OUTPUT);
 #       ifdef TWO_READERS
+        // Initialize pins for second Wiegand reader (internal) as INPUT
+        pinMode(INTERNAL_D0, INPUT);
+        pinMode(INTERNAL_D1, INPUT);
+        pinMode(INTERNAL_LED, OUTPUT);
+        pinMode(INTERNAL_BEEP, OUTPUT);
+        digitalWrite(INTERNAL_BEEP, HIGH);
+        digitalWrite(INTERNAL_LED, HIGH);
         // Install listeners and initialize second Wiegand reader
         internal.onReceive(captureIncomingData, "internal");
         internal.onReceiveError(receivedDataError, "Internal card reader error: ");
         internal.onStateChange(stateChanged, "Internal card reader state changed: ");
         internal.begin(Wiegand::LENGTH_ANY, true);
-
-
-        // Initialize pins for second Wiegand reader (internal) as INPUT
-        pinMode(INTERNAL_D0, INPUT);
-        pinMode(INTERNAL_D1, INPUT);
-        pinMode(INTERNAL_BEEP, OUTPUT);
-        digitalWrite(INTERNAL_BEEP, HIGH);
 #       endif
 
         // We define the interrupt handlers with IRAM_ATTR; it is not really
@@ -194,43 +190,34 @@ namespace ReaderNS {
         // This is why we had to incorporate the Wiegand lib and modify it.
 
         // Initialize interrupt handler for first Wiegand reader pins
-
         attachInterrupt(digitalPinToInterrupt(EXTERNAL_D0),
-                        &setExternal0PinState,
-                        CHANGE);
+                        &setExternal0PinState, CHANGE);
 
         attachInterrupt(digitalPinToInterrupt(EXTERNAL_D1),
-                        &setExternal1PinState,
-                        CHANGE);
-#   ifdef TWO_READERS
-        // Initialize interrupt handler for second Wiegand reader pins
-        attachInterrupt(digitalPinToInterrupt(INTERNAL_D0),
-                        &setInternal0PinState,
-                        CHANGE);
+                        &setExternal1PinState, CHANGE);
 
-        attachInterrupt(digitalPinToInterrupt(INTERNAL_D1),
-                        &setInternal1PinState,
-                        CHANGE);
-#   endif
         // Register the initial pin state for first Wiegand reader pins
         external.setPin0State(digitalRead(EXTERNAL_D0));
         external.setPin1State(digitalRead(EXTERNAL_D1));
-#   ifdef TWO_READERS
+
+#       ifdef TWO_READERS
+        // Initialize interrupt handler for second Wiegand reader pins
+        attachInterrupt(digitalPinToInterrupt(INTERNAL_D0),
+                        &setInternal0PinState, CHANGE);
+
+        attachInterrupt(digitalPinToInterrupt(INTERNAL_D1),
+                        &setInternal1PinState, CHANGE);
 
         // Register the initial pin state for second Wiegand reader pins
         internal.setPin0State(digitalRead(INTERNAL_D0));
         internal.setPin1State(digitalRead(INTERNAL_D1));
-#   endif
+#       endif
     }
 
     unsigned long lastFlush = 0;
 
     inline bool checkCardReaders(const char*& returnReaderID,
                                  unsigned long int& returnCardID) {
-
-        // We could run this on every loop, but since we
-        // disable interrupts it might be better not to.
-        if (currentMillis - lastFlush < 20) return false;
 
         if (connectedMsg[0] != 0) {
             log_i("%s", connectedMsg);
@@ -247,14 +234,18 @@ namespace ReaderNS {
             readErrorMsg[0] = 0;
         }
 
+        // We could run this on every loop, but since we
+        // disable interrupts it might be better not to.
+        if (currentMillis - lastFlush < 20) { return false; }
+
         lastFlush = currentMillis;
 
         // Only very recent versions of the arduino framework
         // for ESP32 support interrupts()/noInterrupts()
         portDISABLE_INTERRUPTS();
-#   ifdef TWO_READERS
+#       ifdef TWO_READERS
         internal.flush();
-#   endif
+#       endif
         external.flush();
         portENABLE_INTERRUPTS();
 
@@ -275,77 +266,70 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
     return ReaderNS::checkCardReaders(readerID, cardID);
 }
 
-//FIXME: intelbras card reader has one cable for beep 
-// and other for activating led. 
-// controlid should have these two as well, but beep cable
-// activate both sound and led, while led pin does nothing
-
-// another "problem" i found is that intelbras beep fails a little if 
-// turned on for less than 200ms
+// TODO: these depend heavily on the actual model of the Wiegand readers
 void blinkOk(const char* reader) {
 
-    int pin;
+    int beepPin;
+    int ledPin;
 #   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
-        pin = INTERNAL_BEEP;
+        beepPin = INTERNAL_BEEP;
+        ledPin = INTERNAL_LED;
     } else {
-        pin = EXTERNAL_BEEP;
+        beepPin = EXTERNAL_BEEP;
+        ledPin = EXTERNAL_LED;
     }
 #   else
-    pin = EXTERNAL_BEEP;
+    beepPin = EXTERNAL_BEEP;
+    ledPin = EXTERNAL_LED;
 #   endif
 
-    digitalWrite(EXTERNAL_LED, HIGH);
+    digitalWrite(ledPin, LOW);
 
-    digitalWrite(pin, LOW); // beep
+    digitalWrite(beepPin, LOW);       // beep
     unsigned long start = millis();
     while (millis() - start < 50) { }
-    digitalWrite(pin, HIGH); // stop
+    digitalWrite(beepPin, HIGH);      // stop
     start = millis();
     while (millis() - start < 25) { } // wait
-    digitalWrite(pin, LOW); // beep
+    digitalWrite(beepPin, LOW);       // beep
     start = millis();
     while (millis() - start < 50) { }
-    digitalWrite(pin, HIGH); // stop
+    digitalWrite(beepPin, HIGH);      // stop
 
-    digitalWrite(EXTERNAL_LED, LOW);
-
+    digitalWrite(ledPin, HIGH);
 };
 
 void blinkFail(const char* reader) {
-    int pin;
+
+    int beepPin;
+    int ledPin;
 #   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
-        pin = INTERNAL_BEEP;
+        beepPin = INTERNAL_BEEP;
+        ledPin = INTERNAL_LED;
     } else {
-        pin = EXTERNAL_BEEP;
+        beepPin = EXTERNAL_BEEP;
+        ledPin = EXTERNAL_LED;
     }
 #   else
-    pin = EXTERNAL_BEEP;
+    beepPin = EXTERNAL_BEEP;
+    ledPin = EXTERNAL_LED;
 #   endif
 
-    digitalWrite(EXTERNAL_LED, HIGH);
-    digitalWrite(pin, LOW);
+    //digitalWrite(ledPin, LOW);
+    digitalWrite(beepPin, LOW);
     delay(600);
-    digitalWrite(pin, HIGH);
-    digitalWrite(EXTERNAL_LED, LOW);
-
-
+    digitalWrite(beepPin, HIGH);
+    //digitalWrite(ledPin, HIGH);
 };
 
-void openDoorCommand() {
-    log_v("Opened door");
-    digitalWrite(DOOR_OPEN, HIGH);
-    delay(500);
-    digitalWrite(DOOR_OPEN, LOW);
-}
+void openDoorCommand() { openDoor(NULL); }
 
 bool openDoor(const char* reader) {
     log_v("Opened door");
     digitalWrite(DOOR_OPEN, HIGH);
-    if (NULL != reader) {
-        blinkOk(reader);
-    }
+    if (NULL != reader) { blinkOk(reader); }
     delay(500);
     digitalWrite(DOOR_OPEN, LOW);
     return true;
@@ -353,8 +337,6 @@ bool openDoor(const char* reader) {
 
 bool denyToOpenDoor(const char* reader) {
     log_v("Denied to open door");
-    if (NULL != reader) {
-        blinkFail(reader);
-    }
+    if (NULL != reader) { blinkFail(reader); }
     return true;
 }
