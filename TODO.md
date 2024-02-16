@@ -1,5 +1,12 @@
 # Short-term TODOs
 
+ * We should have a "master key" that forces a reboot (in case mqtt
+   communication is broken)
+
+ * The event handler for when a card is read should be handled by a
+   separate, high priority task, but this would consume more memory;
+   how to do this?
+
  * The DB is downloaded every time the MCU boots; during this time, the
    lock is unresponsive
 
