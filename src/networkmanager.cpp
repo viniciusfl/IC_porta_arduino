@@ -76,7 +76,7 @@ namespace NetNS {
     // TODO: detect and log if we stay offline for a really long time
     //       (several hours) - maybe force a reset?
     inline void checkNetConnection() {
-        if (currentMillis - lastNetCheck <= CHECK_NET_INTERVAL) return;
+        if (currentMillis - lastNetCheck <= CHECK_NET_INTERVAL) { return; }
 
         lastNetCheck = currentMillis;
 
