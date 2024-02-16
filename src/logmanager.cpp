@@ -453,7 +453,7 @@ namespace LOGNS {
             unsigned long lastLogCheckTime = 0;
             unsigned long lastLogSentTime = 0;
             bool findFileToSend();
-            char sendBuf[MAX_LOG_FILE_SIZE + 1000]; // MAX... is a soft limit
+            char sendBuf[MAX_LOG_FILE_SIZE + 500]; // MAX... is a soft limit
     };
 
     void LogManager::cancelUpload() {
@@ -584,14 +584,14 @@ namespace LOGNS {
     LogManager manager;
 
 
-    uint8_t ringbufStorage[5120];
+    uint8_t ringbufStorage[4096];
     StaticRingbuffer_t ringbufState;
 
     uint8_t latestMessagesStorage[5120];
     StaticRingbuffer_t latestMessagesState;
 
     StaticTask_t writerTaskBuffer;
-    StackType_t writerTaskStackStorage[4096];
+    StackType_t writerTaskStackStorage[3072];
     TaskHandle_t writerTask;
 
     // It would be better if xRinbgufferReceive would block indefinitely
@@ -692,7 +692,7 @@ namespace LOGNS {
     }
 
     void init() {
-        ringbuf = xRingbufferCreateStatic(5120, RINGBUF_TYPE_NOSPLIT,
+        ringbuf = xRingbufferCreateStatic(4096, RINGBUF_TYPE_NOSPLIT,
                                            ringbufStorage, &ringbufState);
 
         latestMessages = xRingbufferCreateStatic(5120, RINGBUF_TYPE_NOSPLIT,
@@ -701,7 +701,7 @@ namespace LOGNS {
         writerTask = xTaskCreateStaticPinnedToCore(
                                     logWriter,
                                     "writerTask",
-                                    4096, // stack size
+                                    3072, // stack size
                                     (void*) 1, // params, we are not using this
                                     (UBaseType_t) 4, // priority; the MQTT task uses 5
                                     writerTaskStackStorage,

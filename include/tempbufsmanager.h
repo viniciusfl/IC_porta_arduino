@@ -1,7 +1,7 @@
 #ifndef TEMPBUFS_H
 #define TEMPBUFS_H
 
-#define MAX_LOGMSG_SIZE 512
+#define MAX_LOGMSG_SIZE 384
 /*
 This allows us to choose an unused buffer from a set of preallocated
 buffers without using locks. As long as we never actually use all
