@@ -120,10 +120,10 @@ namespace  MQTT {
 
     void MqttManager::handleCommand(const char* command) {
         char cmd[20];
-        strncpy(cmd, command, sizeof(cmd));
+        strncpy(cmd, command, 20);
         int commaDivisor = -1;
 
-        for (int i = 0; command[i] != '\0'; i++) {
+        for (int i = 0; command[i] != '\0' && i < 20; i++) {
             if (command[i] == '/') {
                 commaDivisor = i;
                 break;
