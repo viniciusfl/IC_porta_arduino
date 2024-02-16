@@ -73,11 +73,16 @@ class OurMQTT():
 
         def on_message(client, userdata, msg):
             userdata.on_message(client, msg)
-        """ self.client.tls_set("../../certs/4deSetembro23/rootCA.crt",
-                       "../../certs/4deSetembro23/python.crt",
-                       "../../certs/4deSetembro23/python.key",
-                       tls_version=ssl.PROTOCOL_TLSv1_2) """
         self.client.on_message = on_message
+
+        self.client.tls_set(ca_certs="../certs/rootCA.crt",
+                            certfile="../certs/python.crt",
+                            keyfile="../certs/python.key",
+                            cert_reqs = ssl.CERT_REQUIRED,
+                            tls_version=ssl.PROTOCOL_TLSv1_2)
+        # Do not verify whether the hostname matches the CN
+        self.client.tls_insecure_set(True)
+
         self.client.connect_async(BROKER_ADDRESS, BROKER_PORT, 60)
         self.client.loop_start()
 
