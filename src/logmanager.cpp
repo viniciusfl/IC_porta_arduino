@@ -27,9 +27,7 @@ static const char *TAG = "log";
 /*
   This code writes log messages to disk files (guaranteeing they are not
   lost if the system is shut down) and uploads these files over MQTT when
-  the network is available. It also maintains a ring buffer in memory with
-  the latest log messages. If there is no storage available, at least this
-  ring buffer may still be accessed.
+  the network is available.
 
   Log messages are both system logs and access logs, and they are all
   mixed together; it is up to the server to separate them. For the
@@ -71,11 +69,10 @@ static const char *TAG = "log";
 
   2. On a separate task ("logWriter"), we process what comes from the
      Ringbuffer: we output the received messages to the serial port and,
-     if disk storage is available, we also write them to disk. Either way,
-     we also store the messages in a second ring buffer ("latestMessages"),
-     so at least the most recent log messages are temporarily available
-     in memory. Since this is a single task, there are no synchronization
-     issues.
+     if disk storage is available, we write them to disk. If not, we
+     store the messages in a second ring buffer ("earlyMessages"), so
+     we can save them to disk when it becomes available. Since this is
+     a single task, there are no synchronization issues.
 
   3. On the default task, we periodically check for files to send over
      MQTT.
@@ -94,14 +91,14 @@ static const char *TAG = "log";
 
   Log messages are not simple strings; they are often gererated in
   printf style, i.e., a format string and some parameters, such as
-  log_e("error %s detected", errorstring). Generating the complete
-  log message depends on a memory buffer to write the message to.
-  This might take too much stack space in some tasks (notably, the
-  system event task, which by default has a stack size of 2304 bytes),
-  so we do not use the stack; instead, we use a preallocated buffer
-  (check tempbufsmanager.h). We then copy this to the Ringbuffer,
-  which saves some memory (the memory allocated in the ringbuffer
-  is the size of the message) and is readable by reference later on,
+  log_e("error %s detected", errorstring). Generating the complete log
+  message depends on a memory buffer to write the message to. This might
+  take too much stack space in some tasks (notably, the system event task,
+  which by default has a stack size of 2304 bytes), so we do not use the
+  stack; instead, we use a preallocated buffer (check tempbufsmanager.h).
+  We then copy this to the Ringbuffer. We use a Ringbuffer instead of a
+  FreeRTOS queue to save memory: the memory allocated in the ringbuffer
+  is the size of the message and it is readable by reference later on,
   alleviating the need for another copy.
   https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos_additions.html#ring-buffers
 
@@ -147,7 +144,7 @@ namespace LOGNS {
 
     RingbufHandle_t ringbuf; // Communication between logging tasks
 
-    RingbufHandle_t latestMessages; // Keep the latest logs in memory
+    RingbufHandle_t earlyMessages; // Remember logs until storage is available
 
     // This changes to true when we detect the available storage type
     bool logToDisk = false;
@@ -587,9 +584,6 @@ namespace LOGNS {
     uint8_t ringbufStorage[4096];
     StaticRingbuffer_t ringbufState;
 
-    uint8_t latestMessagesStorage[5120];
-    StaticRingbuffer_t latestMessagesState;
-
     StaticTask_t writerTaskBuffer;
     StackType_t writerTaskStackStorage[3072];
     TaskHandle_t writerTask;
@@ -611,27 +605,30 @@ namespace LOGNS {
             if (buf != NULL) {
                 Serial.print(buf);
 
-                // Save a copy for later, dropping older messages if there
-                // is not enough space. This is not atomic, but that is
-                // ok: we are the only ones *inserting* data here, so we
-                // will never believe there is space when there is not.
-                // The worst that can happen is, we delete a message
-                // unnecessarily when more space is made available by
-                // some other task.
-                size_t avail = xRingbufferGetCurFreeSize(latestMessages);
-                while (avail < len +1) {
-                    size_t oldlen;
-                    void* oldmsg = xRingbufferReceive(latestMessages,
-                                        &oldlen, pdMS_TO_TICKS(200));
-                    vRingbufferReturnItem(latestMessages, oldmsg);
-                    avail = xRingbufferGetCurFreeSize(latestMessages);
+                if (logToDisk) {
+                    logfile.log(buf);
+                } else {
+                    // Save for later, dropping older messages if there
+                    // is not enough space. This is not atomic, but that is
+                    // ok: we are the only ones *inserting* data here, so we
+                    // will never believe there is space when there is not.
+                    // The worst that can happen is, we delete a message
+                    // unnecessarily when more space is made available by
+                    // some other task.
+                    size_t avail = xRingbufferGetCurFreeSize(earlyMessages);
+                    while (avail < len +1) {
+                        size_t oldlen;
+                        void* oldmsg = xRingbufferReceive(earlyMessages,
+                                            &oldlen, pdMS_TO_TICKS(200));
+                        vRingbufferReturnItem(earlyMessages, oldmsg);
+                        avail = xRingbufferGetCurFreeSize(earlyMessages);
+                    }
+
+                    // This REALLY should not fail; if it does, too bad
+                    BaseType_t result = xRingbufferSend(earlyMessages, buf,
+                                        strlen(buf) +1,pdMS_TO_TICKS(200));
                 }
 
-                // This REALLY should not fail; if it does, too bad
-                BaseType_t result = xRingbufferSend(latestMessages, buf,
-                                         strlen(buf) +1, pdMS_TO_TICKS(200));
-
-                if (logToDisk) { logfile.log(buf); }
                 vRingbufferReturnItem(ringbuf, (void*) buf);
             } else {
                 if (logToDisk and logfile.shouldRotate) {
@@ -695,8 +692,7 @@ namespace LOGNS {
         ringbuf = xRingbufferCreateStatic(4096, RINGBUF_TYPE_NOSPLIT,
                                            ringbufStorage, &ringbufState);
 
-        latestMessages = xRingbufferCreateStatic(5120, RINGBUF_TYPE_NOSPLIT,
-                               latestMessagesStorage, &latestMessagesState);
+        earlyMessages = xRingbufferCreate(5120, RINGBUF_TYPE_NOSPLIT);
 
         writerTask = xTaskCreateStaticPinnedToCore(
                                     logWriter,
@@ -717,19 +713,21 @@ namespace LOGNS {
 
         // Send old messages that are still available in memory to disk
         UBaseType_t count;
-        vRingbufferGetInfo(latestMessages, NULL, NULL, NULL, NULL, &count);
+        vRingbufferGetInfo(earlyMessages, NULL, NULL, NULL, NULL, &count);
 
         while (count > 0) {
             size_t len;
-            char* buf = (char*) xRingbufferReceive(latestMessages, &len,
+            char* buf = (char*) xRingbufferReceive(earlyMessages, &len,
                                                      pdMS_TO_TICKS(200));
             // Should never be null...
             if (buf != NULL) {
                 logfile.log(buf);
-                vRingbufferReturnItem(latestMessages, (void*) buf);
+                vRingbufferReturnItem(earlyMessages, (void*) buf);
             }
-            vRingbufferGetInfo(latestMessages, NULL, NULL, NULL, NULL, &count);
+            vRingbufferGetInfo(earlyMessages, NULL, NULL, NULL, NULL, &count);
         }
+
+        vRingbufferDelete(earlyMessages);
     }
 }
 
