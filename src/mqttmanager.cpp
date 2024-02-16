@@ -147,7 +147,8 @@ namespace  MQTT {
                 openDoorCommand();
             } else if (!strcmp(cmd + commaDivisor + 1, "reboot")) {
                 log_v("Received command to reboot ESP.");
-                ESP.restart();
+                delay(1000); // time to flush pending logs
+                esp_restart();
             } else {
                 log_e("Invalid command: %s", command);
             }
