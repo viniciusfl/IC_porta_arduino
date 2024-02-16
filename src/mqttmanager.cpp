@@ -137,9 +137,8 @@ namespace  MQTT {
 
         char identifier[4];
         strncpy(identifier, cmd, commaDivisor);
-        identifier[commaDivisor] = '\0';
 
-        int cmdValue = atoi(cmd + commaDivisor + 1);
+        int cmdValue = atoi(identifier);
 
         if (!strcmp(identifier, "all") || cmdValue == doorID) {
             if (!strcmp(cmd + commaDivisor + 1, "openDoor")) {
