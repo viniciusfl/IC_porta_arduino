@@ -10,7 +10,8 @@
    memory allocation failures etc.
 
  * The DB is downloaded every time the MCU boots; during this time, the
-   lock is unresponsive
+   lock is unresponsive. We should improve this and clean up the hack
+   from commit 1b34a7ee7921.
 
  * The event handler for when a card is read should be handled by a
    separate, high priority task, but this would consume more memory;
@@ -137,4 +138,11 @@
 
  * If we need to reduce memory usage, we may try reducing the maximum log
    file size to 2-3K, or store them as larger files and split them before
-   sending
+   sending. Another (extreme) possibility is to not log to disk files
+   anymore and use the DB for logging, but this complicates updating the
+   DB. We may also try to reduce the number of open files, maybe using the
+   NVS to store the status of the DB files instead of the STATUS_?.TXT
+   files.
+
+ * Instead of using a `#define`, we should try mounting the SD card; if
+   that fails, use FFat.
