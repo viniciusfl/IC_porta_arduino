@@ -115,7 +115,7 @@ namespace OTA {
         }
 
         log_w("Prepare to restart system!");
-        delay(1000); // time to flush pending logs
+        delay(2000); // time to flush pending logs
         esp_restart();
     }
 
