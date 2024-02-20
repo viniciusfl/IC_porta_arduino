@@ -18,7 +18,8 @@
 
  * The event handler for when a card is read should be handled by a
    separate, high priority task, but this would consume more memory;
-   how to do this?
+   how to do this? Or, on the contrary, sending/receiving data from
+   mqtt, updating the DB etc. could run on a low-priority task...
 
  * Choose and set license
 
@@ -149,3 +150,9 @@
 
  * Instead of using a `#define`, we should try mounting the SD card; if
    that fails, use FFat.
+
+ * The way we handle log messages in the callbacks in `cardreader.cpp`,
+   with the `connectedMsg` etc buffers, is lame and wastes memory.
+
+ * At some point, we should ditch the arduino framework and use ESP-IDF
+   directly, but this involves adapting YetAnotherArduinoWiegandLibrary
