@@ -230,13 +230,13 @@ namespace  MQTT {
             break;
 
         case MQTT_EVENT_DATA:
-            char buffer[50];
-            snprintf(buffer, 50, "%.*s",  event->topic_len, event->topic);
+            char buffer[100];
+            snprintf(buffer, 100, "%.*s",  event->topic_len, event->topic);
 
             // Commands always fit in a single message
             if (!strcmp(buffer, "/topic/commands")) {
                 log_i("MQTT_EVENT_DATA from topic %s", buffer);
-                snprintf(buffer, 50, "%.*s",  event->data_len, event->data);
+                snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
                 this->handleCommand(buffer);
                 break;
             }
