@@ -14,6 +14,14 @@
    how to do this? Or, on the contrary, sending/receiving data from
    mqtt, updating the DB etc. could run on a low-priority task...
 
+ * If we need to reduce memory usage, we may try reducing the maximum log
+   file size to 2-3K, or store them as larger files and split them before
+   sending. Another (extreme) possibility is to not log to disk files
+   anymore and use the DB for logging, but this complicates updating the
+   DB. We may also try to reduce the number of open files, maybe using the
+   NVS to store the status of the DB files instead of the STATUS_?.TXT
+   files.
+
  * Choose and set license
 
  * The circuit board was created with <https://www.kicad.org/>
@@ -110,31 +118,8 @@
    card readers + the pin that controls the relay that actually opens the
    door, and then call `somedoor.open()` etc. instead.
 
- * When we initialize for the first time, there is no DB file on disk and
-   we have never been subscribed to the DB topic before. Two things happen
-   in parallel:
-
-   1. After we subscribe, we start downloading the DB file, as it is a
-      "retain" message
-   2. We call `chooseInitialFile()`, which calls `forceDBDownload()` when
-      there is no local file.
-
-   Since there is no local DB on disk, `chooseInitialFile()` enqueues an
-   unsubscribe/subscribe sequence in the mqtt client. This means that,
-   when the download triggered by the first subscription is complete,
-   we unsubscribe/subscribe and start downloading again. Not great, but
-   not terrible either (fixing this is not entirely trivial).
-
  * Many things use "poor-man's parallel processing"; we should use
    actual tasks instead, but that uses additional memory...
-
- * If we need to reduce memory usage, we may try reducing the maximum log
-   file size to 2-3K, or store them as larger files and split them before
-   sending. Another (extreme) possibility is to not log to disk files
-   anymore and use the DB for logging, but this complicates updating the
-   DB. We may also try to reduce the number of open files, maybe using the
-   NVS to store the status of the DB files instead of the STATUS_?.TXT
-   files.
 
  * Instead of using a `#define`, we should try mounting the SD card; if
    that fails, use FFat.
