@@ -37,6 +37,7 @@ void checkDoor() {
         } else {
             denyToOpenDoor(lastReaderID);
         }
+        refreshQuery(); // after we open the door, so things go faster
     }
 }
 

@@ -17,6 +17,7 @@ class Authorizer {
         int openDB(const char *filename);
         inline void closeDB();
         inline bool userAuthorized(const char* readerID, unsigned long cardID);
+        inline void refreshQuery();
     private:
         inline void calculate_hash(unsigned long cardID,  char* hash);
         // check the comment near Authorizer::closeDB()
@@ -83,7 +84,6 @@ inline bool Authorizer::userAuthorized(const char* readerID,
 
     log_d("Card reader %s was used. Received card ID %lu", readerID, cardID);
 
-    sqlite3_reset(dbquery);
     sqlite3_bind_text(dbquery, 1, hash, strlen(hash), NULL);
     sqlite3_bind_int(dbquery, 2, doorID);
 
@@ -137,6 +137,8 @@ inline void Authorizer::closeDB() {
     sqlitedb = NULL;
 }
 
+inline void Authorizer::refreshQuery() { sqlite3_reset(dbquery); }
+
 Authorizer authorizer;
 
 
@@ -147,3 +149,5 @@ void closeDB() { authorizer.closeDB(); }
 bool userAuthorized(const char* readerID, unsigned long cardID) {
     return authorizer.userAuthorized(readerID, cardID);
 }
+
+void refreshQuery() { authorizer.refreshQuery(); }

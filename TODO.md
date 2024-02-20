@@ -110,11 +110,6 @@
    card readers + the pin that controls the relay that actually opens the
    door, and then call `somedoor.open()` etc. instead.
 
- * `Authorizer::userAuthorized()` calls `sqlite3_reset()`; if authorization
-   latency becomes a problem, we might call that after the door is opened,
-   so the query is ready to run on the next iteration. This, however, is
-   not trivial, because the DB may be updated at some point.
-
  * When we initialize for the first time, there is no DB file on disk and
    we have never been subscribed to the DB topic before. Two things happen
    in parallel:
