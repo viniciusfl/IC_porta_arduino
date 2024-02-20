@@ -118,12 +118,14 @@ namespace  MQTT {
     void MqttManager::handleCommand(const char* command) {
         int slashpos;
 
-        for (slashpos = 0; slashpos < 20; ++slashpos) {
-            if (command[slashpos] == 0) { slashpos = 20; }
+        // "4" -> a "reasonable" max length for the door ID;
+        //        either "all" or "999"
+        for (slashpos = 0; slashpos < 4; ++slashpos) {
+            if (command[slashpos] == 0) { slashpos = 4; }
             if (command[slashpos] == '/') { break; }
         }
 
-        if (slashpos >= 20) {
+        if (slashpos >= 4) {
             log_e("Invalid command: %s", command);
             return;
         }
@@ -212,13 +214,13 @@ namespace  MQTT {
             }
             break;
         case MQTT_EVENT_DATA:
-            char buffer[100];
-            snprintf(buffer, 100, "%.*s",  event->topic_len, event->topic);
+            char buffer[50];
+            snprintf(buffer, 50, "%.*s",  event->topic_len, event->topic);
 
             // Commands always fit in a single message
             if (!strcmp(buffer, "/topic/commands")) {
                 log_i("MQTT_EVENT_DATA from topic %s", buffer);
-                snprintf(buffer, 100, "%.*s",  event->data_len, event->data);
+                snprintf(buffer, 50, "%.*s",  event->data_len, event->data);
                 this->handleCommand(buffer);
                 break;
             }

@@ -240,6 +240,9 @@ namespace ReaderNS {
 
         lastFlush = currentMillis;
 
+        // If a card was read, this will guarantee the callback
+        // gets executed, so we can proceed to process the data
+        //
         // Only very recent versions of the arduino framework
         // for ESP32 support interrupts()/noInterrupts()
         portDISABLE_INTERRUPTS();

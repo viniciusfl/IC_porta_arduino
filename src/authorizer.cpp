@@ -59,11 +59,11 @@ int Authorizer::openDB(const char *filename) {
 // search element through current database
 inline bool Authorizer::userAuthorized(const char* readerID,
                                        unsigned long cardID) {
-    char hash[65];
+    char hash[65]; // 64 chars + '\0'
     calculate_hash(cardID, hash);
 
     // MASTER IDs are defined at the beginning of this file.
-    for (int i = 0; i < sizeof(master_keys)/sizeof(master_keys[0]); i++) {
+    for (int i = 0; i < sizeof(master_keys)/sizeof(master_keys[0]); ++i) {
         if (!strcmp(hash, master_keys[i])) {
             log_w("MASTER card used, openning door.");
             return true;
@@ -111,7 +111,7 @@ inline void Authorizer::calculate_hash(unsigned long cardID,  char* hash) {
     mbedtls_md_starts(&ctx);
 
     // Convert the cardID to a string (10-digit number) and hash it
-    char buf[11];
+    char buf[11]; // 10 digits + '\0'
     sprintf(buf, "%10lu", cardID);
     mbedtls_md_update(&ctx, (const unsigned char *) buf, 10);
 
