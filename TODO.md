@@ -9,13 +9,6 @@
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
 
- * DB files have two different "status" dimensions: they may be either
-   valid or not and they may be either the preferred one or not. Right
-   now, we only record whether the file is the preferred one, but we
-   should track whether the file is valid so that we avoid concurrency
-   problems when we update/delete files in dbmanager while downloading
-   the same file in mqttmanager.
-
  * The event handler for when a card is read should be handled by a
    separate, high priority task, but this would consume more memory;
    how to do this? Or, on the contrary, sending/receiving data from

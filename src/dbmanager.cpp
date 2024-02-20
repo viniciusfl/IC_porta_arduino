@@ -45,16 +45,22 @@ namespace DBNS {
         const char *currentFile;
         const char *otherFile;
 
-        bool fileOK(const char *); // Is this file ok?
-        inline bool findValidDB(); // Is there *any* OK file?
-        // The answer, my friend, is blowing in the "status" files
-        const char *currentFileStatus;
-        const char *otherFileStatus;
+        inline bool findPreferredDB();
+        bool checkIf(const char *); // Check if file is valid/preferred
+        const char *currentFileIsValid;
+        const char *otherFileIsValid;
+        const char *currentFileIsPreferred;
+        const char *otherFileIsPreferred;
 
-        void swapFiles(); // current <-- other, other <-- current
-        inline void activateDBFile(); // closeDB, swapFiles, openDB
-        inline void clearCurrentDBFile(); // Something is wrong with it, delete
-        inline void clearAllDBFiles(); // erase everything and start over
+        // This swaps current <-- other, other <-- current and sets
+        // "current" as preferred, but only if "other" is valid
+        bool swapFiles();
+
+        // openDB(); if that fails, revert files and try again
+        void activateDBFile();
+
+        // Something is wrong, delete the file
+        inline void clearCurrentDBFile();
 
         File file;
     };  
@@ -66,10 +72,12 @@ namespace DBNS {
 
         currentFile = "/DB_A.db";
         otherFile = "/DB_B.db";
-        currentFileStatus = "/STATUS_A.TXT";
-        otherFileStatus = "/STATUS_B.TXT";
+        currentFileIsValid = "/VALID_A.TXT";
+        otherFileIsValid = "/VALID_B.TXT";
+        currentFileIsPreferred = "/PREF_A.TXT";
+        otherFileIsPreferred = "/PREF_B.TXT";
 
-        if (findValidDB()) {
+        if (findPreferredDB()) {
             activateDBFile();
         } else {
             log_e("No valid DB file, downloading a fresh one");
@@ -84,7 +92,9 @@ namespace DBNS {
         }
         log_d("Starting DB download");
 
-        if (DISK.exists(otherFileStatus)) { DISK.remove(otherFileStatus); };
+        if (DISK.exists(otherFileIsValid)) { DISK.remove(otherFileIsValid); };
+        if (DISK.exists(otherFileIsPreferred))
+                                        { DISK.remove(otherFileIsPreferred); };
         if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
 
         file = DISK.open(otherFile, FILE_WRITE, true);
@@ -125,6 +135,10 @@ namespace DBNS {
         file.close();
         log_d("Finished DB download");
 
+        File f = DISK.open(otherFileIsValid, FILE_WRITE, true);
+        f.print(1);
+        f.close();
+
         closeDB();
         swapFiles();
         activateDBFile();
@@ -142,30 +156,41 @@ namespace DBNS {
         if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
     }
 
-    inline void UpdateDBManager::activateDBFile() {
+    void UpdateDBManager::activateDBFile() {
         log_d("Activating DB file");
 
-        if (openDB(currentFile) != SQLITE_OK) {
-            log_w("Error opening the updated DB, reverting to old one");
-            closeDB();
-            clearCurrentDBFile();
-            swapFiles();
-            if (openDB(currentFile) != SQLITE_OK) {
-                log_w("Reverting to old DB failed, downloading a fresh file");
-                closeDB();
-                clearAllDBFiles();
-                forceDBDownload();
-            }
+        if (openDB(currentFile) == SQLITE_OK) { return; }
+
+        closeDB();
+        log_w("Error opening the updated DB, reverting to old one");
+        clearCurrentDBFile();
+
+        if (not swapFiles()) {
+            log_w("Cannot revert to old DB, downloading a fresh file");
+            forceDBDownload();
+            return;
         }
+
+        if (openDB(currentFile) == SQLITE_OK) { return; }
+
+        closeDB();
+        log_w("Reverting to old DB failed, downloading a fresh file");
+        clearCurrentDBFile();
+        forceDBDownload();
     }
 
-    void UpdateDBManager::swapFiles() {
+    bool UpdateDBManager::swapFiles() {
+        if (not checkIf(otherFileIsValid)) { return false; }
+
         const char *tmp = currentFile;
         currentFile = otherFile;
         otherFile = tmp;
-        tmp = currentFileStatus;
-        currentFileStatus = otherFileStatus;
-        otherFileStatus = tmp;
+        tmp = currentFileIsPreferred;
+        currentFileIsPreferred = otherFileIsPreferred;
+        otherFileIsPreferred = tmp;
+        tmp = currentFileIsValid;
+        currentFileIsValid = otherFileIsValid;
+        otherFileIsValid = tmp;
 
         // If we crash before these 5 lines, on restart we will continue
         // using the old version of the DB; if we crash after, we will
@@ -173,21 +198,23 @@ namespace DBNS {
         // both files containing "1"), on restart we will use "DB_A.db",
         // which may be either.
 
-        File f = DISK.open(currentFileStatus, FILE_WRITE, true);
+        File f = DISK.open(currentFileIsPreferred, FILE_WRITE, true);
         f.print(1);
         f.close();
 
-        f = DISK.open(otherFileStatus, FILE_WRITE, true);
+        f = DISK.open(otherFileIsPreferred, FILE_WRITE, true);
         f.print(0);
         f.close();
+
+        return true;
     }
 
-    bool UpdateDBManager::fileOK(const char *tsfile) {
+    bool UpdateDBManager::checkIf(const char *filename) {
         // In some exceptional circumstances, we might end up writing
         // "1" to the file more than once; that's ok, 11 > 0 too :) .
 
-        if (!DISK.exists(tsfile)) { return false; }
-        File f = DISK.open(tsfile);
+        if (!DISK.exists(filename)) { return false; }
+        File f = DISK.open(filename);
         if (!f) { return false; }
 
         int t = 0;
@@ -198,26 +225,26 @@ namespace DBNS {
         return t > 0;
     }
 
-    inline bool UpdateDBManager::findValidDB() {
-        if (fileOK(currentFileStatus)) {
+    inline bool UpdateDBManager::findPreferredDB() {
+        if (not checkIf(currentFileIsValid)) { return swapFiles(); }
+
+        if (not checkIf(otherFileIsValid)) { return true; }
+
+        if (checkIf(currentFileIsPreferred)) {
             return true;
-        } else if (fileOK(otherFileStatus)) {
-            swapFiles();
-            return true;
+        } else {
+            return swapFiles(); // always true
         }
-        return false;
     }
 
     inline void UpdateDBManager::clearCurrentDBFile() {
         if (DISK.exists(currentFile)) { DISK.remove(currentFile); };
-        if (DISK.exists(currentFileStatus)) { DISK.remove(currentFileStatus); };
+        if (DISK.exists(currentFileIsPreferred))
+                                        { DISK.remove(currentFileIsPreferred); };
+        if (DISK.exists(currentFileIsValid))
+                                        { DISK.remove(currentFileIsValid); };
     }
 
-    inline void UpdateDBManager::clearAllDBFiles() {
-        clearCurrentDBFile();
-        if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
-        if (DISK.exists(otherFileStatus)) { DISK.remove(otherFileStatus); };
-    }
 
     UpdateDBManager updateDBManager;
 }
