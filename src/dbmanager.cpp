@@ -28,7 +28,7 @@ namespace DBNS {
     // to notify the Authorizer that the current DB has changed. So,
     // sometimes the current DB file is "DB_A", sometimes it is "DB_B".
     // During startup, we choose which of the files is the current one
-    // by means of th "status" files.
+    // by means of the "status" files.
 
     class UpdateDBManager {
     public:
@@ -51,10 +51,10 @@ namespace DBNS {
         const char *currentFileStatus;
         const char *otherFileStatus;
 
-        void chooseInitialFile(); // If necessary, force downloading
         void swapFiles(); // current <-- other, other <-- current
-        inline void activateNewDBFile(); // closeDB, swapFiles, openDB
-        void clearAllDBFiles(); // erase everything and start over
+        inline void activateDBFile(); // closeDB, swapFiles, openDB
+        inline void clearCurrentDBFile(); // Something is wrong with it, delete
+        inline void clearAllDBFiles(); // erase everything and start over
 
         File file;
     };  
@@ -62,7 +62,19 @@ namespace DBNS {
     // This should be called from setup()
     inline void UpdateDBManager::init(bool diskOK) {
         this->diskOK = diskOK;
-        if (diskOK) { chooseInitialFile(); }
+        if (not diskOK) { return; }
+
+        currentFile = "/DB_A.db";
+        otherFile = "/DB_B.db";
+        currentFileStatus = "/STATUS_A.TXT";
+        otherFileStatus = "/STATUS_B.TXT";
+
+        if (findValidDB()) {
+            activateDBFile();
+        } else {
+            log_e("No valid DB file, downloading a fresh one");
+            forceDBDownload();  // When this succeeds, the DB is activated
+        }
     }
 
     inline bool UpdateDBManager::startDBDownload() {
@@ -112,7 +124,10 @@ namespace DBNS {
         downloading = false;
         file.close();
         log_d("Finished DB download");
-        activateNewDBFile();
+
+        closeDB();
+        swapFiles();
+        activateDBFile();
     }
 
     inline void UpdateDBManager::cancelDBDownload() {
@@ -127,21 +142,19 @@ namespace DBNS {
         if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
     }
 
-    inline void UpdateDBManager::activateNewDBFile() {
-        log_d("Activating newly downloaded DB file");
-
-        closeDB();
-        swapFiles();
+    inline void UpdateDBManager::activateDBFile() {
+        log_d("Activating DB file");
 
         if (openDB(currentFile) != SQLITE_OK) {
             log_w("Error opening the updated DB, reverting to old one");
             closeDB();
+            clearCurrentDBFile();
             swapFiles();
             if (openDB(currentFile) != SQLITE_OK) {
                 log_w("Reverting to old DB failed, downloading a fresh file");
                 closeDB();
                 clearAllDBFiles();
-                chooseInitialFile();
+                forceDBDownload();
             }
         }
     }
@@ -185,35 +198,6 @@ namespace DBNS {
         return t > 0;
     }
 
-    void UpdateDBManager::chooseInitialFile() {
-        if (not diskOK) { return; }
-
-        currentFile = "/DB_A.db";
-        otherFile = "/DB_B.db";
-        currentFileStatus = "/STATUS_A.TXT";
-        otherFileStatus = "/STATUS_B.TXT";
-
-        bool success = false;
-
-        while (!success) {
-            while (!findValidDB()) {
-                clearAllDBFiles();
-                forceDBDownload();
-                checkDoor(); delay(100); currentMillis = millis();
-            }
-
-            log_d("Choosing %s as current DB.", currentFile);
-            if (openDB(currentFile) != SQLITE_OK) {
-                closeDB();
-                log_e("Something bad happen with the DB file! "
-                      "Downloading a fresh one");
-                clearAllDBFiles();
-            } else {
-                success = true;
-            }
-        }
-    }
-
     inline bool UpdateDBManager::findValidDB() {
         if (fileOK(currentFileStatus)) {
             return true;
@@ -224,21 +208,15 @@ namespace DBNS {
         return false;
     }
 
-    void UpdateDBManager::clearAllDBFiles() {
-        if (resubscribing) { return; }
-
+    inline void UpdateDBManager::clearCurrentDBFile() {
         if (DISK.exists(currentFile)) { DISK.remove(currentFile); };
-        if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
         if (DISK.exists(currentFileStatus)) { DISK.remove(currentFileStatus); };
+    }
+
+    inline void UpdateDBManager::clearAllDBFiles() {
+        clearCurrentDBFile();
+        if (DISK.exists(otherFile)) { DISK.remove(otherFile); };
         if (DISK.exists(otherFileStatus)) { DISK.remove(otherFileStatus); };
-
-        File f = DISK.open(currentFileStatus, FILE_WRITE, true);
-        f.print(0);
-        f.close();
-
-        f = DISK.open(otherFileStatus, FILE_WRITE, true);
-        f.print(0);
-        f.close();
     }
 
     UpdateDBManager updateDBManager;

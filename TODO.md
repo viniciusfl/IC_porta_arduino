@@ -9,9 +9,12 @@
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
 
- * The DB is downloaded every time the MCU boots; during this time, the
-   lock is unresponsive. We should improve this and clean up the hack
-   from commit 1b34a7ee7921.
+ * DB files have two different "status" dimensions: they may be either
+   valid or not and they may be either the preferred one or not. Right
+   now, we only record whether the file is the preferred one, but we
+   should track whether the file is valid so that we avoid concurrency
+   problems when we update/delete files in dbmanager while downloading
+   the same file in mqttmanager.
 
  * The event handler for when a card is read should be handled by a
    separate, high priority task, but this would consume more memory;
