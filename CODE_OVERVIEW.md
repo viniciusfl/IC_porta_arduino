@@ -110,25 +110,36 @@ server and deleted.
 
  * Three tables:
 
-   - "users" with only one column, "ID", which is the primary key (we may
-     want to add more columns later, such as name etc.)
+   - "users", with the hashed ID and the user name
 
-   - "doors" with only one column, "ID", which is the primary key (we may
-     want to add more columns later, such as office name, building, floor
-     etc.). In particular, we might add a boolean column "anybody" which
-     means "any valid user can enter", so that we do not need to add one
-     line for each user to the "auth" table in this case
+   - "doors", with the door number and a description/location (we may
+     add a boolean column "anybody" meaning "any valid user can enter",
+     so that we do not need to add one line for each user to the "auth"
+     table in this case)
 
-   - "auth" with two columns: "userID" and "doorID", which are foreign keys
-     (we may want to add more columns later, such as allowed hours etc)
+   - "auth", joining the other two (we may add more columns later, such
+     as allowed hours etc)
 
  * To create:
    ```
-   create table users(ID int primary key);
-   create table doors(ID int primary key);
-   create table auth(userID int not null, doorID int not null, foreign key (userID) references users(ID), foreign key (doorID) references doors(ID));
+   create table users (ID text primary key, name text);
+   create table doors (ID integer primary key, location text);
+   create table auth (userID text not null, doorID integer not null, foreign key (userID) references users(ID), foreign key (doorID) references doors(ID));
    create index useridx on auth(userID, doorID);
    ```
+
+ * To add:
+   - A door:
+     ```
+     insert into doors values (doornum, 'the door location');
+     ```
+   - A user:
+     ```
+     insert into users values ('thehash', 'the name');
+     ```
+   - User authorization for a given door:
+     ```
+     insert into auth values ('thehash', doornum);
 
  * To query:
    ```
