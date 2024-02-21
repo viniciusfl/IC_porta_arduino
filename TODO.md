@@ -4,7 +4,11 @@
    if someone steals a logfile they cannot fabricate a valid key card
 
  * We should have a "master key" that forces a reboot (in case mqtt
-   communication is broken)
+   communication is broken) and another that restores the previous
+   firmware version
+
+ * Implement the mqtt commands: restore previous firmware version,
+   rotate logfile
 
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
