@@ -3,28 +3,36 @@
  * When logging access, we should register the hash, not the ID, so
    if someone steals a logfile they cannot fabricate a valid key card
 
- * We should have a "master key" that forces a reboot (in case mqtt
-   communication is broken) and another that restores the previous
-   firmware version
-
- * Implement the mqtt commands: restore previous firmware version,
-   rotate logfile
+ * We should add some more options for "remote control":
+   - A "master key" that forces a reboot, so we can do it even if mqtt
+     communication fails
+   - An mqtt command to restore the previous firmware version *and*
+     another "master key" that does the same
+   - An mqtt command to rotate the logfile (i.e., close the current
+     file and open a new one)
 
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
 
- * The event handler for when a card is read should be handled by a
-   separate, high priority task, but this would consume more memory;
-   how to do this? Or, on the contrary, sending/receiving data from
-   mqtt, updating the DB etc. could run on a low-priority task...
+ * It would be better (faster) if `captureIncomingData()` (which runs
+   with interrupts disabled) could trigger a separate, high priority
+   task to open the door (alternatively, sending/receiving data from
+   mqtt, updating the DB etc. could run on a lower-priority task).
+   However, this would consume more memory.
 
- * If we need to reduce memory usage, we may try reducing the maximum log
-   file size to 2-3K, or store them as larger files and split them before
-   sending. Another (extreme) possibility is to not log to disk files
-   anymore and use the DB for logging, but this complicates updating the
-   DB. We may also try to reduce the number of open files, maybe using the
-   NVS to store the status of the DB files instead of the STATUS_?.TXT
-   files.
+ * If we need to reduce memory usage, we may try reducing the maximum
+   log file size (and the corresponding buffers) to 2-3K, or store
+   them as larger files and split them before sending, maybe a single
+   message at a time. This would probably save almost 10KB because
+   buffers would be much smaller, but maintaining the logfile open
+   while sending would also consume some memory; to prevent this, we
+   may read an item, close the file, send it, reopen the file, seek,
+   read again etc. Another (extreme) possibility is to not log to
+   disk files anymore and use the DB for logging, but this complicates
+   updating the DB (we would have to defer updates to when there are
+   no logs to be sent). We may also try to reduce the number of open
+   files, maybe using the NVS to store the status of the DB files
+   instead of the VALID_?.TXT and PREF_?.TXT files.
 
  * Choose and set license
 
