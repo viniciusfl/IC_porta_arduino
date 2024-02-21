@@ -14,6 +14,10 @@
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
 
+ * Minor bug: if we are currently sending a logfile and get disconnected,
+   the message is still enqueued. When we reconnect, we may enqueue another
+   logfile before the previous one is completely sent, consuming more memory.
+
  * It would be better (faster) if `captureIncomingData()` (which runs
    with interrupts disabled) could trigger a separate, high priority
    task to open the door (alternatively, sending/receiving data from
