@@ -166,7 +166,7 @@ namespace ReaderNS {
         external.onReceive(captureIncomingData, "external");
         external.onReceiveError(receivedDataError, "External card reader error: ");
         external.onStateChange(stateChanged, "External card reader state changed: ");
-        external.begin(Wiegand::LENGTH_ANY, true);
+        external.begin(34, true);
 
 #       ifdef TWO_READERS
         // Initialize pins for second Wiegand reader (internal) as INPUT
@@ -180,7 +180,7 @@ namespace ReaderNS {
         internal.onReceive(captureIncomingData, "internal");
         internal.onReceiveError(receivedDataError, "Internal card reader error: ");
         internal.onStateChange(stateChanged, "Internal card reader state changed: ");
-        internal.begin(Wiegand::LENGTH_ANY, true);
+        internal.begin(34, true);
 #       endif
 
         // We define the interrupt handlers with IRAM_ATTR; it is not really
@@ -219,6 +219,31 @@ namespace ReaderNS {
     inline bool checkCardReaders(const char*& returnReaderID,
                                  unsigned long int& returnCardID) {
 
+        if (newAccess) {
+            returnReaderID = readerID;
+            returnCardID = bitsToNumber(cardIDRaw, cardIDBits);
+            newAccess = false;
+            lastFlush = currentMillis;
+            return true;
+        }
+
+        // We could run this "flush" on every loop, but since we
+        // disable interrupts it is better not to. This forces
+        // callback processing but, since we do not use LENGTH_ANY,
+        // that is only needed to process read errors.
+        if (currentMillis - lastFlush < 20) { return false; }
+
+        lastFlush = currentMillis;
+
+        // Only very recent versions of the arduino framework
+        // for ESP32 support interrupts()/noInterrupts()
+        portDISABLE_INTERRUPTS();
+#       ifdef TWO_READERS
+        internal.flush();
+#       endif
+        external.flush();
+        portENABLE_INTERRUPTS();
+
         if (connectedMsg[0] != 0) {
             log_i("%s", connectedMsg);
             connectedMsg[0] = 0;
@@ -234,32 +259,7 @@ namespace ReaderNS {
             readErrorMsg[0] = 0;
         }
 
-        // We could run this on every loop, but since we
-        // disable interrupts it might be better not to.
-        if (currentMillis - lastFlush < 20) { return false; }
-
-        lastFlush = currentMillis;
-
-        // If a card was read, this will guarantee the callback
-        // gets executed, so we can proceed to process the data
-        //
-        // Only very recent versions of the arduino framework
-        // for ESP32 support interrupts()/noInterrupts()
-        portDISABLE_INTERRUPTS();
-#       ifdef TWO_READERS
-        internal.flush();
-#       endif
-        external.flush();
-        portENABLE_INTERRUPTS();
-
-        if (!newAccess) return false;
-
-        returnReaderID = readerID;
-        returnCardID = bitsToNumber(cardIDRaw, cardIDBits);
-
-        newAccess = false;
-
-        return true;
+        return false;
     }
 }
 
