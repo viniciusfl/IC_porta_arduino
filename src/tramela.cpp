@@ -104,8 +104,10 @@ void setup() {
 
 void loop() {
     currentMillis = millis();
-    uploadLogs();
-    checkNetConnection();
-    checkTimeSync();
     checkDoor();
+    uploadLogs();
+    checkDoor();
+    checkNetConnection();
+    checkDoor();
+    checkTimeSync();
 }
