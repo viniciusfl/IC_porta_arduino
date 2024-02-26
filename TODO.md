@@ -14,6 +14,10 @@
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
 
+ * Divide `logmanager.cpp` in two files, one for logging and the other
+   for the log manager, i.e., the class that manages and uploads the
+   actual log files.
+
  * Minor bug: if we are currently sending a logfile and get disconnected,
    the message is still enqueued. When we reconnect, we may enqueue another
    logfile before the previous one is completely sent, consuming more memory.
