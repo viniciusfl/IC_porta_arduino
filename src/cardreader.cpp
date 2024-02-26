@@ -102,19 +102,21 @@ namespace ReaderNS {
     }
 
     // Notifies when a reader has been connected or disconnected.
-    // Instead of a message, the seconds parameter can be anything you want --
-    // Whatever you specify on `wiegand.onStateChange()`
-    void IRAM_ATTR stateChanged(bool plugged, const char* message) {
+    // The second parameter can be anything we want --
+    // Whatever is specified on `wiegand.onStateChange()`
+    void IRAM_ATTR stateChanged(bool plugged, const char* reader) {
         if (plugged) {
-            snprintf(connectedMsg, 192, "%s %s", message, "CONNECTED");
+            snprintf(connectedMsg, 192, "%s card reader state changed: "
+                                        "CONNECTED", reader);
         } else {
-            snprintf(disconnectedMsg, 192, "%s %s", message, "DISCONNECTED");
+            snprintf(disconnectedMsg, 192, "%s card reader state changed: "
+                                           "DISCONNECTED", reader);
         }
     }
 
     void IRAM_ATTR receivedDataError(Wiegand::DataError error,
                                      uint8_t* rawData, uint8_t rawBits,
-                                     const char* message) {
+                                     const char* reader) {
 
         //Print value in HEX
         char buf[17]; // 64 bits, way more than enough
@@ -123,8 +125,9 @@ namespace ReaderNS {
             snprintf(buf + 2*i, 3, "%02hhx", rawData[i]);
         }
 
-        snprintf(readErrorMsg, 192, "%s %s - Raw data: %u bits / %s",
-                    message, Wiegand::DataErrorStr(error), rawBits, buf);
+        snprintf(readErrorMsg, 192, "%s reader error: %s - Raw data: "
+                "%u bits / %s", reader, Wiegand::DataErrorStr(error),
+                rawBits, buf);
     }
 
     void IRAM_ATTR setExternal0PinState() {
@@ -164,8 +167,8 @@ namespace ReaderNS {
         digitalWrite(EXTERNAL_LED, HIGH);
         // Install listeners and initialize first Wiegand reader
         external.onReceive(captureIncomingData, "external");
-        external.onReceiveError(receivedDataError, "External card reader error: ");
-        external.onStateChange(stateChanged, "External card reader state changed: ");
+        external.onReceiveError(receivedDataError, "external");
+        external.onStateChange(stateChanged, "external");
         external.begin(34, true);
 
 #       ifdef TWO_READERS
@@ -178,8 +181,8 @@ namespace ReaderNS {
         digitalWrite(INTERNAL_LED, HIGH);
         // Install listeners and initialize second Wiegand reader
         internal.onReceive(captureIncomingData, "internal");
-        internal.onReceiveError(receivedDataError, "Internal card reader error: ");
-        internal.onStateChange(stateChanged, "Internal card reader state changed: ");
+        internal.onReceiveError(receivedDataError, "internal");
+        internal.onStateChange(stateChanged, "internal");
         internal.begin(34, true);
 #       endif
 
@@ -212,6 +215,38 @@ namespace ReaderNS {
         internal.setPin0State(digitalRead(INTERNAL_D0));
         internal.setPin1State(digitalRead(INTERNAL_D1));
 #       endif
+    }
+
+    void blinkError(const char* reader) {
+        int beepPin;
+        int ledPin;
+
+#       ifdef TWO_READERS
+        if (!strcmp(reader, "internal")) {
+            beepPin = INTERNAL_BEEP;
+            ledPin = INTERNAL_LED;
+        } else {
+            beepPin = EXTERNAL_BEEP;
+            ledPin = EXTERNAL_LED;
+        }
+#       else
+        beepPin = EXTERNAL_BEEP;
+        ledPin = EXTERNAL_LED;
+#       endif
+
+        //digitalWrite(ledPin, LOW);
+        digitalWrite(beepPin, LOW);
+        delay(200);
+        digitalWrite(beepPin, HIGH);
+        delay(200);
+        digitalWrite(beepPin, LOW);
+        delay(200);
+        digitalWrite(beepPin, HIGH);
+        delay(200);
+        digitalWrite(beepPin, LOW);
+        delay(200);
+        digitalWrite(beepPin, HIGH);
+        //digitalWrite(ledPin, HIGH);
     }
 
     unsigned long lastFlush = 0;
@@ -257,6 +292,7 @@ namespace ReaderNS {
         if (readErrorMsg[0] != 0) {
             log_i("%s", readErrorMsg);
             readErrorMsg[0] = 0;
+            blinkError(readerID);
         }
 
         return false;
@@ -271,9 +307,9 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
 
 // TODO: these depend heavily on the actual model of the Wiegand readers
 void blinkOk(const char* reader) {
-
     int beepPin;
     int ledPin;
+
 #   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
         beepPin = INTERNAL_BEEP;
@@ -303,10 +339,10 @@ void blinkOk(const char* reader) {
     digitalWrite(ledPin, HIGH);
 };
 
-void blinkFail(const char* reader) {
-
+void blinkDeny(const char* reader) {
     int beepPin;
     int ledPin;
+
 #   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
         beepPin = INTERNAL_BEEP;
@@ -340,6 +376,6 @@ bool openDoor(const char* reader) {
 
 bool denyToOpenDoor(const char* reader) {
     log_v("Denied to open door");
-    if (NULL != reader) { blinkFail(reader); }
+    if (NULL != reader) { blinkDeny(reader); }
     return true;
 }
