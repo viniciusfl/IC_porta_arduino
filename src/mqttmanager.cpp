@@ -9,7 +9,7 @@ static const char *TAG = "mqttman";
 #include <mqttmanager.h>
 #include <networkmanager.h>
 #include <dbmanager.h> // finishDBDownload etc.
-#include <cardreader.h> // openDoor etc.
+#include <door.h>
 #include <keys.h>
 #include <firmwareOTA.h>
 
@@ -160,7 +160,7 @@ namespace  MQTT {
             const char* actualCommand = command + slashpos +1;
             if (!strcmp(actualCommand, "openDoor")) {
                 log_i("Received command to open door.");
-                openDoorCommand();
+                openDoor();
             } else if (!strcmp(actualCommand, "reboot")) {
                 log_i("Received command to reboot ESP.");
                 delay(2000); // time to flush pending logs

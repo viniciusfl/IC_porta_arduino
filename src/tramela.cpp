@@ -17,6 +17,7 @@ static const char* TAG = "main";
 #include <timemanager.h>
 #include <dbmanager.h>
 #include <authorizer.h>
+#include <door.h>
 #include <cardreader.h>
 #include <mqttmanager.h>
 
@@ -74,6 +75,7 @@ void setup() {
     initWiFi(); // The sooner the better :), but after disk logging is up
 
     // So we can check for the master key during time initialization
+    initDoor();
     initCardReaders();
 
     // Make sure we have the correct time before continuing. If we already

@@ -5,8 +5,6 @@ static const char* TAG = "card";
 #include <Wiegand.h>
 #include <cardreader.h>
 
-#define DOOR_OPEN 13
-
 // pins for card reader 1 (external)
 #define EXTERNAL_D0  35
 #define EXTERNAL_D1  34
@@ -153,9 +151,6 @@ namespace ReaderNS {
     // This should be called from setup()
     inline void initCardReaders() {
 
-        pinMode(DOOR_OPEN, OUTPUT);
-        digitalWrite(DOOR_OPEN, LOW);
-
         connectedMsg[0] = 0;
         disconnectedMsg[0] = 0;
         readErrorMsg[0] = 0;
@@ -219,31 +214,6 @@ namespace ReaderNS {
 #       endif
     }
 
-    void blinkError(const char* reader) {
-        int beepPin = EXTERNAL_BEEP;
-        int ledPin = EXTERNAL_LED;
-
-#       ifdef TWO_READERS
-        if (!strcmp(reader, "internal")) {
-            beepPin = INTERNAL_BEEP;
-            ledPin = INTERNAL_LED;
-        }
-#       endif
-
-        //digitalWrite(ledPin, LOW);
-        digitalWrite(beepPin, LOW);
-        delay(200);
-        digitalWrite(beepPin, HIGH);
-        delay(200);
-        digitalWrite(beepPin, LOW);
-        delay(200);
-        digitalWrite(beepPin, HIGH);
-        delay(200);
-        digitalWrite(beepPin, LOW);
-        delay(200);
-        digitalWrite(beepPin, HIGH);
-        //digitalWrite(ledPin, HIGH);
-    }
 
     unsigned long lastFlush = 0;
 
@@ -301,7 +271,7 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
     return ReaderNS::checkCardReaders(readerID, cardID);
 }
 
-// TODO: these depend heavily on the actual model of the Wiegand readers
+// These depend heavily on the actual model of the Wiegand readers
 void blinkOk(const char* reader) {
     int beepPin = EXTERNAL_BEEP;
     int ledPin = EXTERNAL_LED;
@@ -347,19 +317,28 @@ void blinkDeny(const char* reader) {
     //digitalWrite(ledPin, HIGH);
 };
 
-void openDoorCommand() { openDoor(NULL); }
+void blinkError(const char* reader) {
+    int beepPin = EXTERNAL_BEEP;
+    int ledPin = EXTERNAL_LED;
 
-bool openDoor(const char* reader) {
-    log_v("Opened door");
-    digitalWrite(DOOR_OPEN, HIGH);
-    if (NULL != reader) { blinkOk(reader); }
-    delay(500);
-    digitalWrite(DOOR_OPEN, LOW);
-    return true;
-}
+#   ifdef TWO_READERS
+    if (!strcmp(reader, "internal")) {
+        beepPin = INTERNAL_BEEP;
+        ledPin = INTERNAL_LED;
+    }
+#   endif
 
-bool denyToOpenDoor(const char* reader) {
-    log_v("Denied to open door");
-    if (NULL != reader) { blinkDeny(reader); }
-    return true;
+    //digitalWrite(ledPin, LOW);
+    digitalWrite(beepPin, LOW);
+    delay(200);
+    digitalWrite(beepPin, HIGH);
+    delay(200);
+    digitalWrite(beepPin, LOW);
+    delay(200);
+    digitalWrite(beepPin, HIGH);
+    delay(200);
+    digitalWrite(beepPin, LOW);
+    delay(200);
+    digitalWrite(beepPin, HIGH);
+    //digitalWrite(ledPin, HIGH);
 }
