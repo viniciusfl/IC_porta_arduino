@@ -45,11 +45,6 @@ namespace ReaderNS {
                                      uint8_t* rawData, uint8_t rawBits,
                                      const char* message);
 
-    Wiegand external;
-
-#   ifdef TWO_READERS
-    Wiegand internal;
-#   endif
     // We read the Wiegand data in a callback with interrupts disabled; to make
     // this callback as short as possible and pass this data to the "normal"
     // program flow, we use these:
@@ -130,6 +125,10 @@ namespace ReaderNS {
                 rawBits, buf);
     }
 
+
+    // The interrupt handlers
+    Wiegand external;
+
     void IRAM_ATTR setExternal0PinState() {
         external.setPin0State(digitalRead(EXTERNAL_D0));
     }
@@ -139,6 +138,9 @@ namespace ReaderNS {
     }
 
 #   ifdef TWO_READERS
+
+    Wiegand internal;
+
     void IRAM_ATTR setInternal0PinState() {
         internal.setPin0State(digitalRead(INTERNAL_D0));
     }
@@ -218,20 +220,14 @@ namespace ReaderNS {
     }
 
     void blinkError(const char* reader) {
-        int beepPin;
-        int ledPin;
+        int beepPin = EXTERNAL_BEEP;
+        int ledPin = EXTERNAL_LED;
 
 #       ifdef TWO_READERS
         if (!strcmp(reader, "internal")) {
             beepPin = INTERNAL_BEEP;
             ledPin = INTERNAL_LED;
-        } else {
-            beepPin = EXTERNAL_BEEP;
-            ledPin = EXTERNAL_LED;
         }
-#       else
-        beepPin = EXTERNAL_BEEP;
-        ledPin = EXTERNAL_LED;
 #       endif
 
         //digitalWrite(ledPin, LOW);
@@ -307,20 +303,14 @@ bool checkCardReaders(const char*& readerID, unsigned long int& cardID) {
 
 // TODO: these depend heavily on the actual model of the Wiegand readers
 void blinkOk(const char* reader) {
-    int beepPin;
-    int ledPin;
+    int beepPin = EXTERNAL_BEEP;
+    int ledPin = EXTERNAL_LED;
 
 #   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
         beepPin = INTERNAL_BEEP;
         ledPin = INTERNAL_LED;
-    } else {
-        beepPin = EXTERNAL_BEEP;
-        ledPin = EXTERNAL_LED;
     }
-#   else
-    beepPin = EXTERNAL_BEEP;
-    ledPin = EXTERNAL_LED;
 #   endif
 
     digitalWrite(ledPin, LOW);
@@ -340,20 +330,14 @@ void blinkOk(const char* reader) {
 };
 
 void blinkDeny(const char* reader) {
-    int beepPin;
-    int ledPin;
+    int beepPin = EXTERNAL_BEEP;
+    int ledPin = EXTERNAL_LED;
 
 #   ifdef TWO_READERS
     if (!strcmp(reader, "internal")) {
         beepPin = INTERNAL_BEEP;
         ledPin = INTERNAL_LED;
-    } else {
-        beepPin = EXTERNAL_BEEP;
-        ledPin = EXTERNAL_LED;
     }
-#   else
-    beepPin = EXTERNAL_BEEP;
-    ledPin = EXTERNAL_LED;
 #   endif
 
     //digitalWrite(ledPin, LOW);
