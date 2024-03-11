@@ -87,7 +87,7 @@ void initDiskLog();
 void logAccess(const char* readerID, unsigned long cardID,
                   bool authorized);
 
-void flushSentLogfile();
+void notifyMessageSent();
 
 void uploadLogs();
 

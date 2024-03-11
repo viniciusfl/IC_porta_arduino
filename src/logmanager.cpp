@@ -85,9 +85,10 @@ static const char *TAG = "log";
   "big" (files need to fit in memory to be uploaded over MQTT).
 
   In step 3, we take care to only send a file if it is already closed, if
-  we are actually online and if we are not currently uploading any files
-  (enqueuing multiple files would consume too much memory).  After the
-  file is successfully sent, it is deleted.
+  we are actually online and if we are not currently uploading anything
+  (enqueuing multiple buffers would consume too much memory).  After the
+  file is successfully sent, it is deleted. We actually send each file
+  in blocks to save some memory.
 
   Log messages are not simple strings; they are often gererated in
   printf style, i.e., a format string and some parameters, such as
@@ -116,11 +117,12 @@ static const char *TAG = "log";
 */
 
 
-// Rotate the logfile if it reaches this many records or this total
-// size. We want to keep each file small because they are copied to
-// memory for transmission to the MQTT broker. We also want to
-// send out information to the broker regularly, so it is easier
-// to detect whether we crashed or lost connectivity.
+// Rotate the logfile if it reaches this many records or this total size.
+// We want to keep each file small because, if something goes wrong (such
+// as a network failure), we will upload the whole file again when the
+// problem is solved. We also want to send out information to the broker
+// regularly, so it is easier to detect whether we crashed or lost
+// connectivity.
 #define MAX_RECORDS 100
 #define MAX_LOG_FILE_SIZE 5000 // 5kb; this is a soft limit!!
 
@@ -130,7 +132,7 @@ static const char *TAG = "log";
 // hears from us on a somewhat regular basis.
 #define MAX_IDLE_TIME 3600000 // 1 hour
 
-// Check the disk periodically for logfiles to upload.
+// Check the disk periodically for new logfiles to upload.
 #define LOG_SEARCH_INTERVAL 15000 // 15 seconds
 
 // Divide the log files in a few subdirectories to avoid filesystem
@@ -443,48 +445,62 @@ namespace LOGNS {
             void uploadLogs(); // called periodically
             void flushSentLogfile(); // erase logfiles that have been sent ok
             void cancelUpload();
+            inline void messageSent();
         private:
-            bool sendingLogfile = false;
+            bool sendingMessage = false;
+            size_t seekPointer;
             char inTransitFilename[30]; // current file we're sending
-            bool sendNextLogfile();
+            bool sendNextMessages();
             unsigned long lastLogCheckTime = 0;
             unsigned long lastLogSentTime = 0;
             bool findFileToSend();
-            char sendBuf[MAX_LOG_FILE_SIZE + 500]; // MAX... is a soft limit
+            char sendBuf[4 * MAX_LOGMSG_SIZE];
     };
 
     void LogManager::cancelUpload() {
-        if (sendingLogfile) { log_d("Cancelling log file upload"); };
-        sendingLogfile = false;
+        if (sendingMessage or inTransitFilename[0] != 0) {
+            log_d("Cancelling log upload");
+        }
+
+        sendingMessage = false;
         inTransitFilename[0] = 0;
     }
 
     void LogManager::uploadLogs() {
         if (!logToDisk) { return; }
 
-        if (currentMillis - lastLogCheckTime < LOG_SEARCH_INTERVAL) { return; }
+        if (inTransitFilename[0] == 0 and
+            currentMillis - lastLogCheckTime < LOG_SEARCH_INTERVAL) {
+
+            return;
+        }
 
         lastLogCheckTime = currentMillis;
 
-        // If we are already sending a file or are offline,
+        // If we are already sending a message or are offline,
         // we should wait before sending anything else
-        if (sendingLogfile || !isClientConnected()) { return; }
+        if (sendingMessage || !isClientConnected()) { return; }
 
-        if (sendNextLogfile()) {
+        if (inTransitFilename[0] != 0 or findFileToSend()) {
+            sendNextMessages();
             lastLogSentTime = currentMillis;
-        } else {
-            // There was no file to send. If it's been too long since
-            // we sent anything, force the logfile to be rotated so
-            // we do send something on the next iteration.
-            if (currentMillis - lastLogSentTime > MAX_IDLE_TIME) {
-                logfile.rotate();
-            }
+            return;
+        }
+
+        // There was nothing to send. If it's been too long since
+        // we sent anything, force the logfile to be rotated so
+        // we do send something on the next iteration.
+        log_d("No logfiles to send for now.");
+
+        if (currentMillis - lastLogSentTime > MAX_IDLE_TIME) {
+            logfile.rotate();
         }
     }
 
+    inline void LogManager::messageSent() { sendingMessage = false; }
+
     void LogManager::flushSentLogfile() {
         log_v("Finished sending logfile %s.", inTransitFilename);
-        sendingLogfile = false;
         log_d("Removing sent logfile: %s", inTransitFilename);
 
         // This should never be false
@@ -496,38 +512,61 @@ namespace LOGNS {
     //      unresponsive. If this proves to be the case, we will
     //      need to do something. A simple idea is to put this in
     //      a low-priority task.
-    bool LogManager::sendNextLogfile() {
-        log_v("Searching for logs in SD to send...");
-
-        if (findFileToSend()) {
-            log_d("Found a logfile to send: %s", inTransitFilename);
+    bool LogManager::sendNextMessages() {
 
             File f = DISK.open(inTransitFilename, "r");
-            unsigned int len = f.size();
-            f.read((uint8_t*) sendBuf, len);
+            unsigned int size = f.size();
+
+            if (seekPointer >= size) {
+                // We reached EOF; the complete file has been sent
+                f.close();
+                sendingMessage = false;
+                flushSentLogfile();
+                return false;
+            }
+
+            f.seek(seekPointer);
+            unsigned int len = f.read((uint8_t*) sendBuf, 4 * MAX_LOGMSG_SIZE);
             f.close();
+
+            if (len < 0) {
+                log_e("There was an error reading message from %s",
+                       inTransitFilename);
+                inTransitFilename[0] = 0;
+            }
+
+            // The last message we have read may be truncated;
+            // find the end of the last complete message we read
+            for (int i = len -1; i >= 0; --i) {
+                if (sendBuf[i] == 0) {
+                    len = i;
+                    break;
+                }
+            }
+            seekPointer += len +1;
+
+            if (len <= 0) { return false; }
+
             bool success = sendLog(sendBuf, len);
 
             if (success) {
-                sendingLogfile = true;
+                sendingMessage = true;
             } else {
-                log_e("There was an error sending log: %s", inTransitFilename);
+                log_e("There was an error sending message from %s",
+                       inTransitFilename);
+
                 inTransitFilename[0] = 0;
             }
 
             return success;
-
-        } else {
-            log_d("No logfiles to send for now.");
-            inTransitFilename[0] = 0;
-            return false;
-        }
     }
 
     // Using readdir() instead of SD.openNextFile() here allows us to
     // use only one file descriptor (the directory) instead of two (the
     // directory and the file, necessary to get the filename).
     bool LogManager::findFileToSend() {
+        log_v("Searching for logs in SD to send...");
+
         bool found = false;
 
         for (int i = 0; i < NUM_SUBDIRS && ! found; ++i) {
@@ -569,6 +608,8 @@ namespace LOGNS {
                 if(! logfile.isMyCurrentName(filenamebuf)) {
                     strncpy(inTransitFilename, filenamebuf, 30);
                     found = true;
+                    seekPointer = 0;
+                    log_d("Found a logfile to send: %s", inTransitFilename);
                 }
             }
 
@@ -750,6 +791,6 @@ void logAccess(const char* readerID, unsigned long cardID,
 
 void uploadLogs() { LOGNS::manager.uploadLogs(); }
 
-void flushSentLogfile() { LOGNS::manager.flushSentLogfile(); }
+void notifyMessageSent() { LOGNS::manager.messageSent(); }
 
 void cancelLogUpload() { LOGNS::manager.cancelUpload(); }

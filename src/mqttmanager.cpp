@@ -222,10 +222,10 @@ namespace  MQTT {
             break;
 
         case MQTT_EVENT_PUBLISHED:
-            log_i("MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            log_d("MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
             if (findMessageID(event->msg_id) >= 0) {
                 forgetMessage(event->msg_id);
-                flushSentLogfile();
+                notifyMessageSent();
             }
             break;
 
