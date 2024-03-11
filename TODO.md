@@ -28,19 +28,10 @@
    mqtt, updating the DB etc. could run on a lower-priority task).
    However, this would consume more memory.
 
- * If we need to reduce memory usage, we may try reducing the maximum
-   log file size (and the corresponding buffers) to 2-3K, or store
-   them as larger files and split them before sending, maybe a single
-   message at a time. This would probably save almost 10KB because
-   buffers would be much smaller, but maintaining the logfile open
-   while sending would also consume some memory; to prevent this, we
-   may read an item, close the file, send it, reopen the file, seek,
-   read again etc. Another (extreme) possibility is to not log to
-   disk files anymore and use the DB for logging, but this complicates
+ * If we need to further reduce memory usage, we could give up logging
+   to disk files and use the DB for logging, but this complicates
    updating the DB (we would have to defer updates to when there are
-   no logs to be sent). We may also try to reduce the number of open
-   files, maybe using the NVS to store the status of the DB files
-   instead of the VALID_?.TXT and PREF_?.TXT files.
+   no logs to be sent).
 
  * Choose and set license
 
