@@ -10,6 +10,10 @@ const char* master_keys[] = {
     "19b20713d9ad41dc020114f5c2101083a1f8791bcc450a3fc2fb2cbee2d560d1"
 };
 
+const char* reboot_keys[] = {
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+};
+
 // This is a wrapper around SQLite which allows us
 // to query whether a user is authorized to enter.
 class Authorizer {
@@ -66,6 +70,15 @@ inline bool Authorizer::userAuthorized(const char* readerID,
         if (!strcmp(cardHash, master_keys[i])) {
             log_w("MASTER card used, openning door.");
             return true;
+        }
+    }
+
+    // reboot IDs are defined at the beginning of this file.
+    for (int i = 0; i < sizeof(reboot_keys)/sizeof(reboot_keys[0]); ++i) {
+        if (!strcmp(cardHash, reboot_keys[i])) {
+            log_w("reboot card used; rebooting.");
+            delay(2000); // flush pending logs
+            esp_restart();
         }
     }
 

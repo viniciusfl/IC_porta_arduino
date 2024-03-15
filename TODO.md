@@ -1,8 +1,6 @@
 # Short-term TODOs
 
  * We should add some more options for "remote control":
-   - A "master key" that forces a reboot, so we can do it even if mqtt
-     communication fails
    - An mqtt command to restore the previous firmware version *and*
      another "master key" that does the same
    - An mqtt command to rotate the logfile (i.e., close the current
