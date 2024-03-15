@@ -21,6 +21,10 @@ static const char *TAG = "ota";
 namespace OTA {
     class FirmwareUpdater {
         public:
+            FirmwareUpdater() {
+                configured = esp_ota_get_boot_partition();
+                running = esp_ota_get_running_partition();
+            };
             int writeBinary(const char* data, int length);
             void processOTAUpdate();
             void cancelFirmwareDownload();
@@ -44,8 +48,6 @@ namespace OTA {
 
 
     bool FirmwareUpdater::startOTAUpdate() {
-        configured = esp_ota_get_boot_partition();
-        running = esp_ota_get_running_partition();
         if (configured == NULL or running == NULL) { return false; }
 
         // This is *probably* not a fatal error, so just log it
