@@ -108,12 +108,14 @@ namespace OTA {
             } else {
                 log_e("esp_ota_end failed (%s)!", esp_err_to_name(err));
             }
+            return;
         }
 
         err = esp_ota_set_boot_partition(update_partition);
         if (err != ESP_OK) {
            log_e("esp_ota_set_boot_partition failed (%s)!",
                  esp_err_to_name(err));
+           return;
         }
 
         log_w("Prepare to restart system!");
