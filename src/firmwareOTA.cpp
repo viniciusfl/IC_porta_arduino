@@ -27,7 +27,8 @@ namespace OTA {
             };
             int writeBinary(const char* data, int length);
             void processOTAUpdate();
-            void cancelFirmwareDownload();
+            void cancelDownload();
+
         private:
             bool startOTAUpdate();
 
@@ -41,7 +42,7 @@ namespace OTA {
     };
 
 
-    void FirmwareUpdater::cancelFirmwareDownload() {
+    void FirmwareUpdater::cancelDownload() {
         downloading = false;
         esp_ota_abort(update_handle);
     }
@@ -133,4 +134,4 @@ void writeToFirmwareFile(const char* data, int data_len) {
 
 void performFirmwareUpdate() { OTA::firmware.processOTAUpdate(); }
 
-void cancelFirmwareDownload() { OTA::firmware.cancelFirmwareDownload(); }
+void cancelFirmwareDownload() { OTA::firmware.cancelDownload(); }
