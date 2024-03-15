@@ -1,8 +1,5 @@
 # Short-term TODOs
 
- * We should add an mqtt command to restore the previous firmware
-   version *and* a "master key" that does the same
-
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
 

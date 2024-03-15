@@ -4,4 +4,6 @@
 void writeToFirmwareFile(const char* data, int data_len);
 void performFirmwareUpdate();
 void cancelFirmwareDownload();
+void forceFirmwareRollback();
+
 #endif

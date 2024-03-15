@@ -29,6 +29,7 @@ namespace OTA {
             void processOTAUpdate();
             void cancelDownload();
 
+            void forceRollback();
         private:
             bool startOTAUpdate();
 
@@ -124,6 +125,13 @@ namespace OTA {
         esp_restart();
     }
 
+
+    void FirmwareUpdater::forceRollback() {
+        log_w("Firmware rollback requested");
+        delay(2000); // time to flush pending logs
+        esp_ota_mark_app_invalid_rollback_and_reboot();
+    }
+
     FirmwareUpdater firmware;
 }
 
@@ -135,3 +143,5 @@ void writeToFirmwareFile(const char* data, int data_len) {
 void performFirmwareUpdate() { OTA::firmware.processOTAUpdate(); }
 
 void cancelFirmwareDownload() { OTA::firmware.cancelDownload(); }
+
+void forceFirmwareRollback() { OTA::firmware.forceRollback(); }

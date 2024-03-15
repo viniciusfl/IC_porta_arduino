@@ -4,6 +4,7 @@ static const char *TAG = "auth";
 #include "mbedtls/md.h"
 #include <Arduino.h>
 #include <sqlite3.h>
+#include <firmwareOTA.h> // forceFirmwareRollback()
 
 const char* master_keys[] = {
     "3acce68667c2d4bafedb366ef9c221ebdf3ca9df1838b655603ee107d968f3c4",
@@ -11,6 +12,10 @@ const char* master_keys[] = {
 };
 
 const char* reboot_keys[] = {
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+};
+
+const char* rollback_keys[] = {
     "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 };
 
@@ -79,6 +84,14 @@ inline bool Authorizer::userAuthorized(const char* readerID,
             log_w("reboot card used; rebooting.");
             delay(2000); // flush pending logs
             esp_restart();
+        }
+    }
+
+    // rollback IDs are defined at the beginning of this file.
+    for (int i = 0; i < sizeof(rollback_keys)/sizeof(rollback_keys[0]); ++i) {
+        if (!strcmp(cardHash, rollback_keys[i])) {
+            log_w("rollback card used; rolling back firmware version.");
+            forceFirmwareRollback();
         }
     }
 

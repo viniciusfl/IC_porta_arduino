@@ -166,6 +166,9 @@ namespace  MQTT {
                 log_i("Received command to reboot ESP.");
                 delay(2000); // time to flush pending logs
                 esp_restart();
+            } else if (!strcmp(actualCommand, "fwRollback")) {
+                log_i("Received command to rollback the firmware.");
+                forceFirmwareRollback();
             } else if (!strcmp(actualCommand, "rotateLogs")) {
                 log_i("Received command to rotate the logs.");
                 rotateLogs();
