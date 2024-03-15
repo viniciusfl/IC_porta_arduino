@@ -20,7 +20,9 @@
 
  * Minor bug: if we are currently sending a logfile and get disconnected,
    the message is still enqueued. When we reconnect, we may enqueue another
-   logfile before the previous one is completely sent, consuming more memory.
+   logfile before the previous one is completely sent, consuming more
+   memory. We may use `esp_mqtt_client_get_outbox_size()` to work around
+   this ("0" means there is nothing there).
 
  * It would be better (faster) if `captureIncomingData()` (which runs
    with interrupts disabled) could trigger a separate, high priority
