@@ -16,9 +16,9 @@ namespace NetNS {
     unsigned long lastNetCheck;
     unsigned long lastNetOK;
 
-    //char ssid[] = "Rede IME";
-    char ssid[] = "Familia Ferraz 2.4G";
-    char password[] = "dogtor1966";
+    char ssid[] = "Rede IME";
+    //char ssid[] = "Somenet";
+    //char password[] = "Somepass";
 
     bool gotIp = false;
 
@@ -38,8 +38,8 @@ namespace NetNS {
     inline void netReset() {
         WiFi.disconnect(true);
         /* WiFi.config(local_IP, gateway, subnet); */
-        WiFi.begin(ssid, password);
-        //WiFi.begin(ssid);
+        //WiFi.begin(ssid, password);
+        WiFi.begin(ssid);
     }
 
     // This should be called from setup()
