@@ -20,6 +20,7 @@ static const char* TAG = "main";
 #include <door.h>
 #include <cardreader.h>
 #include <mqttmanager.h>
+#include <firmwareOTA.h> // firmwareOKWatchdog()
 
 int doorID = 1;
 
@@ -84,6 +85,8 @@ void setup() {
     // got the time from the HW clock above, great; if not, wait for NTP.
     int attempts = 0;
     while(!initTime()) { // Timeouts after 2s
+        firmwareOKWatchdog();
+
         checkDoor(); // No DB yet, so this only works for the master key
 
         ++attempts;
@@ -104,10 +107,12 @@ void setup() {
     if (diskOK) { sqlite3_initialize(); }
     initMqtt();
     initDBMan(diskOK);
+    firmwareOKWatchdog();
 }
 
 void loop() {
     currentMillis = millis();
+    firmwareOKWatchdog();
     checkDoor();
     uploadLogs();
     checkDoor();

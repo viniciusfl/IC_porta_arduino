@@ -209,6 +209,8 @@ namespace  MQTT {
                     subscribed = true;
                 }
             }
+
+            currentFirmwareSeemsOK();
             break;
 
         case MQTT_EVENT_DISCONNECTED:

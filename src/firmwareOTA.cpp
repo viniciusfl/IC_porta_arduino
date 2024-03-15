@@ -18,7 +18,26 @@ static const char *TAG = "ota";
 #include "FFat.h"
 #endif
 
+/*
+   Whenever we update the firmware, there is a chance we introduce a
+   serious bug. We would like to detect whether this has happened and
+   rollback the firmware version if necessary. So, what we do is:
+
+   1. Define "fwOK", initially false.
+
+   2. Call firmwareOKWatchdog() periodically; if fwOK is still false
+      10 minutes after boot, it calls seemsFaulty().
+
+   3. seemsFaulty() checks whether the firmware has been recently
+      updated and, if so, rolls back the firmware version.
+
+   4. If we connect successfully to the mqtt broker (which means we may
+      remotely control the system), we call currentFirmwareSeemsOK(),
+      which changes fwOK to true.
+*/
+
 namespace OTA {
+
     class FirmwareUpdater {
         public:
             FirmwareUpdater() {
@@ -30,13 +49,19 @@ namespace OTA {
             void cancelDownload();
 
             void forceRollback();
+            void seemsOK();
+            void seemsFaulty();
+            void watchdog();
         private:
             bool startOTAUpdate();
 
             const esp_partition_t *configured;
             const esp_partition_t *running;
             const esp_partition_t *update_partition;
+
             bool downloading = false;
+
+            bool fwOK = false;
 
             esp_ota_handle_t update_handle;
             int binary_file_length = 0;
@@ -132,6 +157,42 @@ namespace OTA {
         esp_ota_mark_app_invalid_rollback_and_reboot();
     }
 
+
+    void FirmwareUpdater::seemsOK() {
+        if (fwOK) { return; }
+
+        fwOK = true;
+        esp_ota_img_states_t state;
+        esp_ota_get_state_partition(running, &state);
+        if (state == ESP_OTA_IMG_PENDING_VERIFY) {
+            esp_ota_mark_app_valid_cancel_rollback();
+        }
+    }
+
+    void FirmwareUpdater::seemsFaulty() {
+        if (fwOK) { return; }
+
+        esp_ota_img_states_t state;
+        esp_ota_get_state_partition(running, &state);
+        if (state == ESP_OTA_IMG_PENDING_VERIFY) {
+            log_w("Current firmware seems faulty, rolling back");
+            delay(2000); // time to flush pending logs
+            esp_ota_mark_app_invalid_rollback_and_reboot();
+        } else {
+            fwOK = true;
+        }
+    }
+
+    void FirmwareUpdater::watchdog() {
+        if (fwOK) { return; }
+
+        if (millis() > 600000) { // 10 minutes of uptime
+            seemsFaulty();
+            return;
+        }
+    }
+
+
     FirmwareUpdater firmware;
 }
 
@@ -145,3 +206,10 @@ void performFirmwareUpdate() { OTA::firmware.processOTAUpdate(); }
 void cancelFirmwareDownload() { OTA::firmware.cancelDownload(); }
 
 void forceFirmwareRollback() { OTA::firmware.forceRollback(); }
+
+void currentFirmwareSeemsOK() { OTA::firmware.seemsOK(); }
+
+void currentFirmwareSeemsFaulty() { OTA::firmware.seemsFaulty(); }
+
+void firmwareOKWatchdog() { OTA::firmware.watchdog(); }
+

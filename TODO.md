@@ -3,6 +3,10 @@
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
 
+ * Automatically rolling back the firmware version if we cannot connect
+   to the mqtt broker is not working; maybe there is something wrong
+   with the code or maybe this feature is disabled in arduino-esp32.
+
  * Divide `logmanager.cpp` in two files, one for logging and the other
    for the log manager, i.e., the class that manages and uploads the
    actual log files.
