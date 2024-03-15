@@ -1,7 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define USE_SD
+//#define USE_SD
 
 
 #ifdef USE_SD
