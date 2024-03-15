@@ -12,6 +12,7 @@ static const char *TAG = "mqttman";
 #include <door.h>
 #include <keys.h>
 #include <firmwareOTA.h>
+#include <logmanager.h>
 
 // Everytime we successfully connect to the broker (which happens on boot
 // but also at other times due to network failures), we subscribe to the
@@ -165,6 +166,9 @@ namespace  MQTT {
                 log_i("Received command to reboot ESP.");
                 delay(2000); // time to flush pending logs
                 esp_restart();
+            } else if (!strcmp(actualCommand, "rotateLogs")) {
+                log_i("Received command to rotate the logs.");
+                rotateLogs();
             } else {
                 log_e("Invalid command: %s", actualCommand);
             }

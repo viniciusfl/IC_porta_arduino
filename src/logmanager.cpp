@@ -794,3 +794,5 @@ void uploadLogs() { LOGNS::manager.uploadLogs(); }
 void notifyMessageSent() { LOGNS::manager.messageSent(); }
 
 void cancelLogUpload() { LOGNS::manager.cancelUpload(); }
+
+void rotateLogs() { LOGNS::logfile.rotate(); }

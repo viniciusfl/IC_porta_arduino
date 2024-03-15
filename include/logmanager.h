@@ -93,4 +93,6 @@ void uploadLogs();
 
 void cancelLogUpload();
 
+void rotateLogs();
+
 #endif

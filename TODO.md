@@ -1,10 +1,7 @@
 # Short-term TODOs
 
- * We should add some more options for "remote control":
-   - An mqtt command to restore the previous firmware version *and*
-     another "master key" that does the same
-   - An mqtt command to rotate the logfile (i.e., close the current
-     file and open a new one)
+ * We should add an mqtt command to restore the previous firmware
+   version *and* a "master key" that does the same
 
  * Error handling: check return status of more function calls for
    memory allocation failures etc.
