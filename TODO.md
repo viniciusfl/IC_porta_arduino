@@ -1,8 +1,5 @@
 # Short-term TODOs
 
- * When logging access, we should register the hash, not the ID, so
-   if someone steals a logfile they cannot fabricate a valid key card
-
  * We should add some more options for "remote control":
    - A "master key" that forces a reboot, so we can do it even if mqtt
      communication fails

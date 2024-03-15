@@ -16,10 +16,10 @@ class Authorizer {
     public:
         int openDB(const char *filename);
         inline void closeDB();
-        inline bool userAuthorized(const char* readerID, unsigned long cardID);
+        inline bool userAuthorized(const char* readerID, const char* cardHash);
         inline void refreshQuery();
+        inline void calculate_hash(unsigned long cardID, char* hashBuf);
     private:
-        inline void calculate_hash(unsigned long cardID,  char* hash);
         // check the comment near Authorizer::closeDB()
         sqlite3 *sqlitedb = NULL;
         sqlite3_stmt *dbquery = NULL;
@@ -59,13 +59,11 @@ int Authorizer::openDB(const char *filename) {
 
 // search element through current database
 inline bool Authorizer::userAuthorized(const char* readerID,
-                                       unsigned long cardID) {
-    char hash[65]; // 64 chars + '\0'
-    calculate_hash(cardID, hash);
+                                       const char* cardHash) {
 
     // MASTER IDs are defined at the beginning of this file.
     for (int i = 0; i < sizeof(master_keys)/sizeof(master_keys[0]); ++i) {
-        if (!strcmp(hash, master_keys[i])) {
+        if (!strcmp(cardHash, master_keys[i])) {
             log_w("MASTER card used, openning door.");
             return true;
         }
@@ -75,16 +73,17 @@ inline bool Authorizer::userAuthorized(const char* readerID,
     // our DB file swap. We wait for up to 500 milliseconds for the
     // swap to complete.
     unsigned long start = millis();
-    while (sqlitedb == NULL && millis() - start < 500) {}
+    while (sqlitedb == NULL && millis() - start < 500) { delay(20); }
 
     if (sqlitedb == NULL) {
         log_e("Cannot read DB, denying access");
         return false;
     }
 
-    log_d("Card reader %s was used. Received card ID %lu", readerID, cardID);
+    log_d("Card reader %s was used. Received card hash %s",
+           readerID, cardHash);
 
-    sqlite3_bind_text(dbquery, 1, hash, strlen(hash), NULL);
+    sqlite3_bind_text(dbquery, 1, cardHash, strlen(cardHash), NULL);
     sqlite3_bind_int(dbquery, 2, doorID);
 
     bool authorized = false;
@@ -102,7 +101,9 @@ inline bool Authorizer::userAuthorized(const char* readerID,
     return authorized;
 }
 
-inline void Authorizer::calculate_hash(unsigned long cardID,  char* hash) {
+inline void Authorizer::calculate_hash(unsigned long cardID,
+                                       char* hashBuf) {
+
     // Initialize the sha256 generator
     mbedtls_md_context_t ctx;
     mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
@@ -122,7 +123,7 @@ inline void Authorizer::calculate_hash(unsigned long cardID,  char* hash) {
 
     // Convert the binary hash to a string (hexadecimal representation)
     for(int i = 0; i < 32; ++i){
-        snprintf(hash + 2*i, 3, "%02hhx", binHash[i]);
+        snprintf(hashBuf + 2*i, 3, "%02hhx", binHash[i]);
     }
 }
 
@@ -146,8 +147,12 @@ int openDB(const char* filename) { return authorizer.openDB(filename); }
 
 void closeDB() { authorizer.closeDB(); }
 
-bool userAuthorized(const char* readerID, unsigned long cardID) {
-    return authorizer.userAuthorized(readerID, cardID);
+bool userAuthorized(const char* readerID, const char* cardHash) {
+    return authorizer.userAuthorized(readerID, cardHash);
+}
+
+void calculate_hash(unsigned long cardID, char* hashBuf) {
+    authorizer.calculate_hash(cardID, hashBuf);
 }
 
 void refreshQuery() { authorizer.refreshQuery(); }

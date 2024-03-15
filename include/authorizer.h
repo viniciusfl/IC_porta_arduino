@@ -3,7 +3,8 @@
 
 int openDB(const char*);
 void closeDB();
-bool userAuthorized(const char* readerID, unsigned long cardID);
+bool userAuthorized(const char* readerID, const char* cardHash);
 void refreshQuery();
+void calculate_hash(unsigned long cardID, char* hashBuf);
 
 #endif

@@ -31,8 +31,10 @@ unsigned long int lastCardID;
 
 void checkDoor() {
     if (checkCardReaders(lastReaderID, lastCardID)) {
-        bool authorized = userAuthorized(lastReaderID, lastCardID);
-        logAccess(lastReaderID, lastCardID, authorized);
+        char cardHash[65]; // 64 chars + '\0'
+        calculate_hash(lastCardID, cardHash);
+        bool authorized = userAuthorized(lastReaderID, cardHash);
+        logAccess(lastReaderID, cardHash, authorized);
         if (authorized) {
             openDoor(lastReaderID);
         } else {

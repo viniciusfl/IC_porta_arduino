@@ -691,7 +691,7 @@ namespace LOGNS {
         return count;
     }
 
-    int logAccess(const char* readerID, unsigned long cardID,
+    int logAccess(const char* readerID, const char* cardHash,
                                              bool authorized) {
 
         const char* status;
@@ -703,8 +703,8 @@ namespace LOGNS {
 
         char buf[30];
         int count = timestamper.stamp(buf);
-        count += enqueueLogMessage("ACCESS", buf, "reader %s, ID %lu %s\n",
-                                   readerID, cardID, status);
+        count += enqueueLogMessage("ACCESS", buf, "reader %s, ID %s %s\n",
+                                   readerID, cardHash, status);
 
         return count;
     }
@@ -784,9 +784,9 @@ void initLog() {
 
 void initDiskLog() { LOGNS::initDiskLog(); }
 
-void logAccess(const char* readerID, unsigned long cardID,
+void logAccess(const char* readerID, const char* cardHash,
                     bool authorized) {
-    LOGNS::logAccess(readerID, cardID, authorized);
+    LOGNS::logAccess(readerID, cardHash, authorized);
 }
 
 void uploadLogs() { LOGNS::manager.uploadLogs(); }

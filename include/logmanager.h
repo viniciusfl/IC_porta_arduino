@@ -84,7 +84,7 @@ void initLog();
 
 void initDiskLog();
 
-void logAccess(const char* readerID, unsigned long cardID,
+void logAccess(const char* readerID, const char* cardHash,
                   bool authorized);
 
 void notifyMessageSent();
