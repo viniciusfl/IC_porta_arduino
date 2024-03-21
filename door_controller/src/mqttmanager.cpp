@@ -173,7 +173,7 @@ namespace  MQTT {
                 log_i("Received command to rotate the logs.");
                 rotateLogs();
             } else {
-                log_e("Invalid command: %s", actualCommand);
+                log_e("Unknown command: %s", actualCommand);
             }
         }
     }
