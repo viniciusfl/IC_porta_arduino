@@ -516,9 +516,10 @@ namespace LOGNS {
 
             File f = DISK.open(inTransitFilename, "r");
             unsigned int size = f.size();
+            log_v("Will send messages from log file %s", inTransitFilename);
 
             if (seekPointer >= size) {
-                // We reached EOF; the complete file has been sent
+                log_d("Log file %s completely sent", inTransitFilename);
                 f.close();
                 sendingMessage = false;
                 flushSentLogfile();
@@ -530,7 +531,7 @@ namespace LOGNS {
             f.close();
 
             if (len < 0) {
-                log_e("There was an error reading message from %s",
+                log_w("There was an error reading message from %s",
                        inTransitFilename);
                 inTransitFilename[0] = 0;
             }
@@ -543,16 +544,25 @@ namespace LOGNS {
                     break;
                 }
             }
-            seekPointer += len +1;
+            if (len <= 0) {
+                log_w("Could not find a complete log message in %s to send; "
+                      "this should not happen", inTransitFilename);
+                inTransitFilename[0] = 0;
+                return false;
+            }
 
-            if (len <= 0) { return false; }
+            log_v("Will send %u to %u bytes out of %u total file size "
+                  "from log file %s", seekPointer, seekPointer + len,
+                  size, inTransitFilename);
+
+            seekPointer += len +1;
 
             bool success = sendLog(sendBuf, len);
 
             if (success) {
                 sendingMessage = true;
             } else {
-                log_e("There was an error sending message from %s",
+                log_w("There was an error sending message from %s",
                        inTransitFilename);
 
                 inTransitFilename[0] = 0;
