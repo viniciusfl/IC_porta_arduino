@@ -1,6 +1,15 @@
-* Garantir que a saída de msg.payload.decode() realmente é uma string com os dados separados com vírgula ou mudar o tratamento caso não seja
+ * Make sure that the output of `msg.payload.decode()` is really a string
+   with the comma-separated list of data fields; if not, handle specially
+   (for example, save as-is to a separate DB table)
 
-* Realizar conexão com os brokers
+ * Add the name of the DB file to monitor to `FILE_PATTERNS` and modify
+   the expected extension for files in `commands` directory
 
-* Adicionar nome do banco de dados monitorado em FILE_PATTERNS e modificar a extensão dos arquivos que serão adicionados no diretório commands
+ * Remove `\n` from commands
 
+ * Whenever a new message is received (or, maybe, a new message of a
+   specific type), check for messages stored in the DB with the "wrong"
+   timestamp and fix them
+
+ * The door controller should only "see" the authorized hashes, not
+   the user names and other info

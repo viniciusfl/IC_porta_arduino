@@ -3,7 +3,7 @@
 Some important requirements:
 
 1. In most cases, we have a handful of authorized users for a door.
-   However, we may sometimes need up to 200.000 registered users (really),
+   However, we may sometimes need up to 200,000 registered users (really),
    so lookup time is a concern.
 
 2. We may want to add restrictions, such as limiting access for some users
@@ -28,8 +28,8 @@ Therefore:
    can communicate).
 
 3. Requirement 4, together with the potentially large number of users,
-   means that we need an additional SD card for storage (but we may make
-   it optional in the future)
+   means that, while we may use the ESP32 internal storage, we should also
+   support an additional SD card
 
 4. We considered using HTTP for network communication, which would allow
    us to work without a dedicated server program. Instead, we could create
@@ -49,11 +49,11 @@ Therefore:
 
 6. We could update the SQLite DB incrementally, with MQTT messages like
    "add/remove this authorized user". If we did that, we could also have
-   a secondary table in the same DB for logging. Still, we chose to always
-   upload a complete DB when there are changes because (1) incremental
-   updates might fail more often and (2) we already need to upload a
-   complete DB to initialize/reset a door controller. Still, we may review
-   this in the future.
+   a secondary table in the same DB for logging. In spite of that, we
+   chose to always upload a complete DB when there are changes because
+   (1) incremental updates might fail more often and (2) we already need
+   to upload a complete DB to initialize/reset a door controller. Still,
+   we may review this in the future.
 
 # Initialization steps
 
@@ -77,7 +77,7 @@ Therefore:
    for accesses with the master key.
 
 7. Start operating; unless steps 4 or 6 blocked, we should be ready to
-   go less than a second after the microcontroller is turned on.
+   go a few seconds after the microcontroller is turned on.
 
 After the initialization is complete, we may receive updated versions of
 the DB file over MQTT; when this happens, we save the new file to disk
