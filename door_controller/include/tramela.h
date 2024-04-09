@@ -3,7 +3,6 @@
 
 //#define USE_SD
 
-
 #ifdef USE_SD
 #define DISK SD
 #else
@@ -20,8 +19,6 @@ extern unsigned long currentMillis;
 extern int doorID;
 
 extern bool sdPresent;
-
-void checkDoor();
 
 #include <logmanager.h>
 

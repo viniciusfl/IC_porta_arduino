@@ -16,8 +16,7 @@ static const char* TAG = "main";
 #include <networkmanager.h>
 #include <timemanager.h>
 #include <dbmanager.h>
-#include <authorizer.h>
-#include <door.h>
+#include <doormanager.h>
 #include <cardreader.h>
 #include <mqttmanager.h>
 #include <firmwareOTA.h> // firmwareOKWatchdog()
@@ -49,24 +48,6 @@ int doorID = 1;
 
 unsigned long currentMillis;
 bool diskOK = false;
-
-const char* lastReaderID;
-unsigned long int lastCardID;
-
-void checkDoor() {
-    if (checkCardReaders(lastReaderID, lastCardID)) {
-        char cardHash[65]; // 64 chars + '\0'
-        calculate_hash(lastCardID, cardHash);
-        bool authorized = userAuthorized(lastReaderID, cardHash);
-        logAccess(lastReaderID, cardHash, authorized);
-        if (authorized) {
-            openDoor(lastReaderID);
-        } else {
-            denyToOpenDoor(lastReaderID);
-        }
-        refreshQuery(); // after we open the door, so things go faster
-    }
-}
 
 void setup() {
     // We always try to send logs to the serial port
