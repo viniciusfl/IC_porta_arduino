@@ -72,7 +72,7 @@ void setup() {
 
     if (diskOK) { sqlite3_initialize(); }
     initMqtt();
-    initDBMan(diskOK);
+    if (diskOK) { initDBMan(); }
     firmwareOKWatchdog();
 }
 

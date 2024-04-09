@@ -32,7 +32,7 @@ namespace DBNS {
 
     class UpdateDBManager {
     public:
-        inline void init(bool diskOK);
+        inline void init();
 
         inline bool startDBDownload(); // Open the "other" file for writing
         inline ssize_t writeToDatabaseFile(const char* data, int data_len);
@@ -40,7 +40,7 @@ namespace DBNS {
         inline void cancelDBDownload();
 
     private:
-        bool diskOK;
+        bool diskOK = false;
         bool downloading;
         const char *currentFile;
         const char *otherFile;
@@ -66,9 +66,8 @@ namespace DBNS {
     };  
 
     // This should be called from setup()
-    inline void UpdateDBManager::init(bool diskOK) {
-        this->diskOK = diskOK;
-        if (not diskOK) { return; }
+    inline void UpdateDBManager::init() {
+        diskOK = true;
 
         currentFile = "/DB_A.db";
         otherFile = "/DB_B.db";
@@ -249,7 +248,7 @@ namespace DBNS {
     UpdateDBManager updateDBManager;
 }
 
-void initDBMan(bool diskOK) { DBNS::updateDBManager.init(diskOK); }
+void initDBMan() { DBNS::updateDBManager.init(); }
 
 ssize_t writeToDatabaseFile(const char* data, int data_len) {
     return DBNS::updateDBManager.writeToDatabaseFile(data, data_len);
