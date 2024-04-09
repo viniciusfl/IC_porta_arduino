@@ -35,7 +35,7 @@ namespace  MQTT {
 
     class MqttManager {
     public:
-        inline void init();
+        inline void init(bool diskOK);
         inline bool serverConnected();
         inline bool sendLog(const char *logData, unsigned int len);
         void mqtt_event_handler(void *handler_args, esp_event_base_t base,
@@ -46,6 +46,7 @@ namespace  MQTT {
         enum DownloadType downloading; // DB, FIRMWARE, or NONE
         bool connected = false;
         bool subscribed = false;
+        bool diskOK = false;
 
         // We should never have more than one message in transit at any
         // given time, but let's be cautious.
@@ -73,7 +74,9 @@ namespace  MQTT {
     inline bool MqttManager::serverConnected() { return connected; }
 
     // This should be called from setup()
-    inline void MqttManager::init() {
+    inline void MqttManager::init(bool diskOK) {
+        this->diskOK = diskOK;
+
         resetMessageList();
 
         char buffer[50]; 
@@ -170,8 +173,12 @@ namespace  MQTT {
                 log_i("Received command to rollback the firmware.");
                 forceFirmwareRollback();
             } else if (!strcmp(actualCommand, "rotateLogs")) {
-                log_i("Received command to rotate the logs.");
-                rotateLogs();
+                if (diskOK) {
+                    log_i("Received command to rotate the logs.");
+                    rotateLogs();
+                } else {
+                    log_i("Ignoring received command to rotate the logs.");
+                }
             } else {
                 log_e("Unknown command: %s", actualCommand);
             }
@@ -181,6 +188,7 @@ namespace  MQTT {
     inline void MqttManager::resubscribe() {
         if (not subscribed) { return; }
         if (downloading == DB) { return; }
+        if (not diskOK) { return; }
         if (serverConnected()) {
             esp_mqtt_client_subscribe(client, "/topic/database", 2);
         } else {
@@ -201,7 +209,7 @@ namespace  MQTT {
             connected = true;
             esp_mqtt_client_subscribe(client, "/topic/commands", 2);
             esp_mqtt_client_subscribe(client, "/topic/firmware", 2);
-            if (not subscribed) {
+            if (diskOK and not subscribed) {
                 // Re-downloads the DB, because it is a retained message
                 if (esp_mqtt_client_subscribe(client,
                                               "/topic/database", 2) > 0) {
@@ -264,25 +272,28 @@ namespace  MQTT {
                     log_i("MQTT_EVENT_DATA from /topic/firmware -- full message");
                     writeToFirmwareFile(event->data, event->data_len);
                     performFirmwareUpdate();
-                } else {
+                } else if (diskOK) {
                     log_i("MQTT_EVENT_DATA from /topic/database -- full message");
                     writeToDatabaseFile(event->data, event->data_len);
                     finishDBDownload();
-                }
+                } else { } // shouldn't happen, not subscribed to the DB topic
 
                 break;
             }
 
             // First slice
             if (event->current_data_offset == 0) {
+                rememberMessage(event->msg_id);
                 if (!strcmp(buffer, "/topic/firmware")) {
                     downloading = FIRMWARE;
                     log_i("MQTT_EVENT_DATA from /topic/firmware -- first");
-                } else {
+                } else if (diskOK) {
                     downloading = DB;
                     log_i("MQTT_EVENT_DATA from /topic/database -- first");
+                } else {
+                    // shouldn't happen, not subscribed to the DB topic
+                    forgetMessage(event->msg_id);
                 }
-                rememberMessage(event->msg_id);
             }
 
             bool lastSlice;
@@ -300,7 +311,7 @@ namespace  MQTT {
                     log_v("MQTT_EVENT_DATA from /topic/firmware -- ongoing %d",
                             event->current_data_offset);
                 }
-            } else {
+            } else if (diskOK) {
                 writeToDatabaseFile(event->data, event->data_len);
                 if (lastSlice) {
                     log_i("MQTT_EVENT_DATA from /topic/database -- last");
@@ -312,7 +323,7 @@ namespace  MQTT {
                     log_v("MQTT_EVENT_DATA from /topic/database -- ongoing %d",
                             event->current_data_offset);
                 }
-            }
+            } else { } // shouldn't happen, not subscribed to the DB topic
 
             break;
 
@@ -356,7 +367,7 @@ namespace  MQTT {
 }
 
 
-void initMqtt() { MQTT::mqttManager.init(); }
+void initMqtt(bool diskOK) { MQTT::mqttManager.init(diskOK); }
 
 bool isClientConnected() { return MQTT::mqttManager.serverConnected(); }
 

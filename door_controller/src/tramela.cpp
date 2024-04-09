@@ -71,7 +71,7 @@ void setup() {
     }
 
     if (diskOK) { sqlite3_initialize(); }
-    initMqtt();
+    initMqtt(diskOK); // mqtt can partially work even without the disk
     if (diskOK) { initDBMan(); }
     firmwareOKWatchdog();
 }
