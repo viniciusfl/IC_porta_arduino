@@ -11,7 +11,7 @@ static const char* TAG = "main";
 #include <FFat.h>
 #endif
 
-#include <sqlite3.h>
+#include <sqlite3.h> // sqlite3_initialize()
 
 #include <networkmanager.h>
 #include <timemanager.h>
