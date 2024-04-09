@@ -18,8 +18,6 @@ extern unsigned long currentMillis;
 
 extern int doorID;
 
-extern bool sdPresent;
-
 #include <logmanager.h>
 
 #endif
