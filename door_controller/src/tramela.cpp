@@ -22,6 +22,29 @@ static const char* TAG = "main";
 #include <mqttmanager.h>
 #include <firmwareOTA.h> // firmwareOKWatchdog()
 
+#ifdef USE_SD
+#include <sd_diskio.h>
+// Write some garbage to the beginning of the disk and
+// attempt to mount it with "format_if_empty" == true
+bool formatSDCard() {
+    SPI.begin(); // this is idempotent
+
+    uint8_t pdrv = sdcard_init(SS, &SPI, 4000000);
+    if (pdrv = 0xFF) { return false; }
+
+    uint8_t zero = 0;
+    for (uint32_t i = 0; i < 16 * 1024; ++i) {
+        sd_write_raw(pdrv, &zero, i);
+    }
+
+    bool success = sdcard_mount(pdrv, "/tmpformat", 2, true);
+    success = (0 == sdcard_unmount(pdrv)) and success;
+    success = (0 == sdcard_uninit(pdrv)) and success;
+
+    return success;
+};
+#endif
+
 int doorID = 1;
 
 unsigned long currentMillis;
@@ -64,9 +87,11 @@ void setup() {
     log_v("Start program");
 
 #   ifdef USE_SD
-    if (!SD.begin()) {
+    if (!SD.begin(SS, SPI, 4000000, "/sd", 5, true)) {
+        //formatSDCard();
 #   else
     if (!FFat.begin(true, "/ffat", 5)) {
+        //FFat.format();
 #   endif
         log_e("Card Mount Failed...");
     } else {
