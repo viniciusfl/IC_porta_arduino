@@ -95,6 +95,8 @@ void setup() {
 #   endif
         log_e("Card Mount Failed...");
     } else {
+        //wipeDBFiles();
+        //wipeLogs();
         log_v("Disk available.");
         diskOK = true;
         initDiskLog();

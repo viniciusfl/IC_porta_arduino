@@ -258,3 +258,39 @@ ssize_t writeToDatabaseFile(const char* data, int data_len) {
 void finishDBDownload() { return DBNS::updateDBManager.finishDBDownload(); }
 
 void cancelDBDownload() { return DBNS::updateDBManager.cancelDBDownload(); }
+
+bool wipeDBFiles() {
+    log_i("Wiping all DB files");
+    closeDB();
+    if (not DISK.remove("/DB_A.db")) {
+        log_w("Something wrong happened while removing DB file /DB_A.db");
+        return false;
+    }
+
+    if (not DISK.remove("/DB_B.db")) {
+        log_w("Something wrong happened while removing DB file /DB_B.db");
+        return false;
+    }
+
+    if (not DISK.remove("/VALID_A.TXT")) {
+        log_w("Something wrong happened while removing DB file /VALID_A.TXT");
+        return false;
+    }
+
+    if (not DISK.remove("/VALID_B.TXT")) {
+        log_w("Something wrong happened while removing DB file /VALID_B.TXT");
+        return false;
+    }
+
+    if (not DISK.remove("/PREF_A.TXT")) {
+        log_w("Something wrong happened while removing DB file /PREF_A.TXT");
+        return false;
+    }
+
+    if (not DISK.remove("/PREF_B.TXT")) {
+        log_w("Something wrong happened while removing DB file /PREF_B.TXT");
+        return false;
+    }
+
+    return true;
+}

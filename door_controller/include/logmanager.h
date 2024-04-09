@@ -95,4 +95,6 @@ void cancelLogUpload();
 
 void rotateLogs();
 
+bool wipeLogs();
+
 #endif

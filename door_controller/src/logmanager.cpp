@@ -806,3 +806,71 @@ void notifyMessageSent() { LOGNS::manager.messageSent(); }
 void cancelLogUpload() { LOGNS::manager.cancelUpload(); }
 
 void rotateLogs() { LOGNS::logfile.rotate(); }
+
+bool wipeLogs() {
+    log_i("Wiping all log files and dirs");
+
+    for (int i = 0; i < NUM_SUBDIRS; ++i) {
+        char dirnamebuf[15];
+#       ifdef USE_SD
+        snprintf(dirnamebuf, 15, "/sd/logs/%.2d", i);
+#       else
+        snprintf(dirnamebuf, 15, "/ffat/logs/%.2d", i);
+#       endif
+
+        DIR* dir = opendir(dirnamebuf);
+        if (NULL == dir) { return false; }
+
+        while (true) {
+            struct dirent* entry = readdir(dir);
+
+            if (NULL == entry) { break; }
+
+            int result = fnmatch("*.log", entry->d_name, 0);
+
+            // Skip stuff like ".", ".." etc.
+            if (result == FNM_NOMATCH) { continue; }
+
+            if (result != 0) {
+                log_w("Something wrong happened while wiping logs");
+                closedir(dir);
+                return false;
+            }
+
+            char filenamebuf[30];
+            snprintf(filenamebuf, 30, "%s/%s", dirnamebuf
+            // "/sd" or "/ffat"
+#           ifdef USE_SD
+                    +3,
+#           else
+                    +5,
+#           endif
+                     entry->d_name);
+
+            if (not DISK.remove(filenamebuf)) {
+                log_w("Something wrong happened while removing logfile %s",
+                      filenamebuf);
+                closedir(dir);
+                return false;
+            }
+        }
+
+        closedir(dir);
+    }
+
+    char buf[10];
+    for (int i = 0; i < NUM_SUBDIRS; ++i) {
+        snprintf(buf, 10, "/logs/%.2d", i);
+        if (not DISK.rmdir(buf)) {
+            log_w("Something wrong happened while removing logdir %s", buf);
+            return false;
+        }
+    }
+
+    if (not DISK.rmdir("/logs")) {
+        log_w("Something wrong happened while removing /logs");
+        return false;
+    }
+
+    return true;
+}
